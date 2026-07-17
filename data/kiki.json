@@ -1,0 +1,680 @@
+{
+  "slug": "kiki",
+  "title": "魔女宅急便",
+  "navTitle": "魔女宅急便",
+  "position": 1,
+  "page": "index.html",
+  "video": "media/kiki.mp4",
+  "poster": "assets/kiki.jpg",
+  "sourceSegment": "原片 00:54:34.400–01:00:04.000",
+  "durationLabel": "05:29.600",
+  "duration": 329.62,
+  "lineCount": 59,
+  "roleCount": 6,
+  "roles": [
+    {
+      "role": "琪琪",
+      "lineCount": 22,
+      "characterCount": 292
+    },
+    {
+      "role": "老夫人",
+      "lineCount": 18,
+      "characterCount": 234
+    },
+    {
+      "role": "芭莎",
+      "lineCount": 7,
+      "characterCount": 68
+    },
+    {
+      "role": "吉吉",
+      "lineCount": 6,
+      "characterCount": 61
+    },
+    {
+      "role": "孫女",
+      "lineCount": 5,
+      "characterCount": 62
+    },
+    {
+      "role": "室內女性",
+      "lineCount": 1,
+      "characterCount": 3
+    }
+  ],
+  "lines": [
+    {
+      "index": 1,
+      "start": 0.24,
+      "end": 4.78,
+      "role": "琪琪",
+      "japanese": "あ、奥さま、私まだちょっと時間があるんです。そのオーブンは使えないのですか？",
+      "japaneseHtml": "あ、<ruby>奥<rt>おく</rt></ruby>さま、<ruby>私<rt>わたし</rt></ruby>まだちょっと<ruby>時間<rt>じかん</rt></ruby>があるんです。そのオーブンは<ruby>使<rt>つか</rt></ruby>えないのですか？",
+      "translation": "老夫人，我還有一點時間。那個烤箱不能用嗎？",
+      "performance": "表演：語氣禮貌，但已經主動想到辦法。"
+    },
+    {
+      "index": 2,
+      "start": 5.82,
+      "end": 13.49,
+      "role": "老夫人",
+      "japanese": "え？ ああ、これね。昔はよくこれで焼いたけど、でも、ずいぶん使ってないから。",
+      "japaneseHtml": "え？ ああ、これね。<ruby>昔<rt>むかし</rt></ruby>はよくこれで<ruby>焼<rt>や</rt></ruby>いたけど、でも、ずいぶん<ruby>使<rt>つか</rt></ruby>ってないから。",
+      "translation": "咦？這個呀。以前常用它烤，不過已經很久沒用了。",
+      "performance": "表演：先驚訝，再帶一點懷念。"
+    },
+    {
+      "index": 3,
+      "start": 13.73,
+      "end": 17.81,
+      "role": "琪琪",
+      "japanese": "薪のオーブンなら私もお手伝いできます。田舎で母に仕込まれました。",
+      "japaneseHtml": "<ruby>薪<rt>まき</rt></ruby>のオーブンなら<ruby>私<rt>わたし</rt></ruby>もお<ruby>手伝<rt>てつだ</rt></ruby>いできます。<ruby>田舎<rt>いなか</rt></ruby>で<ruby>母<rt>はは</rt></ruby>に<ruby>仕込<rt>しこ</rt></ruby>まれました。",
+      "translation": "如果是柴火烤箱，我也能幫忙；在鄉下時媽媽教過我。",
+      "performance": "表演：自信、誠懇。"
+    },
+    {
+      "index": 4,
+      "start": 18.75,
+      "end": 20.95,
+      "role": "老夫人",
+      "japanese": "そうはいっても大仕事よ。",
+      "japaneseHtml": "そうはいっても<ruby>大仕事<rt>おおしごと</rt></ruby>よ。",
+      "translation": "話雖如此，這可是大工程。",
+      "performance": "表演：擔心讓孩子太辛苦。"
+    },
+    {
+      "index": 5,
+      "start": 21.0,
+      "end": 26.21,
+      "role": "芭莎",
+      "japanese": "名案ですよ。私は電気は嫌いだけど、薪なら暖炉用のがあるし。",
+      "japaneseHtml": "<ruby>名案<rt>めいあん</rt></ruby>ですよ。<ruby>私<rt>わたし</rt></ruby>は<ruby>電気<rt>でんき</rt></ruby>は<ruby>嫌<rt>きら</rt></ruby>いだけど、<ruby>薪<rt>まき</rt></ruby>なら<ruby>暖炉<rt>だんろ</rt></ruby><ruby>用<rt>よう</rt></ruby>のがあるし。",
+      "translation": "好主意。我不喜歡電器，不過壁爐用的木柴倒是有。",
+      "performance": "表演：爽朗、立刻贊成。"
+    },
+    {
+      "index": 6,
+      "start": 26.57,
+      "end": 27.55,
+      "role": "琪琪",
+      "japanese": "やりましょう、奥さま。",
+      "japaneseHtml": "やりましょう、<ruby>奥<rt>おく</rt></ruby>さま。",
+      "translation": "我們來做吧，夫人。",
+      "performance": "表演：短而堅定。"
+    },
+    {
+      "index": 7,
+      "start": 28.23,
+      "end": 32.3,
+      "role": "老夫人",
+      "japanese": "そうねぇ。じゃあ、お願いしようかしら。",
+      "japaneseHtml": "そうねぇ。じゃあ、お<ruby>願<rt>ねが</rt></ruby>いしようかしら。",
+      "translation": "說得也是，那就拜託你了。",
+      "performance": "表演：由猶豫轉為信任。"
+    },
+    {
+      "index": 8,
+      "start": 37.1,
+      "end": 39.52,
+      "role": "吉吉",
+      "japanese": "良い子ぶってパーティーに遅れても知らないよ。",
+      "japaneseHtml": "<ruby>良<rt>い</rt></ruby>い<ruby>子<rt>こ</rt></ruby>ぶってパーティーに<ruby>遅<rt>おく</rt></ruby>れても<ruby>知<rt>し</rt></ruby>らないよ。",
+      "translation": "妳逞強當好孩子，晚到派對我可不管喔。",
+      "performance": "表演：嘴壞但其實擔心。"
+    },
+    {
+      "index": 9,
+      "start": 39.52,
+      "end": 41.71,
+      "role": "琪琪",
+      "japanese": "だって、お金だけもらえないよ。",
+      "japaneseHtml": "だって、お<ruby>金<rt>かね</rt></ruby>だけもらえないよ。",
+      "translation": "可是我不能只收錢不做事呀。",
+      "performance": "表演：壓低聲量回吉吉，理所當然。"
+    },
+    {
+      "index": 10,
+      "start": 50.14,
+      "end": 50.94,
+      "role": "琪琪",
+      "japanese": "急がなくちゃ。",
+      "japaneseHtml": "<ruby>急<rt>いそ</rt></ruby>がなくちゃ。",
+      "translation": "得快一點。",
+      "performance": "表演：邊做邊說，節奏開始加速。"
+    },
+    {
+      "index": 11,
+      "start": 53.48,
+      "end": 55.62,
+      "role": "芭莎",
+      "japanese": "ほら、まだ使えますよ。",
+      "japaneseHtml": "ほら、まだ<ruby>使<rt>つか</rt></ruby>えますよ。",
+      "translation": "你看，還能用呢。",
+      "performance": "表演：像發現寶物般高興。"
+    },
+    {
+      "index": 12,
+      "start": 56.6,
+      "end": 60.26,
+      "role": "老夫人",
+      "japanese": "お母さまのお仕込みがいいのね。段取りがいいわ。",
+      "japaneseHtml": "お<ruby>母<rt>かあ</rt></ruby>さまのお<ruby>仕込<rt>しこ</rt></ruby>みがいいのね。<ruby>段取<rt>だんど</rt></ruby>りがいいわ。",
+      "translation": "妳母親教得真好，做事很有條理。",
+      "performance": "表演：慈愛、欣賞。"
+    },
+    {
+      "index": 13,
+      "start": 70.64,
+      "end": 72.5,
+      "role": "老夫人",
+      "japanese": "なんかワクワクするわねぇ。",
+      "japaneseHtml": "なんかワクワクするわねぇ。",
+      "translation": "總覺得讓人好期待呢。",
+      "performance": "表演：稍微童心未泯。"
+    },
+    {
+      "index": 14,
+      "start": 72.84,
+      "end": 75.02,
+      "role": "芭莎",
+      "japanese": "私は電気は嫌いです。",
+      "japaneseHtml": "<ruby>私<rt>わたし</rt></ruby>は<ruby>電気<rt>でんき</rt></ruby>は<ruby>嫌<rt>きら</rt></ruby>いです。",
+      "translation": "我就是討厭電器。",
+      "performance": "表演：一本正經地補一句，做出笑點。"
+    },
+    {
+      "index": 15,
+      "start": 89.95,
+      "end": 93.24,
+      "role": "老夫人",
+      "japanese": "ちょうど頃合いね。あ、そのくらいでいいわ。",
+      "japaneseHtml": "ちょうど<ruby>頃合<rt>ころあ</rt></ruby>いね。あ、そのくらいでいいわ。",
+      "translation": "火候剛好。嗯，那樣就可以了。",
+      "performance": "表演：沉穩地指揮。"
+    },
+    {
+      "index": 16,
+      "start": 105.26,
+      "end": 106.72,
+      "role": "老夫人",
+      "japanese": "あとは待つだけね。",
+      "japaneseHtml": "あとは<ruby>待<rt>ま</rt></ruby>つだけね。",
+      "translation": "接下來只要等了。",
+      "performance": "表演：鬆一口氣。"
+    },
+    {
+      "index": 17,
+      "start": 107.08,
+      "end": 108.54,
+      "role": "琪琪",
+      "japanese": "40分くらいでしょうか。",
+      "japaneseHtml": "40<ruby>分<rt>ぷん</rt></ruby>くらいでしょうか。",
+      "translation": "大概四十分鐘嗎？",
+      "performance": "表演：確認時間。"
+    },
+    {
+      "index": 18,
+      "start": 108.96,
+      "end": 111.82,
+      "role": "老夫人",
+      "japanese": "ええ、そうね。ひと休みしましょう。",
+      "japaneseHtml": "ええ、そうね。ひと<ruby>休<rt>やす</rt></ruby>みしましょう。",
+      "translation": "嗯，是呀。我們休息一下吧。",
+      "performance": "表演：溫柔招呼。"
+    },
+    {
+      "index": 19,
+      "start": 112.18,
+      "end": 114.46,
+      "role": "琪琪",
+      "japanese": "ほかに何かお手伝いすることはありませんか？",
+      "japaneseHtml": "ほかに<ruby>何<rt>なに</rt></ruby>かお<ruby>手伝<rt>てつだ</rt></ruby>いすることはありませんか？",
+      "translation": "還有其他能幫忙的事嗎？",
+      "performance": "表演：積極、沒有不耐煩。"
+    },
+    {
+      "index": 20,
+      "start": 114.84,
+      "end": 117.66,
+      "role": "老夫人",
+      "japanese": "あら、そう。じゃあ、お願いしようかしら？",
+      "japaneseHtml": "あら、そう。じゃあ、お<ruby>願<rt>ねが</rt></ruby>いしようかしら？",
+      "translation": "是嗎？那可以再拜託妳嗎？",
+      "performance": "表演：先客氣一下。"
+    },
+    {
+      "index": 21,
+      "start": 119.58,
+      "end": 120.56,
+      "role": "芭莎",
+      "japanese": "悪いわねぇ。",
+      "japaneseHtml": "<ruby>悪<rt>わる</rt></ruby>いわねぇ。",
+      "translation": "真不好意思。",
+      "performance": "表演：邊忙邊說。"
+    },
+    {
+      "index": 22,
+      "start": 121.42,
+      "end": 122.02,
+      "role": "琪琪",
+      "japanese": "いいえ。",
+      "japaneseHtml": "いいえ。",
+      "translation": "不會。",
+      "performance": "表演：輕快俐落。"
+    },
+    {
+      "index": 23,
+      "start": 124.43,
+      "end": 126.57,
+      "role": "吉吉",
+      "japanese": "もう間に合わないと思うよ、たぶん。",
+      "japaneseHtml": "もう<ruby>間<rt>ま</rt></ruby>に<ruby>合<rt>あ</rt></ruby>わないと<ruby>思<rt>おも</rt></ruby>うよ、たぶん。",
+      "translation": "我看已經來不及了，大概。",
+      "performance": "表演：故意潑冷水。"
+    },
+    {
+      "index": 24,
+      "start": 126.57,
+      "end": 130.77,
+      "role": "琪琪",
+      "japanese": "心配屋！ フルスピードで飛ばせば、15分でギリギリセーフよ。",
+      "japaneseHtml": "<ruby>心配<rt>しんぱい</rt></ruby><ruby>屋<rt>や</rt></ruby>！ フルスピードで<ruby>飛<rt>と</rt></ruby>ばせば、15<ruby>分<rt>ふん</rt></ruby>でギリギリセーフよ。",
+      "translation": "愛操心！全速飛的話，十五分鐘剛好壓線。",
+      "performance": "表演：帶自信反駁。"
+    },
+    {
+      "index": 25,
+      "start": 132.52,
+      "end": 135.7,
+      "role": "老夫人",
+      "japanese": "お茶が入りましたよ。こっちいらっしゃい。",
+      "japaneseHtml": "お<ruby>茶<rt>ちゃ</rt></ruby>が<ruby>入<rt>はい</rt></ruby>りましたよ。こっちいらっしゃい。",
+      "translation": "茶泡好了，過來吧。",
+      "performance": "表演：像招呼自家孩子。"
+    },
+    {
+      "index": 26,
+      "start": 137.98,
+      "end": 140.34,
+      "role": "老夫人",
+      "japanese": "6時からパーティー？ 間に合うの！？",
+      "japaneseHtml": "6<ruby>時<rt>じ</rt></ruby>からパーティー？ <ruby>間<rt>ま</rt></ruby>に<ruby>合<rt>あ</rt></ruby>うの！？",
+      "translation": "派對六點開始？來得及嗎？",
+      "performance": "表演：突然警覺。"
+    },
+    {
+      "index": 27,
+      "start": 140.88,
+      "end": 143.52,
+      "role": "琪琪",
+      "japanese": "大丈夫です。15分あれば足りますから。",
+      "japaneseHtml": "<ruby>大丈夫<rt>だいじょうぶ</rt></ruby>です。15<ruby>分<rt>ふん</rt></ruby>あれば<ruby>足<rt>た</rt></ruby>りますから。",
+      "translation": "沒問題，十五分鐘就夠了。",
+      "performance": "表演：仍有把握。"
+    },
+    {
+      "index": 28,
+      "start": 145.72,
+      "end": 148.6,
+      "role": "老夫人",
+      "japanese": "大変！ あの時計、10分遅れてるのよ。",
+      "japaneseHtml": "<ruby>大変<rt>たいへん</rt></ruby>！ あの<ruby>時計<rt>とけい</rt></ruby>、10<ruby>分<rt>ぷん</rt></ruby><ruby>遅<rt>おく</rt></ruby>れてるのよ。",
+      "translation": "糟了！那座鐘慢了十分鐘。",
+      "performance": "表演：驚慌但吐字要清楚。"
+    },
+    {
+      "index": 29,
+      "start": 148.76,
+      "end": 150.3,
+      "role": "琪琪",
+      "japanese": "ええっ！ ど、どうしよう。",
+      "japaneseHtml": "ええっ！ ど、どうしよう。",
+      "translation": "什麼！怎、怎麼辦。",
+      "performance": "表演：瞬間慌掉。"
+    },
+    {
+      "index": 30,
+      "start": 150.73,
+      "end": 152.21,
+      "role": "老夫人",
+      "japanese": "早く、かまどへ！",
+      "japaneseHtml": "<ruby>早<rt>はや</rt></ruby>く、かまどへ！",
+      "translation": "快，到爐子那邊！",
+      "performance": "表演：立刻下指令。"
+    },
+    {
+      "index": 31,
+      "start": 152.61,
+      "end": 153.01,
+      "role": "琪琪",
+      "japanese": "は、はい！",
+      "japaneseHtml": "は、はい！",
+      "translation": "是、是！",
+      "performance": "表演：急促。"
+    },
+    {
+      "index": 32,
+      "start": 154.32,
+      "end": 155.86,
+      "role": "老夫人",
+      "japanese": "バーサ、バーサ！",
+      "japaneseHtml": "バーサ、バーサ！",
+      "translation": "芭莎、芭莎！",
+      "performance": "表演：提高音量叫人。"
+    },
+    {
+      "index": 33,
+      "start": 164.9,
+      "end": 165.68,
+      "role": "琪琪",
+      "japanese": "どうでしょう？",
+      "japaneseHtml": "どうでしょう？",
+      "translation": "烤得怎麼樣？",
+      "performance": "表演：緊張期待。"
+    },
+    {
+      "index": 34,
+      "start": 165.96,
+      "end": 168.08,
+      "role": "老夫人",
+      "japanese": "よく焼けてるわ。さ、早く。",
+      "japaneseHtml": "よく<ruby>焼<rt>や</rt></ruby>けてるわ。さ、<ruby>早<rt>はや</rt></ruby>く。",
+      "translation": "烤得很好。來，快點。",
+      "performance": "表演：先安心，馬上催促。"
+    },
+    {
+      "index": 35,
+      "start": 168.58,
+      "end": 168.9,
+      "role": "琪琪",
+      "japanese": "はい！",
+      "japaneseHtml": "はい！",
+      "translation": "好！",
+      "performance": "表演：乾脆。"
+    },
+    {
+      "index": 36,
+      "start": 177.47,
+      "end": 178.51,
+      "role": "芭莎",
+      "japanese": "はあ、はあ、急いで！",
+      "japaneseHtml": "はあ、はあ、<ruby>急<rt>いそ</rt></ruby>いで！",
+      "translation": "快、快點！",
+      "performance": "表演：先做兩次自然喘氣，別搶掉台詞。"
+    },
+    {
+      "index": 37,
+      "start": 178.95,
+      "end": 179.37,
+      "role": "琪琪",
+      "japanese": "はい！",
+      "japaneseHtml": "はい！",
+      "translation": "好！",
+      "performance": "表演：一邊跑一邊回答。"
+    },
+    {
+      "index": 38,
+      "start": 180.02,
+      "end": 181.0,
+      "role": "老夫人",
+      "japanese": "忘れ物よ。",
+      "japaneseHtml": "<ruby>忘<rt>わす</rt></ruby>れ<ruby>物<rt>もの</rt></ruby>よ。",
+      "translation": "忘了東西。",
+      "performance": "表演：叫住琪琪。"
+    },
+    {
+      "index": 39,
+      "start": 181.94,
+      "end": 183.52,
+      "role": "琪琪",
+      "japanese": "あっ、いけません、こんなに！",
+      "japaneseHtml": "あっ、いけません、こんなに！",
+      "translation": "啊，不行，這麼多！",
+      "performance": "表演：看到額外酬金，受寵若驚。"
+    },
+    {
+      "index": 40,
+      "start": 183.76,
+      "end": 184.84,
+      "role": "老夫人",
+      "japanese": "受け取ってちょうだい。",
+      "japaneseHtml": "<ruby>受<rt>う</rt></ruby>け<ruby>取<rt>と</rt></ruby>ってちょうだい。",
+      "translation": "請收下吧。",
+      "performance": "表演：溫柔但不容推辭。"
+    },
+    {
+      "index": 41,
+      "start": 185.4,
+      "end": 186.74,
+      "role": "芭莎",
+      "japanese": "ああ、早く、早く！",
+      "japaneseHtml": "ああ、<ruby>早<rt>はや</rt></ruby>く、<ruby>早<rt>はや</rt></ruby>く！",
+      "translation": "哎呀，快點、快點！",
+      "performance": "表演：喜劇式催促。"
+    },
+    {
+      "index": 42,
+      "start": 188.06,
+      "end": 189.52,
+      "role": "老夫人",
+      "japanese": "すてきなパーティーを！",
+      "japaneseHtml": "すてきなパーティーを！",
+      "translation": "祝妳有個美好的派對！",
+      "performance": "表演：真心祝福。"
+    },
+    {
+      "index": 43,
+      "start": 189.66,
+      "end": 190.36,
+      "role": "芭莎",
+      "japanese": "そこから出て！",
+      "japaneseHtml": "そこから<ruby>出<rt>で</rt></ruby>て！",
+      "translation": "從那裡出去！",
+      "performance": "表演：指著捷徑，音量要穿透畫面。"
+    },
+    {
+      "index": 44,
+      "start": 197.52,
+      "end": 199.82,
+      "role": "琪琪",
+      "japanese": "さっきまで、あんなにいいお天気だったのに。",
+      "japaneseHtml": "さっきまで、あんなにいいお<ruby>天気<rt>てんき</rt></ruby>だったのに。",
+      "translation": "剛才明明還是那麼好的天氣。",
+      "performance": "表演：錯愕、開始吃力。"
+    },
+    {
+      "index": 45,
+      "start": 200.18,
+      "end": 201.52,
+      "role": "吉吉",
+      "japanese": "ひげがピリピリする！",
+      "japaneseHtml": "ひげがピリピリする！",
+      "translation": "鬍鬚麻麻的！",
+      "performance": "表演：預感雷雨，尖而急。"
+    },
+    {
+      "index": 46,
+      "start": 225.9,
+      "end": 227.64,
+      "role": "吉吉",
+      "japanese": "雨宿りしよう！",
+      "japaneseHtml": "<ruby>雨宿<rt>あまやど</rt></ruby>りしよう！",
+      "translation": "找地方躲雨吧！",
+      "performance": "表演：在風雨中喊。"
+    },
+    {
+      "index": 47,
+      "start": 227.64,
+      "end": 229.84,
+      "role": "琪琪",
+      "japanese": "ダメよ！ 間に合わなくなっちゃうもん！",
+      "japaneseHtml": "ダメよ！ <ruby>間<rt>ま</rt></ruby>に<ruby>合<rt>あ</rt></ruby>わなくなっちゃうもん！",
+      "translation": "不行！那樣就趕不上了！",
+      "performance": "表演：堅持使命。"
+    },
+    {
+      "index": 48,
+      "start": 230.58,
+      "end": 231.84,
+      "role": "琪琪",
+      "japanese": "このお料理も冷めちゃうわ！",
+      "japaneseHtml": "このお<ruby>料理<rt>りょうり</rt></ruby>も<ruby>冷<rt>さ</rt></ruby>めちゃうわ！",
+      "translation": "而且料理也會冷掉！",
+      "performance": "表演：接著上一句，情緒再推高。"
+    },
+    {
+      "index": 49,
+      "start": 295.53,
+      "end": 296.37,
+      "role": "孫女",
+      "japanese": "何かご用？",
+      "japaneseHtml": "<ruby>何<rt>なに</rt></ruby>かご<ruby>用<rt>よう</rt></ruby>？",
+      "translation": "有什麼事？",
+      "performance": "表演：門只開一點，冷淡而有距離。"
+    },
+    {
+      "index": 50,
+      "start": 296.89,
+      "end": 297.95,
+      "role": "琪琪",
+      "japanese": "お届け物です。",
+      "japaneseHtml": "お<ruby>届<rt>とど</rt></ruby>け<ruby>物<rt>もの</rt></ruby>です。",
+      "translation": "有您的包裹。",
+      "performance": "表演：恢復職業禮貌，已經很疲憊。"
+    },
+    {
+      "index": 51,
+      "start": 298.59,
+      "end": 300.07,
+      "role": "孫女",
+      "japanese": "まあ、ずぶ濡れじゃない。",
+      "japaneseHtml": "まあ、ずぶ<ruby>濡<rt>ぬ</rt></ruby>れじゃない。",
+      "translation": "哎呀，妳全身都濕透了。",
+      "performance": "表演：不是尖酸，較像意外與些許關心。"
+    },
+    {
+      "index": 52,
+      "start": 301.15,
+      "end": 304.65,
+      "role": "琪琪",
+      "japanese": "急に降ってきたものですから。でも、お料理は大丈夫です。",
+      "japaneseHtml": "<ruby>急<rt>きゅう</rt></ruby>に<ruby>降<rt>ふ</rt></ruby>ってきたものですから。でも、お<ruby>料理<rt>りょうり</rt></ruby>は<ruby>大丈夫<rt>だいじょうぶ</rt></ruby>です。",
+      "translation": "因為雨突然下起來。不過料理沒事。",
+      "performance": "表演：先解釋，再讓對方放心。"
+    },
+    {
+      "index": 53,
+      "start": 305.35,
+      "end": 307.05,
+      "role": "孫女",
+      "japanese": "だから、いらないって言ったのよ。",
+      "japaneseHtml": "だから、いらないって<ruby>言<rt>い</rt></ruby>ったのよ。",
+      "translation": "所以我才說不要嘛。",
+      "performance": "表演：是對祖母的不耐，不是直接罵琪琪。"
+    },
+    {
+      "index": 54,
+      "start": 307.33,
+      "end": 308.01,
+      "role": "室內女性",
+      "japanese": "なあに？",
+      "japaneseHtml": "なあに？",
+      "translation": "什麼東西？",
+      "performance": "表演：從屋內遠處喊，聲音可稍微往後。"
+    },
+    {
+      "index": 55,
+      "start": 308.45,
+      "end": 311.27,
+      "role": "孫女",
+      "japanese": "おばあちゃんから、またニシンのパイが届いたの。",
+      "japaneseHtml": "おばあちゃんから、またニシンのパイが<ruby>届<rt>とど</rt></ruby>いたの。",
+      "translation": "奶奶又送鯡魚派來了。",
+      "performance": "表演：對屋內回話，語氣嫌麻煩。"
+    },
+    {
+      "index": 56,
+      "start": 313.28,
+      "end": 315.02,
+      "role": "琪琪",
+      "japanese": "あの、受け取りにサインをお願いします。",
+      "japaneseHtml": "あの、<ruby>受<rt>う</rt></ruby>け<ruby>取<rt>と</rt></ruby>りにサインをお<ruby>願<rt>ねが</rt></ruby>いします。",
+      "translation": "那個，請在收件單上簽名。",
+      "performance": "表演：被氣氛壓住，仍守著工作程序。"
+    },
+    {
+      "index": 57,
+      "start": 317.53,
+      "end": 319.19,
+      "role": "孫女",
+      "japanese": "あたし、このパイ嫌いなのよね。",
+      "japaneseHtml": "あたし、このパイ<ruby>嫌<rt>きら</rt></ruby>いなのよね。",
+      "translation": "我討厭這個派。",
+      "performance": "表演：平淡隨口，越不刻意越刺痛。"
+    },
+    {
+      "index": 58,
+      "start": 325.6,
+      "end": 327.72,
+      "role": "吉吉",
+      "japanese": "今の、本当にあの人の孫？",
+      "japaneseHtml": "<ruby>今<rt>いま</rt></ruby>の、<ruby>本当<rt>ほんとう</rt></ruby>にあの<ruby>人<rt>ひと</rt></ruby>の<ruby>孫<rt>まご</rt></ruby>？",
+      "translation": "剛才那個真的是那位夫人的孫女嗎？",
+      "performance": "表演：替琪琪抱不平。"
+    },
+    {
+      "index": 59,
+      "start": 327.81,
+      "end": 328.41,
+      "role": "吉吉",
+      "japanese": "べーっ！",
+      "japaneseHtml": "べーっ！",
+      "translation": "略！",
+      "performance": "表演：吐舌頭，短而清楚。"
+    }
+  ],
+  "soundCues": [
+    {
+      "time": "00:33–00:50",
+      "sound": "搬柴、柴門與木柴碰撞",
+      "method": "兩小塊木頭輕碰；厚紙板模擬木門（強度：弱，不能蓋過吉吉與琪琪）"
+    },
+    {
+      "time": "00:51–01:16",
+      "sound": "風箱送風、火焰燃燒",
+      "method": "摺扇或厚紙來回搧；玻璃紙輕揉（強度：弱到中）"
+    },
+    {
+      "time": "01:20–01:46",
+      "sound": "烤箱與器皿",
+      "method": "木板輕闔、木匙碰金屬盆一次（強度：弱）"
+    },
+    {
+      "time": "02:24",
+      "sound": "時鐘提醒",
+      "method": "木魚或木塊清楚敲一下即可（強度：中）"
+    },
+    {
+      "time": "02:31–03:10",
+      "sound": "開爐、取派、奔跑、起飛",
+      "method": "木板闔聲、托盤輕碰、鞋跟節奏、布條快速揮動（強度：由中漸強）"
+    },
+    {
+      "time": "03:16–03:52",
+      "sound": "風雨與雷",
+      "method": "手指敲厚紙板做雨；大紙板抖動做雷；布條做風（強度：先弱後強，台詞出現時立刻降量）"
+    },
+    {
+      "time": "04:54",
+      "sound": "門鈴",
+      "method": "現場桌鈴一聲（強度：清楚、短促）"
+    },
+    {
+      "time": "05:19–05:21",
+      "sound": "關門",
+      "method": "厚書或兩片木板合起一次（強度：中，留出琪琪受傷的停頓）"
+    }
+  ]
+}
