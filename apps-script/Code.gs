@@ -153,6 +153,7 @@ function route_(payload, event) {
     case "teacherOverview": return teacherOverview_(payload.token);
     case "studentHistory": return studentHistory_(payload.token, payload.studentId);
     case "upsertStudents": return upsertStudents_(payload.token, payload.students, Boolean(payload.resetExisting));
+    case "setStudentPins": return setStudentPins_(payload.token, payload.updates);
     case "resetStudentPin": return resetStudentPin_(payload.token, payload.studentId);
     case "setStudentActive": return setStudentActive_(payload.token, payload.studentId, payload.active);
     case "setStudentGroup": return setStudentGroup_(payload.token, payload.studentId, payload.groupName);
@@ -786,10 +787,11 @@ function upsertStudents_(token, studentInputs, resetExisting) {
       const name = cleanText_(input.name, 80);
       const className = cleanText_(input.className, 40);
       const seatNo = cleanText_(input.seatNo, 12);
+      const requestedPin = normalizeOptionalStudentPin_(input.initialPin);
       if (!studentId || !name || !className) fail_("INVALID_STUDENT", "學生資料需包含學號、姓名與班級。");
       const found = existing[studentId];
-      const shouldGenerate = !found || resetExisting;
-      const pin = shouldGenerate ? generateNumericPin_(6) : "";
+      const shouldGenerate = !found || resetExisting || Boolean(requestedPin);
+      const pin = shouldGenerate ? requestedPin || generateNumericPin_(6) : "";
       const values = {
         seat_no: seatNo,
         student_id: studentId,
@@ -818,6 +820,51 @@ function upsertStudents_(token, studentInputs, resetExisting) {
     lock.releaseLock();
   }
   return { created, updated, credentials };
+}
+
+function setStudentPins_(token, updateInputs) {
+  verifySession_(token, "teacher");
+  if (!Array.isArray(updateInputs) || !updateInputs.length) fail_("EMPTY_PIN_UPDATES", "沒有可更新的 PIN 資料。");
+  if (updateInputs.length > 200) fail_("TOO_MANY_STUDENTS", "一次最多更新 200 人。");
+
+  const requested = {};
+  updateInputs.forEach((input) => {
+    const studentId = normalizeStudentId_(input.studentId);
+    const pin = normalizeRequiredStudentPin_(input.pin);
+    if (!studentId) fail_("INVALID_STUDENT", "PIN 更新資料缺少學號。");
+    requested[studentId] = pin;
+  });
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  let updated = 0;
+  const missing = [];
+  try {
+    const table = readTable_(SHEETS.STUDENTS);
+    const existing = {};
+    table.records.forEach((row) => { existing[normalizeStudentId_(row.student_id)] = row; });
+    Object.keys(requested).forEach((studentId) => {
+      const student = existing[studentId];
+      if (!student) {
+        missing.push(studentId);
+        return;
+      }
+      writeRecord_(table, student.__row, { pin_hash: makePinHash_(requested[studentId]) });
+      PropertiesService.getScriptProperties().deleteProperty(sessionPropertyKey_("student", studentId));
+      updated += 1;
+    });
+
+    SpreadsheetApp.flush();
+    const verificationTable = readTable_(SHEETS.STUDENTS);
+    const verified = verificationTable.records.reduce((count, row) => {
+      const studentId = normalizeStudentId_(row.student_id);
+      return requested[studentId] && verifyPin_(requested[studentId], row.pin_hash) ? count + 1 : count;
+    }, 0);
+    if (verified !== updated) fail_("PIN_UPDATE_VERIFICATION_FAILED", "部分 PIN 未能通過更新驗證，請重新操作。");
+    return { updated, verified, missing };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function resetStudentPin_(token, studentIdInput) {
@@ -1512,6 +1559,19 @@ function base64UrlDecode_(value) {
 
 function normalizeStudentId_(value) {
   return String(value || "").trim().replace(/\s+/g, "").slice(0, 30);
+}
+
+function normalizeOptionalStudentPin_(value) {
+  const pin = String(value === undefined || value === null ? "" : value).trim();
+  if (!pin) return "";
+  if (!/^\d{5,8}$/.test(pin)) fail_("INVALID_PIN", "學生 PIN 必須是 5 至 8 位數字。");
+  return pin;
+}
+
+function normalizeRequiredStudentPin_(value) {
+  const pin = normalizeOptionalStudentPin_(value);
+  if (!pin) fail_("INVALID_PIN", "學生 PIN 必須是 5 至 8 位數字。");
+  return pin;
 }
 
 function cleanText_(value, maxLength) {

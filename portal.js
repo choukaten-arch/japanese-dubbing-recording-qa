@@ -408,7 +408,7 @@ async function mockRequest(action, payload) {
   }
   if (action === "resetStudentPin") return { ok: true, credential: { studentId: "demo", name: "測試學生", pin: "654321" } };
   if (action === "upsertStudents") {
-    return { ok: true, created: payload.students.length, updated: 0, credentials: payload.students.map((student, index) => ({ ...student, pin: String(731200 + index) })) };
+    return { ok: true, created: payload.students.length, updated: 0, credentials: payload.students.map((student, index) => ({ ...student, pin: student.initialPin || String(731200 + index) })) };
   }
   throw new Error("示範模式不支援此操作。");
 }
@@ -1144,9 +1144,19 @@ function renderStudentHistory(data) {
 
 function parseStudentImport(value) {
   return String(value || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean).filter((line) => !line.includes("學號")).map((line) => {
-    const parts = line.split(/\t|,/).map((part) => part.trim()).filter((part) => part !== "");
+    const parts = line.split(/\t|,/).map((part) => part.trim());
     if (parts.length < 3) return null;
-    return { seatNo: parts[0], studentId: parts[1], name: parts[2], className: parts[3] || portalElements.targetClass.value || "416" };
+    const credentialSource = String(parts[4] || "").toUpperCase().replace(/\s+/g, "");
+    const initialPin = /^[A-Z][12]\d{8}$/.test(credentialSource)
+      ? credentialSource.slice(-5)
+      : /^\d{6}$/.test(credentialSource) ? credentialSource : "";
+    return {
+      seatNo: parts[0],
+      studentId: parts[1],
+      name: parts[2],
+      className: parts[3] || portalElements.targetClass.value || "416",
+      ...(initialPin ? { initialPin } : {}),
+    };
   }).filter(Boolean);
 }
 

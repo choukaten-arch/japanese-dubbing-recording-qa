@@ -51,6 +51,7 @@ try {
   await page.reload({ waitUntil: "domcontentloaded" });
 
   assert(await page.locator(".poster-board figure").count() === 5, "登入頁應顯示五部作品");
+  assert(await page.locator("#studentPin").getAttribute("minlength") === "5", "學生 PIN 欄位應接受 5 碼");
   await page.locator("#studentId").fill("demo");
   await page.locator("#studentPin").fill("123456");
   await page.locator("#studentLoginPanel button[type=submit]").click();
@@ -136,6 +137,11 @@ try {
   assert((await page.locator("#groupRows").innerText()).includes("第 1 組"), "老師後台未顯示各組練習概況");
   await page.screenshot({ path: `${outputDir}/teacher-groups-desktop.png`, fullPage: true });
   await page.locator('.teacher-tab[data-tab="students"]').click();
+  const parsedIdentityStudent = await page.evaluate(() => parseStudentImport("1\t416001\t測試姓名\t416\tA123456789")[0]);
+  assert(parsedIdentityStudent.initialPin === "56789", "含身分證字號的匯入資料未取最後五碼作為初始 PIN");
+  assert(!Object.hasOwn(parsedIdentityStudent, "identity"), "匯入資料不應保留完整身分證字號");
+  const parsedBirthdayStudent = await page.evaluate(() => parseStudentImport("2\t416002\t測試姓名二\t416\t990101")[0]);
+  assert(parsedBirthdayStudent.initialPin === "990101", "六碼民國生日未作為初始 PIN");
   let demoRow = page.locator("#studentRows tr").filter({ hasText: "測試學生" });
   await demoRow.locator(".group-name-input").fill("第 3 組");
   await demoRow.locator(".save-group-button").click();

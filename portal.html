@@ -44,7 +44,7 @@
           <label for="studentId">學號</label>
           <input id="studentId" name="username" inputmode="numeric" autocomplete="username" maxlength="30" required>
           <label for="studentPin">個人 PIN</label>
-          <input id="studentPin" name="password" type="password" inputmode="numeric" autocomplete="current-password" minlength="6" maxlength="8" required>
+          <input id="studentPin" name="password" type="password" inputmode="numeric" autocomplete="current-password" minlength="5" maxlength="8" required>
           <button class="primary-button" type="submit">登入查看今日作業</button>
         </form>
 
@@ -182,8 +182,8 @@
         <details class="student-import">
           <summary>新增或更新學生名單</summary>
           <form id="studentImportForm">
-            <label for="studentImportText">每行：座號、學號、姓名、班級</label>
-            <textarea id="studentImportText" rows="6" placeholder="1&#9;416001&#9;姓名&#9;416"></textarea>
+            <label for="studentImportText">每行：座號、學號、姓名、班級、身分證字號或民國生日 YYMMDD（選填）</label>
+            <textarea id="studentImportText" rows="6" placeholder="1&#9;416001&#9;姓名&#9;416&#9;A123456789"></textarea>
             <label class="check-label"><input id="resetExistingPins" type="checkbox"> 同時重設既有學生 PIN</label>
             <button class="secondary-button" type="submit">匯入並產生 PIN</button>
           </form>

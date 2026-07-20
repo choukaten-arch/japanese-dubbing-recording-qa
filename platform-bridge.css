@@ -5,32 +5,34 @@
   grid-template-columns: minmax(170px, 0.8fr) minmax(260px, 1.7fr) auto;
   align-items: center;
   gap: 22px;
-  border: 1px solid #c7d8d1;
-  border-left: 5px solid #e7b65c;
-  background: #f7faf8;
+  border: 1px solid #d5e0e6;
+  border-left: 5px solid #e75e69;
+  border-radius: 8px;
+  background: linear-gradient(100deg, #ffffff 0%, #f3faf9 58%, #f5f8fc 100%);
+  box-shadow: 0 8px 22px rgba(37,57,76,0.08);
 }
 
 .assignment-context__identity,
 .assignment-context__task,
 .assignment-context__progress { display: grid; gap: 3px; }
-.assignment-context__identity a { color: #1f6a5a; font-size: 13px; font-weight: 800; }
+.assignment-context__identity a { color: #23747a; font-size: 13px; font-weight: 800; }
 .assignment-context__identity span,
 .assignment-context__task span,
 .assignment-context__progress span { color: #65736e; font-size: 12px; }
-.assignment-context__task strong { color: #172c27; font-size: 17px; }
+.assignment-context__task strong { color: #20323c; font-size: 17px; }
 .assignment-context__progress { justify-items: end; }
-.assignment-context__progress strong { color: #1f6a5a; font-size: 21px; }
+.assignment-context__progress strong { color: #23747a; font-size: 21px; text-shadow: 2px 2px 0 #fff4d8; }
 
 .platform-assignment-mode .work-switcher,
 .platform-assignment-mode .script-toolbar { display: none; }
 
-.platform-assignment-mode .script-line.is-completed { background: #eef7f2; }
-.platform-assignment-mode .script-line.has-attempt { background: #fff8e8; }
+.platform-assignment-mode .script-line.is-completed { background: linear-gradient(100deg, #e7f5f0, #edf6fb); }
+.platform-assignment-mode .script-line.has-attempt { background: linear-gradient(100deg, #fff7e4, #fff1f1); }
 .completed-score {
   width: fit-content;
   margin-top: 5px;
   padding: 2px 6px;
-  border-radius: 3px;
+  border-radius: 5px;
   background: #d7eee4;
   color: #17624e;
   font-size: 11px;
@@ -45,21 +47,23 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  border-left: 4px solid #1f6a5a;
-  background: #e8f3ee;
+  border: 1px solid #d2e3e2;
+  border-left: 5px solid #23747a;
+  border-radius: 7px;
+  background: linear-gradient(100deg, #e8f5f1, #edf5fb);
   color: #23463d;
   font-size: 13px;
   font-weight: 700;
 }
 
-.cloud-sync-status.is-saving { border-left-color: #316a8a; background: #e8f0f5; color: #2f566c; }
-.cloud-sync-status.is-error { border-left-color: #c65345; background: #fae6e3; color: #8b3329; }
+.cloud-sync-status.is-saving { border-left-color: #4b86b8; background: #eaf3fb; color: #2f566c; }
+.cloud-sync-status.is-error { border-left-color: #e75e69; background: #fde8e8; color: #8b3329; }
 .cloud-sync-status button {
   min-height: 34px;
   padding: 0 11px;
   flex: 0 0 auto;
   border: 1px solid currentColor;
-  border-radius: 4px;
+  border-radius: 6px;
   background: #fff;
   color: inherit;
   font: inherit;
