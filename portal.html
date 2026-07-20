@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive,nosnippet,noimageindex">
+  <meta name="description" content="日語配音每日作業、逐句錄音與老師進度管理平台">
+  <title>配音作業平台｜日語配音練習站</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="portal.css">
+  <script src="config.js"></script>
+  <script src="portal.js" defer></script>
+</head>
+<body>
+  <header class="platform-header">
+    <div class="header-inner">
+      <a class="platform-brand" href="portal.html" aria-label="返回配音作業平台首頁">
+        <span class="brand-mark" aria-hidden="true">声</span>
+        <span><strong>日語配音</strong><small>每日練習平台</small></span>
+      </a>
+      <div class="account-bar" id="accountBar" hidden>
+        <span id="accountLabel"></span>
+        <button class="quiet-button" id="logoutButton" type="button">登出</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="auth-view" id="authView" aria-labelledby="loginTitle">
+      <div class="auth-panel">
+        <div class="auth-copy">
+          <p class="eyebrow">416 班日語配音</p>
+          <h1 id="loginTitle">每日練習登入</h1>
+          <p id="loginSubtitle">使用學號與紙本個人 PIN</p>
+        </div>
+
+        <div class="login-mode" role="tablist" aria-label="選擇登入身分">
+          <button class="mode-button is-active" id="studentMode" type="button" role="tab" aria-selected="true" aria-controls="studentLoginPanel">學生</button>
+          <button class="mode-button" id="teacherMode" type="button" role="tab" aria-selected="false" aria-controls="teacherLoginPanel">老師</button>
+        </div>
+
+        <form class="login-form" id="studentLoginPanel" autocomplete="on">
+          <label for="studentId">學號</label>
+          <input id="studentId" name="username" inputmode="numeric" autocomplete="username" maxlength="30" required>
+          <label for="studentPin">個人 PIN</label>
+          <input id="studentPin" name="password" type="password" inputmode="numeric" autocomplete="current-password" minlength="6" maxlength="8" required>
+          <button class="primary-button" type="submit">登入查看今日作業</button>
+        </form>
+
+        <form class="login-form" id="teacherLoginPanel" autocomplete="on" hidden>
+          <label for="teacherPin">老師密碼</label>
+          <input id="teacherPin" name="password" type="password" inputmode="numeric" autocomplete="current-password" minlength="8" maxlength="20" required>
+          <button class="primary-button" type="submit">進入老師後台</button>
+        </form>
+        <p class="form-message" id="loginMessage" role="status"></p>
+      </div>
+
+      <div class="poster-board" aria-label="本期五部配音作品">
+        <figure><img src="https://choukaten-arch.github.io/japanese-dubbing-practice/assets/kiki.jpg" alt="魔女宅急便"><figcaption>魔女宅急便</figcaption></figure>
+        <figure><img src="https://choukaten-arch.github.io/japanese-dubbing-practice/assets/ponyo.jpg" alt="崖上的波妞"><figcaption>崖上的波妞</figcaption></figure>
+        <figure><img src="https://choukaten-arch.github.io/japanese-dubbing-practice/assets/maruko.jpg" alt="櫻桃小丸子"><figcaption>櫻桃小丸子</figcaption></figure>
+        <figure><img src="https://choukaten-arch.github.io/japanese-dubbing-practice/assets/spirited-away.jpg" alt="神隱少女"><figcaption>神隱少女</figcaption></figure>
+        <figure><img src="https://choukaten-arch.github.io/japanese-dubbing-practice/assets/totoro.jpg" alt="龍貓"><figcaption>龍貓</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="student-view page-shell" id="studentView" hidden aria-labelledby="studentTitle">
+      <header class="view-heading">
+        <div>
+          <p class="eyebrow" id="studentDate">今日作業</p>
+          <h1 id="studentTitle">配音練習任務</h1>
+        </div>
+        <div class="completion-summary"><strong id="studentCompleted">0</strong><span>已完成句數</span></div>
+      </header>
+      <section class="student-preference-bar" id="studentPreferenceBar" aria-label="目前配音作品與角色" hidden>
+        <img id="studentPreferencePoster" alt="">
+        <div>
+          <span>目前配音角色</span>
+          <strong id="studentPreferenceLabel">尚未選擇</strong>
+        </div>
+        <button class="secondary-button" id="changePreference" type="button">更換作品／角色</button>
+      </section>
+      <div class="notice-bar" id="studentNotice" hidden></div>
+      <section class="class-progress" id="classProgressSection" hidden aria-labelledby="classProgressTitle">
+        <div class="section-heading"><div><p class="eyebrow">分組協作</p><h2 id="classProgressTitle">全班熟練度</h2></div><span id="classProgressUpdated"></span></div>
+        <div class="group-progress-list" id="classProgressGroups"></div>
+      </section>
+      <div class="task-list" id="taskList" aria-live="polite"></div>
+      <div class="empty-state" id="studentEmpty" hidden>
+        <strong>目前沒有開放中的作業</strong>
+        <span>老師發派後，重新整理此頁即可看到。</span>
+      </div>
+    </section>
+
+    <section class="teacher-view page-shell" id="teacherView" hidden aria-labelledby="teacherTitle">
+      <header class="view-heading teacher-heading">
+        <div>
+          <p class="eyebrow">老師後台</p>
+          <h1 id="teacherTitle">每日配音作業</h1>
+        </div>
+        <div class="teacher-links">
+          <a id="sheetLink" href="#" target="_blank" rel="noopener">開啟 Google Sheet</a>
+          <a id="driveLink" href="#" target="_blank" rel="noopener">開啟錄音資料夾</a>
+        </div>
+      </header>
+
+      <section class="metrics" aria-label="班級概況">
+        <div><span>啟用學生</span><strong id="metricStudents">—</strong></div>
+        <div><span>進行中作業</span><strong id="metricAssignments">—</strong></div>
+        <div><span>今日練習句數</span><strong id="metricSubmissions">—</strong></div>
+        <div><span>平均分數</span><strong id="metricAverage">—</strong></div>
+      </section>
+
+      <nav class="teacher-tabs" role="tablist" aria-label="老師後台功能">
+        <button class="teacher-tab is-active" type="button" role="tab" aria-selected="true" data-tab="assign">發派作業</button>
+        <button class="teacher-tab" type="button" role="tab" aria-selected="false" data-tab="progress">作業進度</button>
+        <button class="teacher-tab" type="button" role="tab" aria-selected="false" data-tab="groups">分組概況</button>
+        <button class="teacher-tab" type="button" role="tab" aria-selected="false" data-tab="students">學生與 PIN</button>
+      </nav>
+
+      <section class="teacher-panel" id="assignPanel" data-panel="assign" aria-labelledby="assignHeading">
+        <div class="section-heading">
+          <div><p class="eyebrow">新增任務</p><h2 id="assignHeading">指定作品、角色與句數</h2></div>
+          <span id="assignmentLineCount">尚未選擇</span>
+        </div>
+        <form id="assignmentForm" class="assignment-form">
+          <label>作業名稱<input id="assignmentTitle" maxlength="120" placeholder="例如：7/21 琪琪第 1 回"></label>
+          <label>班級<input id="targetClass" value="416" maxlength="40" required></label>
+          <label>發派日<input id="assignedDate" type="date" required></label>
+          <label>截止日<input id="dueDate" type="date" required></label>
+          <label>作品<select id="assignmentWork" required></select></label>
+          <label>角色<select id="assignmentRole" required><option value="">請先選作品</option></select></label>
+          <label>從角色第幾句開始<select id="assignmentStart" required><option value="">請先選角色</option></select></label>
+          <label>指定句數<input id="assignmentCount" type="number" inputmode="numeric" min="1" max="30" value="5" required></label>
+          <div class="line-preview" id="linePreview" aria-live="polite"></div>
+          <div class="form-actions"><button class="primary-button" type="submit">發派給班級</button><span id="assignmentMessage" role="status"></span></div>
+        </form>
+      </section>
+
+      <section class="teacher-panel" id="progressPanel" data-panel="progress" hidden aria-labelledby="progressHeading">
+        <div class="section-heading"><div><p class="eyebrow">完成狀態</p><h2 id="progressHeading">作業進度</h2></div><button class="quiet-button" id="refreshTeacher" type="button">重新整理</button></div>
+        <div class="table-shell"><table><thead><tr><th>作業</th><th>角色</th><th>截止</th><th>完成句數</th><th>完成率</th><th>平均</th><th>狀態</th></tr></thead><tbody id="assignmentRows"></tbody></table></div>
+        <div class="section-heading subheading"><div><h2>最近逐句結果</h2></div></div>
+        <div class="table-shell"><table><thead><tr><th>學生</th><th>作品／角色</th><th>句次</th><th>分數</th><th>練習次數</th><th>更新時間</th><th>錄音</th></tr></thead><tbody id="recentResultRows"></tbody></table></div>
+      </section>
+
+      <section class="teacher-panel" id="groupsPanel" data-panel="groups" hidden aria-labelledby="groupsHeading">
+        <div class="section-heading"><div><p class="eyebrow">分組協作</p><h2 id="groupsHeading">各組練習情形</h2></div></div>
+        <div class="table-shell"><table><thead><tr><th>組別</th><th>人數</th><th>平均熟練度</th><th>已練／總句數</th><th>練習次數</th><th>錄音總時數</th><th>成員</th></tr></thead><tbody id="groupRows"></tbody></table></div>
+      </section>
+
+      <section class="teacher-panel" id="studentsPanel" data-panel="students" hidden aria-labelledby="studentsHeading">
+        <div class="section-heading"><div><p class="eyebrow">帳號管理</p><h2 id="studentsHeading">學生與 PIN</h2></div><span id="studentCountLabel">—</span></div>
+        <details class="student-import">
+          <summary>新增或更新學生名單</summary>
+          <form id="studentImportForm">
+            <label for="studentImportText">每行：座號、學號、姓名、班級</label>
+            <textarea id="studentImportText" rows="6" placeholder="1&#9;416001&#9;姓名&#9;416"></textarea>
+            <label class="check-label"><input id="resetExistingPins" type="checkbox"> 同時重設既有學生 PIN</label>
+            <button class="secondary-button" type="submit">匯入並產生 PIN</button>
+          </form>
+        </details>
+        <datalist id="knownGroups"></datalist>
+        <div class="table-shell"><table><thead><tr><th>座號</th><th>學號</th><th>姓名</th><th>組別</th><th>作品</th><th>角色</th><th>熟練度</th><th>最後登入</th><th>歷程</th><th>PIN</th></tr></thead><tbody id="studentRows"></tbody></table></div>
+      </section>
+    </section>
+  </main>
+
+  <dialog class="preference-dialog" id="preferenceDialog" aria-labelledby="preferenceTitle">
+    <form id="preferenceForm">
+      <header class="dialog-heading">
+        <div><p class="eyebrow">學生設定</p><h2 id="preferenceTitle">選擇作品與角色</h2></div>
+        <button id="preferenceClose" type="button" aria-label="關閉">×</button>
+      </header>
+      <div class="preference-content">
+        <img id="preferencePoster" alt="">
+        <div class="preference-fields">
+          <label for="preferenceWork">作品</label>
+          <select id="preferenceWork" required></select>
+          <label for="preferenceRole">角色</label>
+          <select id="preferenceRole" required><option value="">請先選作品</option></select>
+          <p class="form-message" id="preferenceMessage" role="status"></p>
+          <button class="primary-button" type="submit">確認選擇</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="history-dialog" id="historyDialog" aria-labelledby="historyTitle">
+    <header class="dialog-heading">
+      <div><p class="eyebrow" id="historyStudentMeta">學生歷程</p><h2 id="historyTitle">逐句練習紀錄</h2></div>
+      <button id="historyClose" type="button" aria-label="關閉">×</button>
+    </header>
+    <div class="history-content">
+      <section class="history-metrics" aria-label="學生練習摘要">
+        <div><span>熟練度</span><strong id="historyMastery">—</strong></div>
+        <div><span>已練句數</span><strong id="historyLines">—</strong></div>
+        <div><span>練習次數</span><strong id="historyAttempts">—</strong></div>
+        <div><span>錄音時數</span><strong id="historyDuration">—</strong></div>
+        <div><span>成長</span><strong id="historyGrowth">—</strong></div>
+      </section>
+      <section class="history-trend" aria-labelledby="historyTrendTitle">
+        <div class="section-heading"><div><h2 id="historyTrendTitle">近期成績趨勢</h2></div></div>
+        <ol id="historyTrend" aria-label="近期練習分數"></ol>
+      </section>
+      <section aria-labelledby="historyLinesTitle">
+        <div class="section-heading"><div><h2 id="historyLinesTitle">逐句歷史</h2></div></div>
+        <div class="table-shell"><table><thead><tr><th>作品／角色</th><th>句次與台詞</th><th>歷次分數</th><th>次數</th><th>錄音時數</th><th>成長</th><th>最新錄音</th></tr></thead><tbody id="historyLineRows"></tbody></table></div>
+      </section>
+    </div>
+  </dialog>
+
+  <dialog class="credential-dialog" id="credentialDialog">
+    <form method="dialog" class="dialog-heading"><h2>新 PIN 發放名單</h2><button aria-label="關閉" value="close">×</button></form>
+    <div class="credential-content" id="credentialContent"></div>
+    <div class="dialog-actions"><button class="secondary-button" id="downloadCredentials" type="button">下載 CSV</button><button class="primary-button" id="printCredentials" type="button">列印發放單</button></div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>

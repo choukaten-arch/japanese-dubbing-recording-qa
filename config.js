@@ -6,6 +6,29 @@ const QA_WORKS = Object.freeze([
   { slug: "totoro", title: "龍貓", navTitle: "龍貓", lineCount: 54 },
 ]);
 
+window.QA_WORKS = QA_WORKS;
+window.PLATFORM_CONFIG = Object.freeze({
+  apiUrl: "https://script.google.com/macros/s/AKfycbwS2kKeZ7iVnlPTVE-dl6mVGTIAxkNpUPZnMOljsphbXsBbSLUdHulV1JDQ8_uS9plQ/exec",
+  sessionKey: "dubbingPlatformSessionV1",
+  taskKey: "dubbingPlatformActiveTaskV1",
+});
+
+function hasValidPlatformSession() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(window.PLATFORM_CONFIG.sessionKey));
+    return Boolean(stored?.session?.token && Number(stored.session.expiresAt) > Date.now());
+  } catch {
+    return false;
+  }
+}
+
+const isPortalPage = /\/portal\.html$/.test(location.pathname);
+const allowPublicQa = ["127.0.0.1", "localhost"].includes(location.hostname)
+  && new URLSearchParams(location.search).get("public") === "1";
+if (!isPortalPage && !allowPublicQa && !hasValidPlatformSession()) {
+  location.replace(new URL("portal.html", location.href).href);
+}
+
 const requestedWork = new URLSearchParams(location.search).get("work");
 const activeWork = QA_WORKS.find((work) => work.slug === requestedWork) || QA_WORKS[0];
 const nativeReplaceState = history.replaceState.bind(history);

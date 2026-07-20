@@ -1,0 +1,72 @@
+.assignment-context {
+  margin: 0 0 22px;
+  padding: 15px 18px;
+  display: grid;
+  grid-template-columns: minmax(170px, 0.8fr) minmax(260px, 1.7fr) auto;
+  align-items: center;
+  gap: 22px;
+  border: 1px solid #c7d8d1;
+  border-left: 5px solid #e7b65c;
+  background: #f7faf8;
+}
+
+.assignment-context__identity,
+.assignment-context__task,
+.assignment-context__progress { display: grid; gap: 3px; }
+.assignment-context__identity a { color: #1f6a5a; font-size: 13px; font-weight: 800; }
+.assignment-context__identity span,
+.assignment-context__task span,
+.assignment-context__progress span { color: #65736e; font-size: 12px; }
+.assignment-context__task strong { color: #172c27; font-size: 17px; }
+.assignment-context__progress { justify-items: end; }
+.assignment-context__progress strong { color: #1f6a5a; font-size: 21px; }
+
+.platform-assignment-mode .work-switcher,
+.platform-assignment-mode .script-toolbar { display: none; }
+
+.platform-assignment-mode .script-line.is-completed { background: #eef7f2; }
+.completed-score {
+  width: fit-content;
+  margin-top: 5px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #d7eee4;
+  color: #17624e;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.cloud-sync-status {
+  margin-top: 18px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-left: 4px solid #1f6a5a;
+  background: #e8f3ee;
+  color: #23463d;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.cloud-sync-status.is-saving { border-left-color: #316a8a; background: #e8f0f5; color: #2f566c; }
+.cloud-sync-status.is-error { border-left-color: #c65345; background: #fae6e3; color: #8b3329; }
+.cloud-sync-status button {
+  min-height: 34px;
+  padding: 0 11px;
+  flex: 0 0 auto;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .assignment-context { grid-template-columns: 1fr auto; gap: 12px; }
+  .assignment-context__task { grid-column: 1 / -1; grid-row: 2; }
+  .assignment-context__progress { grid-column: 2; grid-row: 1; }
+  .cloud-sync-status { align-items: stretch; flex-direction: column; }
+}

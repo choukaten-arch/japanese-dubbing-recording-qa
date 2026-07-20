@@ -70,7 +70,7 @@ try {
   for (const work of works) {
     const page = await desktop.newPage();
     monitor(page, `${work.slug} desktop`);
-    await page.goto(`${baseUrl}?work=${work.slug}#line-1`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}?public=1&work=${work.slug}#line-1`, { waitUntil: "domcontentloaded" });
     await waitForWork(page, work);
 
     const data = await page.evaluate(async (slug) => (await (await fetch(`data/${slug}.json`)).json()), work.slug);
@@ -120,7 +120,7 @@ try {
   for (const work of works) {
     const page = await mobile.newPage();
     monitor(page, `${work.slug} mobile`);
-    await page.goto(`${baseUrl}?work=${work.slug}#line-1`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}?public=1&work=${work.slug}#line-1`, { waitUntil: "domcontentloaded" });
     await waitForWork(page, work);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
     assert(!overflow, `${work.title} 手機版出現水平溢位`);

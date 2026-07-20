@@ -466,6 +466,15 @@ function renderResult(result) {
   elements.issueList.innerHTML = result.issues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join("");
   elements.resultPanel.hidden = false;
   elements.resultPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  document.dispatchEvent(new CustomEvent("qa:evaluated", {
+    detail: {
+      result,
+      line: currentLine(),
+      recordingBlob: state.recordingBlob,
+      recordingDuration: state.recordingDuration,
+      transcript: elements.recognizedText.value,
+    },
+  }));
 }
 
 async function evaluateRecording() {
@@ -519,6 +528,7 @@ async function initialize() {
     renderLineList();
     bindEvents();
     restoreHash();
+    document.dispatchEvent(new CustomEvent("qa:ready", { detail: { data: state.data } }));
   } catch (error) {
     console.error(error);
     elements.fatalState.hidden = false;
