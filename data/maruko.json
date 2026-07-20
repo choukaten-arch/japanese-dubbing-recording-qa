@@ -1,0 +1,1035 @@
+{
+  "slug": "maruko",
+  "title": "櫻桃小丸子：來自義大利的少年",
+  "navTitle": "櫻桃小丸子",
+  "position": 3,
+  "page": "maruko.html",
+  "video": "media/maruko.mp4",
+  "poster": "assets/maruko.jpg",
+  "sourceSegment": "原片 00:21:25.400–00:26:55.100",
+  "durationLabel": "05:29.700",
+  "duration": 329.704,
+  "lineCount": 88,
+  "roleCount": 22,
+  "roles": [
+    {
+      "role": "まる子",
+      "lineCount": 15,
+      "characterCount": 207
+    },
+    {
+      "role": "アンドレア",
+      "lineCount": 14,
+      "characterCount": 149
+    },
+    {
+      "role": "佐々木のじいさん",
+      "lineCount": 3,
+      "characterCount": 43
+    },
+    {
+      "role": "戸川先生",
+      "lineCount": 9,
+      "characterCount": 176
+    },
+    {
+      "role": "生徒たち",
+      "lineCount": 4,
+      "characterCount": 36
+    },
+    {
+      "role": "男子生徒A",
+      "lineCount": 2,
+      "characterCount": 16
+    },
+    {
+      "role": "男子生徒B",
+      "lineCount": 1,
+      "characterCount": 2
+    },
+    {
+      "role": "女子生徒A",
+      "lineCount": 1,
+      "characterCount": 10
+    },
+    {
+      "role": "女子生徒B",
+      "lineCount": 1,
+      "characterCount": 4
+    },
+    {
+      "role": "浜崎",
+      "lineCount": 2,
+      "characterCount": 19
+    },
+    {
+      "role": "永沢",
+      "lineCount": 6,
+      "characterCount": 103
+    },
+    {
+      "role": "藤木",
+      "lineCount": 1,
+      "characterCount": 10
+    },
+    {
+      "role": "たまちゃん",
+      "lineCount": 2,
+      "characterCount": 13
+    },
+    {
+      "role": "ナレーション",
+      "lineCount": 1,
+      "characterCount": 3
+    },
+    {
+      "role": "花輪",
+      "lineCount": 6,
+      "characterCount": 119
+    },
+    {
+      "role": "外国児童A",
+      "lineCount": 1,
+      "characterCount": 8
+    },
+    {
+      "role": "マーク",
+      "lineCount": 1,
+      "characterCount": 12
+    },
+    {
+      "role": "シンニー",
+      "lineCount": 2,
+      "characterCount": 11
+    },
+    {
+      "role": "ジュリア",
+      "lineCount": 1,
+      "characterCount": 11
+    },
+    {
+      "role": "小杉",
+      "lineCount": 6,
+      "characterCount": 115
+    },
+    {
+      "role": "ネプ",
+      "lineCount": 3,
+      "characterCount": 27
+    },
+    {
+      "role": "丸尾",
+      "lineCount": 6,
+      "characterCount": 89
+    }
+  ],
+  "lines": [
+    {
+      "index": 1,
+      "start": 0.34,
+      "end": 5.62,
+      "role": "まる子",
+      "japanese": "あ、見て！ 今日は富士山がよく見えるよ。",
+      "japaneseHtml": "あ、<ruby>見<rt>み</rt></ruby>て！ <ruby>今日<rt>きょう</rt></ruby>は<ruby>富士<rt>ふじ</rt></ruby><ruby>山<rt>やま</rt></ruby>がよく<ruby>見<rt>み</rt></ruby>えるよ。",
+      "translation": "啊，你看！今天富士山看得很清楚。",
+      "performance": "表演：先驚喜，再自然地分享給安德烈。"
+    },
+    {
+      "index": 2,
+      "start": 6.3,
+      "end": 8.04,
+      "role": "アンドレア",
+      "japanese": "おお、素晴らしいですね。",
+      "japaneseHtml": "おお、<ruby>素晴<rt>すば</rt></ruby>らしいですね。",
+      "translation": "哇，真壯觀。",
+      "performance": "表演：日語學習者的禮貌語氣，不必刻意做重口音。"
+    },
+    {
+      "index": 3,
+      "start": 8.58,
+      "end": 12.76,
+      "role": "まる子",
+      "japanese": "冬じゃないとよく見えないのに、アンドレア、ついてるね。",
+      "japaneseHtml": "<ruby>冬<rt>ふゆ</rt></ruby>じゃないとよく<ruby>見<rt>み</rt></ruby>えないのに、アンドレア、ついてるね。",
+      "translation": "通常只有冬天才看得清楚，安德烈，你真走運。",
+      "performance": "表演：像替朋友開心。"
+    },
+    {
+      "index": 4,
+      "start": 13.26,
+      "end": 14.94,
+      "role": "アンドレア",
+      "japanese": "ついてるって何ですか？",
+      "japaneseHtml": "ついてるって<ruby>何<rt>なん</rt></ruby>ですか？",
+      "translation": "「ついてる」是什麼意思？",
+      "performance": "表演：真心不懂，句尾上揚。"
+    },
+    {
+      "index": 5,
+      "start": 15.42,
+      "end": 19.06,
+      "role": "まる子",
+      "japanese": "え、えっと、ラッキーって意味だよ。",
+      "japaneseHtml": "え、えっと、ラッキーって<ruby>意味<rt>いみ</rt></ruby>だよ。",
+      "translation": "呃，就是 lucky 的意思。",
+      "performance": "表演：先卡一下，再想到簡單說法。"
+    },
+    {
+      "index": 6,
+      "start": 19.6,
+      "end": 21.68,
+      "role": "アンドレア",
+      "japanese": "おお、ついてるはラッキー。",
+      "japaneseHtml": "おお、ついてるはラッキー。",
+      "translation": "喔，原來「ついてる」就是 lucky。",
+      "performance": "表演：像記下新單字。"
+    },
+    {
+      "index": 7,
+      "start": 22.18,
+      "end": 22.46,
+      "role": "まる子",
+      "japanese": "うん。",
+      "japaneseHtml": "うん。",
+      "translation": "嗯。",
+      "performance": "表演：短而親切。"
+    },
+    {
+      "index": 8,
+      "start": 25.9,
+      "end": 27.5,
+      "role": "まる子",
+      "japanese": "佐々木のじいさーん！",
+      "japaneseHtml": "<ruby>佐々木<rt>ささき</rt></ruby>のじいさーん！",
+      "translation": "佐佐木爺爺！",
+      "performance": "表演：隔著一段距離開朗呼喊。"
+    },
+    {
+      "index": 9,
+      "start": 28.18,
+      "end": 32.38,
+      "role": "佐々木のじいさん",
+      "japanese": "おや、まるちゃん、おはよう。今日はボーイフレンドと一緒かい？",
+      "japaneseHtml": "おや、まるちゃん、おはよう。<ruby>今日<rt>きょう</rt></ruby>はボーイフレンドと<ruby>一緒<rt>いっしょ</rt></ruby>かい？",
+      "translation": "哎呀，小丸子，早安。今天和男朋友一起嗎？",
+      "performance": "表演：年長者溫和打趣。"
+    },
+    {
+      "index": 10,
+      "start": 32.96,
+      "end": 36.62,
+      "role": "まる子",
+      "japanese": "うちにホームステイに来た、イタリア人のアンドレアです。",
+      "japaneseHtml": "うちにホームステイに<ruby>来<rt>き</rt></ruby>た、イタリア<ruby>人<rt>じん</rt></ruby>のアンドレアです。",
+      "translation": "他是來我家寄宿的義大利人安德烈。",
+      "performance": "表演：自然介紹朋友。"
+    },
+    {
+      "index": 11,
+      "start": 37.68,
+      "end": 38.22,
+      "role": "アンドレア",
+      "japanese": "よろしくお願いします。",
+      "japaneseHtml": "よろしくお<ruby>願<rt>ねが</rt></ruby>いします。",
+      "translation": "請多多指教。",
+      "performance": "表演：微微鞠躬，清楚有禮。"
+    },
+    {
+      "index": 12,
+      "start": 39.44,
+      "end": 41.12,
+      "role": "佐々木のじいさん",
+      "japanese": "これはこれは、ようこそ。",
+      "japaneseHtml": "これはこれは、ようこそ。",
+      "translation": "哎呀，歡迎歡迎。",
+      "performance": "表演：語速稍慢、親切。"
+    },
+    {
+      "index": 13,
+      "start": 41.94,
+      "end": 44.66,
+      "role": "まる子",
+      "japanese": "じゃあね。行ってきまーす！",
+      "japaneseHtml": "じゃあね。<ruby>行<rt>い</rt></ruby>ってきまーす！",
+      "translation": "那再見囉，我們出門了！",
+      "performance": "表演：邊走邊回頭喊。"
+    },
+    {
+      "index": 14,
+      "start": 47.12,
+      "end": 47.96,
+      "role": "佐々木のじいさん",
+      "japanese": "行ってらっしゃい。",
+      "japaneseHtml": "<ruby>行<rt>い</rt></ruby>ってらっしゃい。",
+      "translation": "路上小心。",
+      "performance": "表演：從後方送行，聲音溫暖。"
+    },
+    {
+      "index": 15,
+      "start": 52.02,
+      "end": 57.18,
+      "role": "戸川先生",
+      "japanese": "昨日もお知らせしましたが、外国のお友達が六人、このクラスにやってきました。",
+      "japaneseHtml": "<ruby>昨日<rt>きのう</rt></ruby>もお<ruby>知<rt>し</rt></ruby>らせしましたが、<ruby>外国<rt>がいこく</rt></ruby>のお<ruby>友達<rt>ともだち</rt></ruby>が<ruby>六<rt>ろく</rt></ruby><ruby>人<rt>にん</rt></ruby>、このクラスにやってきました。",
+      "translation": "昨天也通知過大家，今天有六位外國朋友來到這一班。",
+      "performance": "表演：老師沉穩說明。"
+    },
+    {
+      "index": 16,
+      "start": 57.94,
+      "end": 61.0,
+      "role": "戸川先生",
+      "japanese": "短い期間ですが、みんな仲良く過ごしましょう。",
+      "japaneseHtml": "<ruby>短<rt>みじか</rt></ruby>い<ruby>期間<rt>きかん</rt></ruby>ですが、みんな<ruby>仲良<rt>なかよ</rt></ruby>く<ruby>過<rt>す</rt></ruby>ごしましょう。",
+      "translation": "雖然相處時間不長，大家要和睦相處。",
+      "performance": "表演：親切地收尾。"
+    },
+    {
+      "index": 17,
+      "start": 62.02,
+      "end": 62.74,
+      "role": "生徒たち",
+      "japanese": "はーい！",
+      "japaneseHtml": "はーい！",
+      "translation": "好！",
+      "performance": "表演：全員一起，亮而整齊。"
+    },
+    {
+      "index": 18,
+      "start": 71.96,
+      "end": 74.16,
+      "role": "生徒たち",
+      "japanese": "ファイト！ ファイト！ ファイト！ ファイト！",
+      "japaneseHtml": "ファイト！ ファイト！ ファイト！ ファイト！",
+      "translation": "加油！加油！加油！加油！",
+      "performance": "表演：固定節拍，不要越喊越快。"
+    },
+    {
+      "index": 19,
+      "start": 78.8,
+      "end": 80.04,
+      "role": "男子生徒A",
+      "japanese": "アンドレア、うまいな。",
+      "japaneseHtml": "アンドレア、うまいな。",
+      "translation": "安德烈踢得真好。",
+      "performance": "表演：男童聲用自然中高音即可。"
+    },
+    {
+      "index": 20,
+      "start": 80.7,
+      "end": 80.98,
+      "role": "男子生徒B",
+      "japanese": "うん。",
+      "japaneseHtml": "うん。",
+      "translation": "嗯。",
+      "performance": "表演：短促認同。"
+    },
+    {
+      "index": 21,
+      "start": 81.66,
+      "end": 82.62,
+      "role": "男子生徒A",
+      "japanese": "あいつ、すげえな。",
+      "japaneseHtml": "あいつ、すげえな。",
+      "translation": "那傢伙真厲害。",
+      "performance": "表演：帶一點佩服。"
+    },
+    {
+      "index": 22,
+      "start": 83.66,
+      "end": 87.02,
+      "role": "生徒たち",
+      "japanese": "うまいじゃん！ わあ、うまい！ やったー！",
+      "japaneseHtml": "うまいじゃん！ わあ、うまい！ やったー！",
+      "translation": "很厲害嘛！哇，好厲害！太好了！",
+      "performance": "表演：先是稱讚，最後一起歡呼。"
+    },
+    {
+      "index": 23,
+      "start": 89.68,
+      "end": 95.76,
+      "role": "戸川先生",
+      "japanese": "今日の音楽は、外国のお友達と一緒に、みんなで歌を作ってみましょう。",
+      "japaneseHtml": "<ruby>今日<rt>きょう</rt></ruby>の<ruby>音楽<rt>おんがく</rt></ruby>は、<ruby>外国<rt>がいこく</rt></ruby>のお<ruby>友達<rt>ともだち</rt></ruby>と<ruby>一緒<rt>いっしょ</rt></ruby>に、みんなで<ruby>歌<rt>うた</rt></ruby>を<ruby>作<rt>つく</rt></ruby>ってみましょう。",
+      "translation": "今天的音樂課要和外國朋友一起試著創作歌曲。",
+      "performance": "表演：老師提出活動，語氣鼓勵。"
+    },
+    {
+      "index": 24,
+      "start": 97.46,
+      "end": 99.1,
+      "role": "女子生徒A",
+      "japanese": "私たちにできるかしら？",
+      "japaneseHtml": "<ruby>私<rt>わたし</rt></ruby>たちにできるかしら？",
+      "translation": "我們做得到嗎？",
+      "performance": "表演：小聲擔心。"
+    },
+    {
+      "index": 25,
+      "start": 99.8,
+      "end": 100.62,
+      "role": "女子生徒B",
+      "japanese": "難しそう。",
+      "japaneseHtml": "<ruby>難<rt>むずか</rt></ruby>しそう。",
+      "translation": "感覺很難。",
+      "performance": "表演：接得快，像和同學私語。"
+    },
+    {
+      "index": 26,
+      "start": 101.64,
+      "end": 102.76,
+      "role": "浜崎",
+      "japanese": "オイラには無理だもん。",
+      "japaneseHtml": "オイラには<ruby>無理<rt>むり</rt></ruby>だもん。",
+      "translation": "我可辦不到。",
+      "performance": "表演：孩子氣地先放棄。"
+    },
+    {
+      "index": 27,
+      "start": 104.26,
+      "end": 105.74,
+      "role": "永沢",
+      "japanese": "戸川先生も無茶言うな。",
+      "japaneseHtml": "<ruby>戸川<rt>とがわ</rt></ruby><ruby>先生<rt>せんせい</rt></ruby>も<ruby>無茶<rt>むちゃ</rt></ruby><ruby>言<rt>ゆ</rt></ruby>うな。",
+      "translation": "戶川老師也太強人所難了。",
+      "performance": "表演：低聲吐槽。"
+    },
+    {
+      "index": 28,
+      "start": 106.42,
+      "end": 108.08,
+      "role": "藤木",
+      "japanese": "歌なんて作れないよな。",
+      "japaneseHtml": "<ruby>歌<rt>うた</rt></ruby>なんて<ruby>作<rt>つく</rt></ruby>れないよな。",
+      "translation": "我們哪會寫歌啊。",
+      "performance": "表演：沒自信地附和。"
+    },
+    {
+      "index": 29,
+      "start": 109.06,
+      "end": 110.06,
+      "role": "戸川先生",
+      "japanese": "難しくないわよ。",
+      "japaneseHtml": "<ruby>難<rt>むずか</rt></ruby>しくないわよ。",
+      "translation": "沒有那麼難喔。",
+      "performance": "表演：老師平穩安撫。"
+    },
+    {
+      "index": 30,
+      "start": 111.02,
+      "end": 115.02,
+      "role": "戸川先生",
+      "japanese": "じゃあ、外国のお友達に今の気持ちを聞いてみましょうか。",
+      "japaneseHtml": "じゃあ、<ruby>外国<rt>がいこく</rt></ruby>のお<ruby>友達<rt>ともだち</rt></ruby>に<ruby>今<rt>いま</rt></ruby>の<ruby>気持<rt>きも</rt></ruby>ちを<ruby>聞<rt>き</rt></ruby>いてみましょうか。",
+      "translation": "那就來聽聽外國朋友現在的心情吧。",
+      "performance": "表演：循序引導全班。"
+    },
+    {
+      "index": 31,
+      "start": 116.08,
+      "end": 116.96,
+      "role": "戸川先生",
+      "japanese": "誰か言える人？",
+      "japaneseHtml": "<ruby>誰<rt>だれ</rt></ruby>か<ruby>言<rt>い</rt></ruby>える<ruby>人<rt>ひと</rt></ruby>？",
+      "translation": "有誰願意說說看？",
+      "performance": "表演：帶期待地看向大家。"
+    },
+    {
+      "index": 32,
+      "start": 118.1,
+      "end": 118.5,
+      "role": "アンドレア",
+      "japanese": "はい。",
+      "japaneseHtml": "はい。",
+      "translation": "我。",
+      "performance": "表演：主動舉手，乾淨俐落。"
+    },
+    {
+      "index": 33,
+      "start": 120.18,
+      "end": 122.0,
+      "role": "アンドレア",
+      "japanese": "僕らは遠い国から来ました。",
+      "japaneseHtml": "<ruby>僕<rt>ぼく</rt></ruby>らは<ruby>遠<rt>とお</rt></ruby>い<ruby>国<rt>くに</rt></ruby>から<ruby>来<rt>き</rt></ruby>ました。",
+      "translation": "我們從遙遠的國家來。",
+      "performance": "表演：稍慢，像即席朗誦。"
+    },
+    {
+      "index": 34,
+      "start": 123.86,
+      "end": 125.54,
+      "role": "アンドレア",
+      "japanese": "君に出会えて嬉しいです。",
+      "japaneseHtml": "<ruby>君<rt>きみ</rt></ruby>に<ruby>出会<rt>であ</rt></ruby>えて<ruby>嬉<rt>うれ</rt></ruby>しいです。",
+      "translation": "很高興能遇見你。",
+      "performance": "表演：真誠直視同學。"
+    },
+    {
+      "index": 35,
+      "start": 127.18,
+      "end": 129.28,
+      "role": "アンドレア",
+      "japanese": "ずっとずっと、友達でいてね。",
+      "japaneseHtml": "ずっとずっと、<ruby>友達<rt>ともだち</rt></ruby>でいてね。",
+      "translation": "希望我們永遠永遠都是朋友。",
+      "performance": "表演：兩個「ずっと」留出情感。"
+    },
+    {
+      "index": 36,
+      "start": 133.04,
+      "end": 136.5,
+      "role": "戸川先生",
+      "japanese": "ほら、もうこんなに素敵な歌詞ができましたよ。",
+      "japaneseHtml": "ほら、もうこんなに<ruby>素敵<rt>すてき</rt></ruby>な<ruby>歌詞<rt>かし</rt></ruby>ができましたよ。",
+      "translation": "你們看，這麼棒的歌詞已經完成了。",
+      "performance": "表演：老師高興地點出成果。"
+    },
+    {
+      "index": 37,
+      "start": 137.7,
+      "end": 138.26,
+      "role": "生徒たち",
+      "japanese": "ほんとだ。",
+      "japaneseHtml": "ほんとだ。",
+      "translation": "真的耶。",
+      "performance": "表演：多人小聲驚喜。"
+    },
+    {
+      "index": 38,
+      "start": 138.6,
+      "end": 139.36,
+      "role": "まる子",
+      "japanese": "いい歌詞だね。",
+      "japaneseHtml": "いい<ruby>歌詞<rt>かし</rt></ruby>だね。",
+      "translation": "歌詞真好。",
+      "performance": "表演：由衷稱讚。"
+    },
+    {
+      "index": 39,
+      "start": 140.16,
+      "end": 141.16,
+      "role": "たまちゃん",
+      "japanese": "うん、いいね。",
+      "japaneseHtml": "うん、いいね。",
+      "translation": "嗯，真不錯。",
+      "performance": "表演：溫柔認同丸子。"
+    },
+    {
+      "index": 40,
+      "start": 142.2,
+      "end": 143.7,
+      "role": "戸川先生",
+      "japanese": "誰か作曲できますか？",
+      "japaneseHtml": "<ruby>誰<rt>だれ</rt></ruby>か<ruby>作曲<rt>さっきょく</rt></ruby>できますか？",
+      "translation": "有人會作曲嗎？",
+      "performance": "表演：自然地問全班。"
+    },
+    {
+      "index": 41,
+      "start": 149.36,
+      "end": 153.94,
+      "role": "戸川先生",
+      "japanese": "じゃあ、今度までに曲が作れる人は考えてきてくださいね。",
+      "japaneseHtml": "じゃあ、<ruby>今度<rt>こんど</rt></ruby>までに<ruby>曲<rt>きょく</rt></ruby>が<ruby>作<rt>つく</rt></ruby>れる<ruby>人<rt>ひと</rt></ruby>は<ruby>考<rt>かんが</rt></ruby>えてきてくださいね。",
+      "translation": "那麼，能作曲的人下次上課前想一想。",
+      "performance": "表演：沒有回應時仍保持鼓勵。"
+    },
+    {
+      "index": 42,
+      "start": 155.26,
+      "end": 156.5,
+      "role": "ナレーション",
+      "japanese": "放課後。",
+      "japaneseHtml": "<ruby>放課<rt>ほうか</rt></ruby><ruby>後<rt>ご</rt></ruby>。",
+      "translation": "放學後。",
+      "performance": "表演：平穩轉場，不需故作低沉。"
+    },
+    {
+      "index": 43,
+      "start": 157.7,
+      "end": 159.42,
+      "role": "まる子",
+      "japanese": "アンドレア、帰ろう。",
+      "japaneseHtml": "アンドレア、<ruby>帰<rt>かえ</rt></ruby>ろう。",
+      "translation": "安德烈，我們回家吧。",
+      "performance": "表演：放學後的輕鬆口吻。"
+    },
+    {
+      "index": 44,
+      "start": 159.94,
+      "end": 160.16,
+      "role": "アンドレア",
+      "japanese": "はい。",
+      "japaneseHtml": "はい。",
+      "translation": "好。",
+      "performance": "表演：簡短回應。"
+    },
+    {
+      "index": 45,
+      "start": 160.6,
+      "end": 163.78,
+      "role": "花輪",
+      "japanese": "ヘイ、ちょっとこっちに集まってくれないかい？",
+      "japaneseHtml": "ヘイ、ちょっとこっちに<ruby>集<rt>あつ</rt></ruby>まってくれないかい？",
+      "translation": "嘿，大家可以先到這裡集合嗎？",
+      "performance": "表演：花輪式從容語氣。"
+    },
+    {
+      "index": 46,
+      "start": 164.3,
+      "end": 168.04,
+      "role": "花輪",
+      "japanese": "旅行のことなんだけど、京都にしようと思うんだ。",
+      "japaneseHtml": "<ruby>旅行<rt>りょこう</rt></ruby>のことなんだけど、<ruby>京都<rt>きょうと</rt></ruby>にしようと<ruby>思<rt>おも</rt></ruby>うんだ。",
+      "translation": "關於旅行，我想決定去京都。",
+      "performance": "表演：說話有條理。"
+    },
+    {
+      "index": 47,
+      "start": 168.72,
+      "end": 170.24,
+      "role": "花輪",
+      "japanese": "みんなもそれでいいかい？",
+      "japaneseHtml": "みんなもそれでいいかい？",
+      "translation": "大家也同意嗎？",
+      "performance": "表演：從容徵詢意見。"
+    },
+    {
+      "index": 48,
+      "start": 170.72,
+      "end": 172.02,
+      "role": "外国児童A",
+      "japanese": "京都、行きたいです。",
+      "japaneseHtml": "<ruby>京都<rt>きょうと</rt></ruby>、<ruby>行<rt>い</rt></ruby>きたいです。",
+      "translation": "我想去京都。",
+      "performance": "表演：外國孩子的日語簡潔明快。"
+    },
+    {
+      "index": 49,
+      "start": 172.64,
+      "end": 174.1,
+      "role": "たまちゃん",
+      "japanese": "うん、私も行きたい。",
+      "japaneseHtml": "うん、<ruby>私<rt>わたし</rt></ruby>も<ruby>行<rt>い</rt></ruby>きたい。",
+      "translation": "嗯，我也想去。",
+      "performance": "表演：溫柔附和。"
+    },
+    {
+      "index": 50,
+      "start": 174.66,
+      "end": 176.14,
+      "role": "マーク",
+      "japanese": "京都、ベリー・ベリー・ナイスですね。",
+      "japaneseHtml": "<ruby>京都<rt>きょうと</rt></ruby>、ベリー・ベリー・ナイスですね。",
+      "translation": "京都 very, very nice。",
+      "performance": "表演：把英文節奏做出來，日文仍要清楚。"
+    },
+    {
+      "index": 51,
+      "start": 177.04,
+      "end": 178.24,
+      "role": "浜崎",
+      "japanese": "俺も行ってみたいぜ。",
+      "japaneseHtml": "<ruby>俺<rt>おれ</rt></ruby>も<ruby>行<rt>い</rt></ruby>ってみたいぜ。",
+      "translation": "我也想去看看。",
+      "performance": "表演：男童聲爽快，不必壓低。"
+    },
+    {
+      "index": 52,
+      "start": 179.3,
+      "end": 180.98,
+      "role": "まる子",
+      "japanese": "アンドレアも京都でいい？",
+      "japaneseHtml": "アンドレアも<ruby>京都<rt>きょうと</rt></ruby>でいい？",
+      "translation": "安德烈，京都也可以嗎？",
+      "performance": "表演：注意到他沒表態。"
+    },
+    {
+      "index": 53,
+      "start": 184.5,
+      "end": 187.64,
+      "role": "アンドレア",
+      "japanese": "僕は、もしできれば大阪に行きたいです。",
+      "japaneseHtml": "<ruby>僕<rt>ぼく</rt></ruby>は、もしできれば<ruby>大阪<rt>おおさか</rt></ruby>に<ruby>行<rt>い</rt></ruby>きたいです。",
+      "translation": "如果可以，我想去大阪。",
+      "performance": "表演：先猶豫，再禮貌說出願望。"
+    },
+    {
+      "index": 54,
+      "start": 188.12,
+      "end": 188.42,
+      "role": "シンニー",
+      "japanese": "いいね。",
+      "japaneseHtml": "いいね。",
+      "translation": "不錯。",
+      "performance": "表演：反應俐落。"
+    },
+    {
+      "index": 55,
+      "start": 190.62,
+      "end": 192.1,
+      "role": "シンニー",
+      "japanese": "私も大阪がいいな。",
+      "japaneseHtml": "<ruby>私<rt>わたし</rt></ruby>も<ruby>大阪<rt>おおさか</rt></ruby>がいいな。",
+      "translation": "我也比較想去大阪。",
+      "performance": "表演：語氣輕快。"
+    },
+    {
+      "index": 56,
+      "start": 192.42,
+      "end": 195.4,
+      "role": "ジュリア",
+      "japanese": "オーケー、アミーゴ！ 私も大阪です。",
+      "japaneseHtml": "オーケー、アミーゴ！ <ruby>私<rt>わたし</rt></ruby>も<ruby>大阪<rt>おおさか</rt></ruby>です。",
+      "translation": "OK，朋友！我也選大阪。",
+      "performance": "表演：熱情、節奏鮮明。"
+    },
+    {
+      "index": 57,
+      "start": 196.0,
+      "end": 197.94,
+      "role": "小杉",
+      "japanese": "俺も大阪がいいぞ。",
+      "japaneseHtml": "<ruby>俺<rt>おれ</rt></ruby>も<ruby>大阪<rt>おおさか</rt></ruby>がいいぞ。",
+      "translation": "我也要去大阪。",
+      "performance": "表演：先大聲站隊。"
+    },
+    {
+      "index": 58,
+      "start": 198.52,
+      "end": 200.74,
+      "role": "小杉",
+      "japanese": "いっぱい食って食い倒れたいぞ。",
+      "japaneseHtml": "いっぱい<ruby>食<rt>く</rt></ruby>って<ruby>食<rt>く</rt></ruby>い<ruby>倒<rt>たお</rt></ruby>れたいぞ。",
+      "translation": "我要大吃特吃，吃到撐倒。",
+      "performance": "表演：想到食物就興奮。"
+    },
+    {
+      "index": 59,
+      "start": 201.04,
+      "end": 202.78,
+      "role": "ネプ",
+      "japanese": "俺も食い倒れたいぞ。",
+      "japaneseHtml": "<ruby>俺<rt>おれ</rt></ruby>も<ruby>食<rt>く</rt></ruby>い<ruby>倒<rt>たお</rt></ruby>れたいぞ。",
+      "translation": "我也想一路吃到撐。",
+      "performance": "表演：跟著小杉起鬨。"
+    },
+    {
+      "index": 60,
+      "start": 203.24,
+      "end": 211.2,
+      "role": "花輪",
+      "japanese": "困ったな。全員京都でオーケーかと思っていたけど、ちょうど半分が大阪を希望するとはね。",
+      "japaneseHtml": "<ruby>困<rt>こま</rt></ruby>ったな。<ruby>全員<rt>ぜんいん</rt></ruby><ruby>京都<rt>きょうと</rt></ruby>でオーケーかと<ruby>思<rt>おも</rt></ruby>っていたけど、ちょうど<ruby>半分<rt>はんぶん</rt></ruby>が<ruby>大阪<rt>おおさか</rt></ruby>を<ruby>希望<rt>きぼう</rt></ruby>するとはね。",
+      "translation": "傷腦筋，本以為大家都同意京都，沒想到正好一半想去大阪。",
+      "performance": "表演：保持冷靜但真的為難。"
+    },
+    {
+      "index": 61,
+      "start": 212.04,
+      "end": 215.88,
+      "role": "永沢",
+      "japanese": "おい、お前ら京都にしろよ。花輪が困ってるだろ。",
+      "japaneseHtml": "おい、お<ruby>前<rt>まえ</rt></ruby>ら<ruby>京都<rt>きょうと</rt></ruby>にしろよ。<ruby>花輪<rt>はなわ</rt></ruby>が<ruby>困<rt>こま</rt></ruby>ってるだろ。",
+      "translation": "喂，你們就選京都吧，花輪很困擾耶。",
+      "performance": "表演：口氣開始強硬。"
+    },
+    {
+      "index": 62,
+      "start": 216.26,
+      "end": 225.54,
+      "role": "小杉",
+      "japanese": "やだね。だったらそっちが大阪にしろよ。俺はどうしても大阪のたこ焼きが食いたいんだ。お前らも大阪のたこ焼き食えよ。",
+      "japaneseHtml": "やだね。だったらそっちが<ruby>大阪<rt>おおさか</rt></ruby>にしろよ。<ruby>俺<rt>おれ</rt></ruby>はどうしても<ruby>大阪<rt>おおさか</rt></ruby>のたこ<ruby>焼<rt>や</rt></ruby>きが<ruby>食<rt>く</rt></ruby>いたいんだ。お<ruby>前<rt>まえ</rt></ruby>らも<ruby>大阪<rt>おおさか</rt></ruby>のたこ<ruby>焼<rt>や</rt></ruby>き<ruby>食<rt>く</rt></ruby>えよ。",
+      "translation": "才不要。那你們改選大阪啊。我無論如何都想吃大阪章魚燒，你們也來吃。",
+      "performance": "表演：被食物執念推著越講越快。"
+    },
+    {
+      "index": 63,
+      "start": 226.06,
+      "end": 232.36,
+      "role": "永沢",
+      "japanese": "お前、図々しいぞ。花輪ん家で連れてってくれるんだから、わがまま言わねえで京都にしろよ。",
+      "japaneseHtml": "お<ruby>前<rt>まえ</rt></ruby>、<ruby>図々<rt>ずうずう</rt></ruby>しいぞ。<ruby>花輪<rt>はなわ</rt></ruby>ん<ruby>家<rt>ち</rt></ruby>で<ruby>連<rt>つ</rt></ruby>れてってくれるんだから、わがまま<ruby>言<rt>い</rt></ruby>わねえで<ruby>京都<rt>きょうと</rt></ruby>にしろよ。",
+      "translation": "你也太厚臉皮了。是花輪家帶我們去，別任性，選京都吧。",
+      "performance": "表演：怒氣升高但吐字要清楚。"
+    },
+    {
+      "index": 64,
+      "start": 233.08,
+      "end": 237.46,
+      "role": "まる子",
+      "japanese": "確かにそうだよね。花輪くん家で連れてってくれるのに。",
+      "japaneseHtml": "<ruby>確<rt>たし</rt></ruby>かにそうだよね。<ruby>花輪<rt>はなわ</rt></ruby>くん<ruby>家<rt>ち</rt></ruby>で<ruby>連<rt>つ</rt></ruby>れてってくれるのに。",
+      "translation": "的確是這樣，是花輪家要帶大家去。",
+      "performance": "表演：試著講道理、緩和爭執。"
+    },
+    {
+      "index": 65,
+      "start": 238.6,
+      "end": 240.86,
+      "role": "アンドレア",
+      "japanese": "あの、僕も京都でいいです。",
+      "japaneseHtml": "あの、<ruby>僕<rt>ぼく</rt></ruby>も<ruby>京都<rt>きょうと</rt></ruby>でいいです。",
+      "translation": "那個，我去京都也可以。",
+      "performance": "表演：為了大家退讓，音量稍小。"
+    },
+    {
+      "index": 66,
+      "start": 241.3,
+      "end": 244.0,
+      "role": "永沢",
+      "japanese": "よし、いいぞ！ これで京都に決まりだ！",
+      "japaneseHtml": "よし、いいぞ！ これで<ruby>京都<rt>きょうと</rt></ruby>に<ruby>決<rt>き</rt></ruby>まりだ！",
+      "translation": "好，太好了！這下就決定去京都！",
+      "performance": "表演：以為事情已解決。"
+    },
+    {
+      "index": 67,
+      "start": 244.56,
+      "end": 247.52,
+      "role": "ネプ",
+      "japanese": "ダメだ！ たこ焼きだ！",
+      "japaneseHtml": "ダメだ！ たこ<ruby>焼<rt>や</rt></ruby>きだ！",
+      "translation": "不行！要吃章魚燒！",
+      "performance": "表演：突然打斷，喜劇節奏要準。"
+    },
+    {
+      "index": 68,
+      "start": 248.32,
+      "end": 250.36,
+      "role": "ネプ",
+      "japanese": "お前ら、大阪を裏切るな！",
+      "japaneseHtml": "お<ruby>前<rt>まえ</rt></ruby>ら、<ruby>大阪<rt>おおさか</rt></ruby>を<ruby>裏切<rt>うらぎ</rt></ruby>るな！",
+      "translation": "你們不准背叛大阪！",
+      "performance": "表演：誇張得像在宣誓。"
+    },
+    {
+      "index": 69,
+      "start": 251.74,
+      "end": 256.96,
+      "role": "小杉",
+      "japanese": "みんな、頼む！ 大阪にしてくれ！ たこ焼きの夢を叶えてくれ！",
+      "japaneseHtml": "みんな、<ruby>頼<rt>たの</rt></ruby>む！ <ruby>大阪<rt>おおさか</rt></ruby>にしてくれ！ たこ<ruby>焼<rt>や</rt></ruby>きの<ruby>夢<rt>ゆめ</rt></ruby>を<ruby>叶<rt>かな</rt></ruby>えてくれ！",
+      "translation": "拜託大家，選大阪吧！實現我的章魚燒之夢！",
+      "performance": "表演：幾乎是在懇求，越來越激動。"
+    },
+    {
+      "index": 70,
+      "start": 257.38,
+      "end": 260.36,
+      "role": "永沢",
+      "japanese": "お前、しつこいんだよ！ いい加減にしろ！",
+      "japaneseHtml": "お<ruby>前<rt>まえ</rt></ruby>、しつこいんだよ！ いい<ruby>加減<rt>かげん</rt></ruby>にしろ！",
+      "translation": "你有完沒完！適可而止！",
+      "performance": "表演：怒氣爆發。"
+    },
+    {
+      "index": 71,
+      "start": 260.72,
+      "end": 263.06,
+      "role": "小杉",
+      "japanese": "うるせえ！ たこ焼きの邪魔すんな！",
+      "japaneseHtml": "うるせえ！ たこ<ruby>焼<rt>や</rt></ruby>きの<ruby>邪魔<rt>じゃま</rt></ruby>すんな！",
+      "translation": "吵死了！別妨礙我的章魚燒！",
+      "performance": "表演：立刻頂回去。"
+    },
+    {
+      "index": 72,
+      "start": 263.56,
+      "end": 264.14,
+      "role": "永沢",
+      "japanese": "何だよ！",
+      "japaneseHtml": "<ruby>何<rt>なん</rt></ruby>だよ！",
+      "translation": "你說什麼！",
+      "performance": "表演：短而有力。"
+    },
+    {
+      "index": 73,
+      "start": 264.48,
+      "end": 265.66,
+      "role": "小杉",
+      "japanese": "何だよ！",
+      "japaneseHtml": "<ruby>何<rt>なん</rt></ruby>だよ！",
+      "translation": "怎樣啦！",
+      "performance": "表演：與永澤對撞，不能拖拍。"
+    },
+    {
+      "index": 74,
+      "start": 267.92,
+      "end": 269.66,
+      "role": "まる子",
+      "japanese": "ちょっと、やめなよ！",
+      "japaneseHtml": "ちょっと、やめなよ！",
+      "translation": "喂，別打了啦！",
+      "performance": "表演：從旁邊急著制止。"
+    },
+    {
+      "index": 75,
+      "start": 270.08,
+      "end": 271.62,
+      "role": "花輪",
+      "japanese": "喧嘩はよしたまえ。",
+      "japaneseHtml": "<ruby>喧嘩<rt>けんか</rt></ruby>はよしたまえ。",
+      "translation": "別吵架了。",
+      "performance": "表演：花輪仍保持冷靜和禮貌。"
+    },
+    {
+      "index": 76,
+      "start": 272.52,
+      "end": 274.8,
+      "role": "丸尾",
+      "japanese": "そうですよ。喧嘩はいけません。",
+      "japaneseHtml": "そうですよ。<ruby>喧嘩<rt>けんか</rt></ruby>はいけません。",
+      "translation": "就是啊，吵架是不對的。",
+      "performance": "表演：一本正經地調停。"
+    },
+    {
+      "index": 77,
+      "start": 275.42,
+      "end": 278.98,
+      "role": "丸尾",
+      "japanese": "旅行に行けるんですから、どこでもいいじゃないですか。",
+      "japaneseHtml": "<ruby>旅行<rt>りょこう</rt></ruby>に<ruby>行<rt>い</rt></ruby>けるんですから、どこでもいいじゃないですか。",
+      "translation": "都能出去旅行了，去哪裡不都很好嗎？",
+      "performance": "表演：先說得冠冕堂皇。"
+    },
+    {
+      "index": 78,
+      "start": 279.96,
+      "end": 282.76,
+      "role": "丸尾",
+      "japanese": "私なんてどこにも行けないのですよ。",
+      "japaneseHtml": "<ruby>私<rt>わたし</rt></ruby>なんてどこにも<ruby>行<rt>い</rt></ruby>けないのですよ。",
+      "translation": "像我哪裡都去不了啊。",
+      "performance": "表演：話鋒轉向自己，開始委屈。"
+    },
+    {
+      "index": 79,
+      "start": 283.26,
+      "end": 285.42,
+      "role": "丸尾",
+      "japanese": "つまり悲しいでしょう。",
+      "japaneseHtml": "つまり<ruby>悲<rt>かな</rt></ruby>しいでしょう。",
+      "translation": "也就是說，我很可憐吧。",
+      "performance": "表演：刻意尋求同情。"
+    },
+    {
+      "index": 80,
+      "start": 289.22,
+      "end": 293.2,
+      "role": "丸尾",
+      "japanese": "花輪君、ぜひともこの私も、お供させてください。",
+      "japaneseHtml": "<ruby>花輪<rt>はなわ</rt></ruby><ruby>君<rt>くん</rt></ruby>、ぜひともこの<ruby>私<rt>わたし</rt></ruby>も、お<ruby>供<rt>とも</rt></ruby>させてください。",
+      "translation": "花輪同學，請務必也讓我同行。",
+      "performance": "表演：突然熱切拜託。"
+    },
+    {
+      "index": 81,
+      "start": 293.54,
+      "end": 297.94,
+      "role": "花輪",
+      "japanese": "ええ、そ、それはちょっと無理だよ。ごめんよ、セニョール。",
+      "japaneseHtml": "ええ、そ、それはちょっと<ruby>無理<rt>むり</rt></ruby>だよ。ごめんよ、セニョール。",
+      "translation": "呃，那恐怕有點困難。抱歉了，朋友。",
+      "performance": "表演：先被嚇到，再委婉拒絕。"
+    },
+    {
+      "index": 82,
+      "start": 298.86,
+      "end": 303.0,
+      "role": "丸尾",
+      "japanese": "ああああああ！",
+      "japaneseHtml": "ああああああ！",
+      "translation": "啊啊啊啊啊！",
+      "performance": "表演：幻想破滅的誇張哀號，讓聲音跟著畫面遠去。"
+    },
+    {
+      "index": 83,
+      "start": 310.6,
+      "end": 314.22,
+      "role": "まる子",
+      "japanese": "アンドレアはなんで大阪に行きたいの？ たこ焼き食べたいの？",
+      "japaneseHtml": "アンドレアはなんで<ruby>大阪<rt>おおさか</rt></ruby>に<ruby>行<rt>い</rt></ruby>きたいの？ たこ<ruby>焼<rt>や</rt></ruby>き<ruby>食<rt>た</rt></ruby>べたいの？",
+      "translation": "安德烈為什麼想去大阪？也想吃章魚燒嗎？",
+      "performance": "表演：恢復輕鬆，好奇追問。"
+    },
+    {
+      "index": 84,
+      "start": 315.06,
+      "end": 316.76,
+      "role": "アンドレア",
+      "japanese": "僕は会いたい人がいます。",
+      "japaneseHtml": "<ruby>僕<rt>ぼく</rt></ruby>は<ruby>会<rt>あ</rt></ruby>いたい<ruby>人<rt>ひと</rt></ruby>がいます。",
+      "translation": "我有想見的人。",
+      "performance": "表演：語氣認真，和前面的鬧劇形成反差。"
+    },
+    {
+      "index": 85,
+      "start": 317.52,
+      "end": 319.94,
+      "role": "まる子",
+      "japanese": "えっ、大阪に知り合いがいるの？",
+      "japaneseHtml": "えっ、<ruby>大阪<rt>おおさか</rt></ruby>に<ruby>知<rt>し</rt></ruby>り<ruby>合<rt>あ</rt></ruby>いがいるの？",
+      "translation": "咦，你在大阪有認識的人？",
+      "performance": "表演：真心驚訝。"
+    },
+    {
+      "index": 86,
+      "start": 320.78,
+      "end": 323.22,
+      "role": "アンドレア",
+      "japanese": "おじいちゃんが昔知り合った夫婦です。",
+      "japaneseHtml": "おじいちゃんが<ruby>昔<rt>むかし</rt></ruby><ruby>知<rt>し</rt></ruby>り<ruby>合<rt>あ</rt></ruby>った<ruby>夫婦<rt>ふうふ</rt></ruby>です。",
+      "translation": "是爺爺以前認識的一對夫妻。",
+      "performance": "表演：慢一點，交代重要資訊。"
+    },
+    {
+      "index": 87,
+      "start": 323.9,
+      "end": 326.26,
+      "role": "まる子",
+      "japanese": "へえ、おじいちゃんの知り合いか。",
+      "japaneseHtml": "へえ、おじいちゃんの<ruby>知<rt>し</rt></ruby>り<ruby>合<rt>あ</rt></ruby>いか。",
+      "translation": "原來是你爺爺的朋友啊。",
+      "performance": "表演：理解後輕聲回應。"
+    },
+    {
+      "index": 88,
+      "start": 327.1,
+      "end": 329.46,
+      "role": "アンドレア",
+      "japanese": "もし会えたら、とても嬉しいです。",
+      "japaneseHtml": "もし<ruby>会<rt>あ</rt></ruby>えたら、とても<ruby>嬉<rt>うれ</rt></ruby>しいです。",
+      "translation": "如果能見到他們，我會非常高興。",
+      "performance": "表演：真誠收尾，不要催快。"
+    }
+  ],
+  "soundCues": [
+    {
+      "time": "00:00–00:48",
+      "sound": "通学路の足音",
+      "method": "用指尖或軟鞋底輕敲鋪布木板做腳步；台詞時減弱，轉入教室前停止。"
+    },
+    {
+      "time": "01:03–01:27",
+      "sound": "サッカー",
+      "method": "把捲起的布輕碰有軟墊的木板三、四次，再加短促腳步；不要使用硬球。"
+    },
+    {
+      "time": "02:34",
+      "sound": "放課後の区切り",
+      "method": "小手鈴只敲一次作為放學轉場；若賽方不接受鈴具就省略。"
+    },
+    {
+      "time": "04:18–04:29",
+      "sound": "もみ合い",
+      "method": "厚布短促摩擦兩次，再以鞋底輕踏木板兩下；丸子制止前完全停止。"
+    },
+    {
+      "time": "05:03–05:10",
+      "sound": "帰り道の足音",
+      "method": "交替做兩人的輕腳步並逐漸減弱；丸子提問前停止。"
+    }
+  ]
+}

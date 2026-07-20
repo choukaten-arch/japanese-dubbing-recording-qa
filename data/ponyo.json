@@ -1,0 +1,865 @@
+{
+  "slug": "ponyo",
+  "title": "崖上的波妞",
+  "navTitle": "崖上的波妞",
+  "position": 2,
+  "page": "ponyo.html",
+  "video": "media/ponyo.mp4",
+  "poster": "assets/ponyo.jpg",
+  "sourceSegment": "原片 00:16:45.300–00:22:15.200",
+  "durationLabel": "05:29.900",
+  "duration": 329.92,
+  "lineCount": 77,
+  "roleCount": 8,
+  "roles": [
+    {
+      "role": "クミコ",
+      "lineCount": 13,
+      "characterCount": 81
+    },
+    {
+      "role": "宗介",
+      "lineCount": 32,
+      "characterCount": 281
+    },
+    {
+      "role": "カレン",
+      "lineCount": 1,
+      "characterCount": 3
+    },
+    {
+      "role": "ヨシエ",
+      "lineCount": 10,
+      "characterCount": 101
+    },
+    {
+      "role": "ノリコ",
+      "lineCount": 4,
+      "characterCount": 32
+    },
+    {
+      "role": "トキ",
+      "lineCount": 7,
+      "characterCount": 91
+    },
+    {
+      "role": "リサ",
+      "lineCount": 4,
+      "characterCount": 30
+    },
+    {
+      "role": "ポニョ",
+      "lineCount": 6,
+      "characterCount": 28
+    }
+  ],
+  "lines": [
+    {
+      "index": 1,
+      "start": 0.26,
+      "end": 1.66,
+      "role": "クミコ",
+      "japanese": "ここで何してるの？",
+      "japaneseHtml": "ここで<ruby>何<rt>なに</rt></ruby>してるの？",
+      "translation": "你在這裡做什麼？",
+      "performance": "表演：久美子追問，語尾上揚。"
+    },
+    {
+      "index": 2,
+      "start": 1.94,
+      "end": 3.32,
+      "role": "宗介",
+      "japanese": "だから忙しいの。",
+      "japaneseHtml": "だから<ruby>忙<rt>いそが</rt></ruby>しいの。",
+      "translation": "所以我才說正在忙啊。",
+      "performance": "表演：故作鎮定，帶一點不耐。"
+    },
+    {
+      "index": 3,
+      "start": 3.98,
+      "end": 4.86,
+      "role": "クミコ",
+      "japanese": "変な宗介。",
+      "japaneseHtml": "<ruby>変<rt>へん</rt></ruby>な<ruby>宗介<rt>そうすけ</rt></ruby>。",
+      "translation": "奇怪的宗介。",
+      "performance": "表演：半嫌棄、半好奇，不要太兇。"
+    },
+    {
+      "index": 4,
+      "start": 5.64,
+      "end": 6.36,
+      "role": "カレン",
+      "japanese": "変なの。",
+      "japaneseHtml": "<ruby>変<rt>へん</rt></ruby>なの。",
+      "translation": "真奇怪。",
+      "performance": "表演：跟著附和，短而清楚。"
+    },
+    {
+      "index": 5,
+      "start": 6.76,
+      "end": 7.2,
+      "role": "宗介",
+      "japanese": "フン！",
+      "japaneseHtml": "フン！",
+      "translation": "哼！",
+      "performance": "表演：孩子氣地不服。"
+    },
+    {
+      "index": 6,
+      "start": 20.66,
+      "end": 21.28,
+      "role": "宗介",
+      "japanese": "あっ！",
+      "japaneseHtml": "あっ！",
+      "translation": "啊！",
+      "performance": "表演：發現藏著的水桶，先小聲驚一下。"
+    },
+    {
+      "index": 7,
+      "start": 28.26,
+      "end": 28.84,
+      "role": "宗介",
+      "japanese": "ポニョ！",
+      "japaneseHtml": "ポニョ！",
+      "translation": "波妞！",
+      "performance": "表演：確認她沒事，轉為放心。"
+    },
+    {
+      "index": 8,
+      "start": 36.94,
+      "end": 37.6,
+      "role": "クミコ",
+      "japanese": "宗介！",
+      "japaneseHtml": "<ruby>宗介<rt>そうすけ</rt></ruby>！",
+      "translation": "宗介！",
+      "performance": "表演：突然從背後叫住他。"
+    },
+    {
+      "index": 9,
+      "start": 38.84,
+      "end": 39.64,
+      "role": "宗介",
+      "japanese": "クミコちゃん！",
+      "japaneseHtml": "クミコちゃん！",
+      "translation": "久美子！",
+      "performance": "表演：被撞見，明顯嚇一跳。"
+    },
+    {
+      "index": 10,
+      "start": 39.64,
+      "end": 40.72,
+      "role": "クミコ",
+      "japanese": "それ、なあに？",
+      "japaneseHtml": "それ、なあに？",
+      "translation": "那是什麼？",
+      "performance": "表演：好奇逼問。"
+    },
+    {
+      "index": 11,
+      "start": 41.48,
+      "end": 43.48,
+      "role": "クミコ",
+      "japanese": "園に何か持って来ちゃいけないんだよ。",
+      "japaneseHtml": "<ruby>園<rt>えん</rt></ruby>に<ruby>何<rt>なに</rt></ruby>か<ruby>持<rt>も</rt></ruby>って<ruby>来<rt>き</rt></ruby>ちゃいけないんだよ。",
+      "translation": "幼兒園不能帶東西進來喔。",
+      "performance": "表演：像抓到違規一樣得意。"
+    },
+    {
+      "index": 12,
+      "start": 44.0,
+      "end": 46.0,
+      "role": "宗介",
+      "japanese": "この木は園のじゃないもん。",
+      "japaneseHtml": "この<ruby>木<rt>き</rt></ruby>は<ruby>園<rt>えん</rt></ruby>のじゃないもん。",
+      "translation": "這棵樹又不是幼兒園的。",
+      "performance": "表演：孩子式辯解。"
+    },
+    {
+      "index": 13,
+      "start": 46.0,
+      "end": 47.78,
+      "role": "宗介",
+      "japanese": "「ひまわりの家」のだからいいんです。",
+      "japaneseHtml": "「ひまわりの<ruby>家<rt>いえ</rt></ruby>」のだからいいんです。",
+      "translation": "這是向日葵之家的，所以沒關係。",
+      "performance": "表演：故意裝大人、講得正式。"
+    },
+    {
+      "index": 14,
+      "start": 47.78,
+      "end": 48.78,
+      "role": "クミコ",
+      "japanese": "見せて！",
+      "japaneseHtml": "<ruby>見<rt>み</rt></ruby>せて！",
+      "translation": "給我看！",
+      "performance": "表演：急切、往前逼近。"
+    },
+    {
+      "index": 15,
+      "start": 50.62,
+      "end": 51.68,
+      "role": "クミコ",
+      "japanese": "あっ、金魚！",
+      "japaneseHtml": "あっ、<ruby>金魚<rt>きんぎょ</rt></ruby>！",
+      "translation": "啊，金魚！",
+      "performance": "表演：看到水桶裡的波妞，立刻興奮。"
+    },
+    {
+      "index": 16,
+      "start": 52.22,
+      "end": 53.4,
+      "role": "宗介",
+      "japanese": "金魚じゃないよ。",
+      "japaneseHtml": "<ruby>金魚<rt>きんぎょ</rt></ruby>じゃないよ。",
+      "translation": "才不是金魚。",
+      "performance": "表演：立即糾正。"
+    },
+    {
+      "index": 17,
+      "start": 53.4,
+      "end": 54.46,
+      "role": "宗介",
+      "japanese": "ポニョだよ。",
+      "japaneseHtml": "ポニョだよ。",
+      "translation": "是波妞。",
+      "performance": "表演：帶著自豪介紹。"
+    },
+    {
+      "index": 18,
+      "start": 54.46,
+      "end": 55.2,
+      "role": "クミコ",
+      "japanese": "ポニョ？",
+      "japaneseHtml": "ポニョ？",
+      "translation": "波妞？",
+      "performance": "表演：疑惑地重複名字。"
+    },
+    {
+      "index": 19,
+      "start": 55.68,
+      "end": 56.68,
+      "role": "クミコ",
+      "japanese": "見たーい！",
+      "japaneseHtml": "<ruby>見<rt>み</rt></ruby>たーい！",
+      "translation": "想看！",
+      "performance": "表演：把「たーい」拉長。"
+    },
+    {
+      "index": 20,
+      "start": 57.14,
+      "end": 59.26,
+      "role": "宗介",
+      "japanese": "見せたら、誰にも言わない？",
+      "japaneseHtml": "<ruby>見<rt>み</rt></ruby>せたら、<ruby>誰<rt>だれ</rt></ruby>にも<ruby>言<rt>い</rt></ruby>わない？",
+      "translation": "給妳看就不能告訴任何人喔？",
+      "performance": "表演：壓低聲音確認。"
+    },
+    {
+      "index": 21,
+      "start": 59.5,
+      "end": 60.52,
+      "role": "クミコ",
+      "japanese": "うん、言わない！",
+      "japaneseHtml": "うん、<ruby>言<rt>い</rt></ruby>わない！",
+      "translation": "嗯，不會說！",
+      "performance": "表演：立刻答應。"
+    },
+    {
+      "index": 22,
+      "start": 62.68,
+      "end": 64.44,
+      "role": "宗介",
+      "japanese": "ほら、かわいいでしょ？",
+      "japaneseHtml": "ほら、かわいいでしょ？",
+      "translation": "妳看，很可愛吧？",
+      "performance": "表演：期待得到認同。"
+    },
+    {
+      "index": 23,
+      "start": 71.0,
+      "end": 71.7,
+      "role": "クミコ",
+      "japanese": "変なの！",
+      "japaneseHtml": "<ruby>変<rt>へん</rt></ruby>なの！",
+      "translation": "怪怪的！",
+      "performance": "表演：嫌棄來得突然。"
+    },
+    {
+      "index": 24,
+      "start": 71.7,
+      "end": 74.38,
+      "role": "クミコ",
+      "japanese": "デブだし、うちの金魚のほうがかわいい。",
+      "japaneseHtml": "デブだし、うちの<ruby>金魚<rt>きんぎょ</rt></ruby>のほうがかわいい。",
+      "translation": "又胖，我家的金魚還比較可愛。",
+      "performance": "表演：童言挑釁，別演成惡毒。"
+    },
+    {
+      "index": 25,
+      "start": 74.52,
+      "end": 76.5,
+      "role": "クミコ",
+      "japanese": "ひいっ！ あああ…！",
+      "japaneseHtml": "ひいっ！ あああ…！",
+      "translation": "呀！啊啊……！",
+      "performance": "表演：被噴水，驚叫一路拉高。"
+    },
+    {
+      "index": 26,
+      "start": 97.26,
+      "end": 98.8,
+      "role": "宗介",
+      "japanese": "クミコちゃんがいけないんだよ。",
+      "japaneseHtml": "クミコちゃんがいけないんだよ。",
+      "translation": "是久美子不對。",
+      "performance": "表演：小聲安慰波妞。"
+    },
+    {
+      "index": 27,
+      "start": 99.26,
+      "end": 101.1,
+      "role": "宗介",
+      "japanese": "ポニョの悪口言うからだよね。",
+      "japaneseHtml": "ポニョの<ruby>悪口<rt>わるぐち</rt></ruby><ruby>言<rt>ゆ</rt></ruby>うからだよね。",
+      "translation": "誰叫她說波妞壞話，對吧。",
+      "performance": "表演：溫柔站在波妞這邊。"
+    },
+    {
+      "index": 28,
+      "start": 105.7,
+      "end": 106.9,
+      "role": "宗介",
+      "japanese": "水、足してあげるね。",
+      "japaneseHtml": "<ruby>水<rt>みず</rt></ruby>、<ruby>足<rt>た</rt></ruby>してあげるね。",
+      "translation": "幫妳加點水。",
+      "performance": "表演：像照顧小動物般溫柔。"
+    },
+    {
+      "index": 29,
+      "start": 130.0,
+      "end": 130.52,
+      "role": "宗介",
+      "japanese": "あっ！ ポニョ！",
+      "japaneseHtml": "あっ！ ポニョ！",
+      "translation": "啊！波妞！",
+      "performance": "表演：水桶傾倒後找不到她，突然著急。"
+    },
+    {
+      "index": 30,
+      "start": 134.7,
+      "end": 136.72,
+      "role": "宗介",
+      "japanese": "あっ！ アハハ…！",
+      "japaneseHtml": "あっ！ アハハ…！",
+      "translation": "啊！哈哈哈……！",
+      "performance": "表演：看到她平安，驚慌轉成笑。"
+    },
+    {
+      "index": 31,
+      "start": 137.7,
+      "end": 138.5,
+      "role": "宗介",
+      "japanese": "よかった。",
+      "japaneseHtml": "よかった。",
+      "translation": "太好了。",
+      "performance": "表演：真正鬆一口氣。"
+    },
+    {
+      "index": 32,
+      "start": 143.82,
+      "end": 148.88,
+      "role": "ヨシエ",
+      "japanese": "おかしいねぇ。宗介ちゃんの声がするねぇ。",
+      "japaneseHtml": "おかしいねぇ。<ruby>宗介<rt>そうすけ</rt></ruby>ちゃんの<ruby>声<rt>こえ</rt></ruby>がするねぇ。",
+      "translation": "好奇怪呀，好像聽到宗介的聲音。",
+      "performance": "表演：年長者語速放慢、溫暖。"
+    },
+    {
+      "index": 33,
+      "start": 150.58,
+      "end": 156.48,
+      "role": "ヨシエ",
+      "japanese": "でも、宗介ちゃんは保育園に行ってるはずだし、空耳かなぁ。",
+      "japaneseHtml": "でも、<ruby>宗介<rt>そうすけ</rt></ruby>ちゃんは<ruby>保育<rt>ほいく</rt></ruby><ruby>園<rt>えん</rt></ruby>に<ruby>行<rt>い</rt></ruby>ってるはずだし、<ruby>空耳<rt>そらみみ</rt></ruby>かなぁ。",
+      "translation": "可是宗介應該在幼兒園，難道是幻聽？",
+      "performance": "表演：像自言自語。"
+    },
+    {
+      "index": 34,
+      "start": 156.48,
+      "end": 159.5,
+      "role": "宗介",
+      "japanese": "ヨシエさん、僕いるよ。",
+      "japaneseHtml": "ヨシエさん、<ruby>僕<rt>ぼく</rt></ruby>いるよ。",
+      "translation": "芳江婆婆，我在這裡。",
+      "performance": "表演：從窗外提高音量。"
+    },
+    {
+      "index": 35,
+      "start": 160.7,
+      "end": 164.04,
+      "role": "ヨシエ",
+      "japanese": "あらあら、宗介ちゃんがいる。",
+      "japaneseHtml": "あらあら、<ruby>宗介<rt>そうすけ</rt></ruby>ちゃんがいる。",
+      "translation": "哎呀呀，宗介在這裡。",
+      "performance": "表演：發現他後很驚喜。"
+    },
+    {
+      "index": 36,
+      "start": 165.86,
+      "end": 168.02,
+      "role": "宗介",
+      "japanese": "僕、いいもの持ってるか？",
+      "japaneseHtml": "<ruby>僕<rt>ぼく</rt></ruby>、いいもの<ruby>持<rt>も</rt></ruby>ってるか？",
+      "translation": "猜猜我是不是帶了好東西？",
+      "performance": "表演：像玩猜謎。"
+    },
+    {
+      "index": 37,
+      "start": 168.02,
+      "end": 169.16,
+      "role": "ヨシエ",
+      "japanese": "持ってる！",
+      "japaneseHtml": "<ruby>持<rt>も</rt></ruby>ってる！",
+      "translation": "有！",
+      "performance": "表演：立刻配合孩子。"
+    },
+    {
+      "index": 38,
+      "start": 169.16,
+      "end": 169.96,
+      "role": "宗介",
+      "japanese": "当たり！",
+      "japaneseHtml": "<ruby>当<rt>あ</rt></ruby>たり！",
+      "translation": "答對！",
+      "performance": "表演：明亮、有成就感。"
+    },
+    {
+      "index": 39,
+      "start": 171.04,
+      "end": 173.72,
+      "role": "宗介",
+      "japanese": "じゃあね、何色でしょう？",
+      "japaneseHtml": "じゃあね、<ruby>何色<rt>なにいろ</rt></ruby>でしょう？",
+      "translation": "那麼，是什麼顏色呢？",
+      "performance": "表演：故意拉開期待。"
+    },
+    {
+      "index": 40,
+      "start": 174.64,
+      "end": 176.54,
+      "role": "ヨシエ",
+      "japanese": "うーん…。",
+      "japaneseHtml": "うーん…。",
+      "translation": "嗯……",
+      "performance": "表演：思考時自然拉長。"
+    },
+    {
+      "index": 41,
+      "start": 176.54,
+      "end": 177.06,
+      "role": "ノリコ",
+      "japanese": "赤！",
+      "japaneseHtml": "<ruby>赤<rt>あか</rt></ruby>！",
+      "translation": "紅色！",
+      "performance": "表演：搶答，短而亮。"
+    },
+    {
+      "index": 42,
+      "start": 177.2,
+      "end": 177.6,
+      "role": "ヨシエ",
+      "japanese": "赤！",
+      "japaneseHtml": "<ruby>赤<rt>あか</rt></ruby>！",
+      "translation": "紅色！",
+      "performance": "表演：跟著喊，做出兩人的默契。"
+    },
+    {
+      "index": 43,
+      "start": 178.5,
+      "end": 179.3,
+      "role": "宗介",
+      "japanese": "当たり！",
+      "japaneseHtml": "<ruby>当<rt>あ</rt></ruby>たり！",
+      "translation": "答對！",
+      "performance": "表演：再把遊戲感推高。"
+    },
+    {
+      "index": 44,
+      "start": 180.72,
+      "end": 182.38,
+      "role": "宗介",
+      "japanese": "どうして分かったのかなぁ？",
+      "japaneseHtml": "どうして<ruby>分<rt>わ</rt></ruby>かったのかなぁ？",
+      "translation": "怎麼會猜到呢？",
+      "performance": "表演：真心困惑，帶童真。"
+    },
+    {
+      "index": 45,
+      "start": 183.02,
+      "end": 184.04,
+      "role": "ヨシエ",
+      "japanese": "見せて。",
+      "japaneseHtml": "<ruby>見<rt>み</rt></ruby>せて。",
+      "translation": "給我看。",
+      "performance": "表演：期待、親切。"
+    },
+    {
+      "index": 46,
+      "start": 184.04,
+      "end": 185.02,
+      "role": "ノリコ",
+      "japanese": "見せて。",
+      "japaneseHtml": "<ruby>見<rt>み</rt></ruby>せて。",
+      "translation": "我也要看。",
+      "performance": "表演：接得快一些。"
+    },
+    {
+      "index": 47,
+      "start": 185.02,
+      "end": 185.6,
+      "role": "宗介",
+      "japanese": "うん。",
+      "japaneseHtml": "うん。",
+      "translation": "嗯。",
+      "performance": "表演：爽快答應。"
+    },
+    {
+      "index": 48,
+      "start": 188.44,
+      "end": 190.04,
+      "role": "ヨシエ",
+      "japanese": "あら、きれい！",
+      "japaneseHtml": "あら、きれい！",
+      "translation": "哎呀，好漂亮！",
+      "performance": "表演：真心驚喜。"
+    },
+    {
+      "index": 49,
+      "start": 190.04,
+      "end": 191.04,
+      "role": "ノリコ",
+      "japanese": "かわいいねぇ。",
+      "japaneseHtml": "かわいいねぇ。",
+      "translation": "好可愛呀。",
+      "performance": "表演：柔和、拉長句尾。"
+    },
+    {
+      "index": 50,
+      "start": 191.64,
+      "end": 195.74,
+      "role": "宗介",
+      "japanese": "ポニョっていうの。ハムが好きで、魔法も使えるんだよ。",
+      "japaneseHtml": "ポニョっていうの。ハムが<ruby>好<rt>す</rt></ruby>きで、<ruby>魔法<rt>まほう</rt></ruby>も<ruby>使<rt>つか</rt></ruby>えるんだよ。",
+      "translation": "她叫波妞，喜歡火腿，還會魔法喔。",
+      "performance": "表演：像介紹最重要的朋友。"
+    },
+    {
+      "index": 51,
+      "start": 197.02,
+      "end": 201.0,
+      "role": "宗介",
+      "japanese": "ここのケガがなくなっちゃったもん。ポニョがなめたから。",
+      "japaneseHtml": "ここのケガがなくなっちゃったもん。ポニョがなめたから。",
+      "translation": "我這裡的傷都不見了，因為波妞舔過。",
+      "performance": "表演：指著手指、認真證明。"
+    },
+    {
+      "index": 52,
+      "start": 203.36,
+      "end": 207.22,
+      "role": "ヨシエ",
+      "japanese": "私たちの足もなめてくれないかしらねぇ。",
+      "japaneseHtml": "<ruby>私<rt>わたし</rt></ruby>たちの<ruby>足<rt>あし</rt></ruby>もなめてくれないかしらねぇ。",
+      "translation": "不知道她能不能也舔舔我們的腳呢。",
+      "performance": "表演：半開玩笑、半期待。"
+    },
+    {
+      "index": 53,
+      "start": 207.22,
+      "end": 210.78,
+      "role": "ノリコ",
+      "japanese": "もう一回、宗ちゃんみたいにかけっこできたらねぇ。",
+      "japaneseHtml": "もう<ruby>一回<rt>いっかい</rt></ruby>、<ruby>宗<rt>そう</rt></ruby>ちゃんみたいにかけっこできたらねぇ。",
+      "translation": "要是能再像宗介那樣跑一次就好了。",
+      "performance": "表演：帶淡淡懷念，不要煽情。"
+    },
+    {
+      "index": 54,
+      "start": 212.8,
+      "end": 215.06,
+      "role": "宗介",
+      "japanese": "うーん、ポニョに聞いてみないと分からない。",
+      "japaneseHtml": "うーん、ポニョに<ruby>聞<rt>き</rt></ruby>いてみないと<ruby>分<rt>わ</rt></ruby>からない。",
+      "translation": "嗯，不問問波妞就不知道。",
+      "performance": "表演：像真的在思考辦法。"
+    },
+    {
+      "index": 55,
+      "start": 215.52,
+      "end": 217.26,
+      "role": "トキ",
+      "japanese": "私にも見しとくれ。",
+      "japaneseHtml": "<ruby>私<rt>わたし</rt></ruby>にも<ruby>見<rt>み</rt></ruby>しとくれ。",
+      "translation": "也給我看看。",
+      "performance": "表演：保留辰婆婆的方言，嗓音較低、直截了當。"
+    },
+    {
+      "index": 56,
+      "start": 217.26,
+      "end": 219.02,
+      "role": "宗介",
+      "japanese": "いいよ、トキさん。",
+      "japaneseHtml": "いいよ、トキさん。",
+      "translation": "好啊，辰婆婆。",
+      "performance": "表演：毫無戒心。"
+    },
+    {
+      "index": 57,
+      "start": 221.08,
+      "end": 223.78,
+      "role": "トキ",
+      "japanese": "う～、イヤだ！ 人面魚じゃないか！",
+      "japaneseHtml": "う～、イヤだ！ <ruby>人面<rt>じんめん</rt></ruby><ruby>魚<rt>ぎょ</rt></ruby>じゃないか！",
+      "translation": "噢，討厭！這不是人面魚嗎！",
+      "performance": "表演：從懷疑瞬間爆成驚恐。"
+    },
+    {
+      "index": 58,
+      "start": 225.28,
+      "end": 227.36,
+      "role": "トキ",
+      "japanese": "早く海に戻しとくれ！",
+      "japaneseHtml": "<ruby>早<rt>はや</rt></ruby>く<ruby>海<rt>うみ</rt></ruby>に<ruby>戻<rt>もど</rt></ruby>しとくれ！",
+      "translation": "快把牠放回海裡！",
+      "performance": "表演：命令式，吐字仍要清楚。"
+    },
+    {
+      "index": 59,
+      "start": 227.36,
+      "end": 229.18,
+      "role": "トキ",
+      "japanese": "津波を呼ぶよ！",
+      "japaneseHtml": "<ruby>津波<rt>つなみ</rt></ruby>を<ruby>呼<rt>よ</rt></ruby>ぶよ！",
+      "translation": "會招來海嘯啊！",
+      "performance": "表演：提高音量。"
+    },
+    {
+      "index": 60,
+      "start": 229.72,
+      "end": 232.72,
+      "role": "ヨシエ",
+      "japanese": "またトキさんが、津波だなんて。",
+      "japaneseHtml": "またトキさんが、<ruby>津波<rt>つなみ</rt></ruby>だなんて。",
+      "translation": "辰婆婆又在說海嘯了。",
+      "performance": "表演：略帶無奈，想安撫氣氛。"
+    },
+    {
+      "index": 61,
+      "start": 232.72,
+      "end": 238.0,
+      "role": "トキ",
+      "japanese": "人面魚が浜に上がると、津波が来るんだ。昔からそういうんだよ！",
+      "japaneseHtml": "<ruby>人面<rt>じんめん</rt></ruby><ruby>魚<rt>ぎょ</rt></ruby>が<ruby>浜<rt>はま</rt></ruby>に<ruby>上<rt>あ</rt></ruby>がると、<ruby>津波<rt>つなみ</rt></ruby>が<ruby>来<rt>く</rt></ruby>るんだ。<ruby>昔<rt>むかし</rt></ruby>からそういうんだよ！",
+      "translation": "人面魚一上岸就會有海嘯，從以前就是這樣說的！",
+      "performance": "表演：迷信但非常篤定。"
+    },
+    {
+      "index": 62,
+      "start": 240.66,
+      "end": 247.76,
+      "role": "トキ",
+      "japanese": "ああーっ！ 津波だ！ 津波が来た！ 津波が来た！ あっ、あっ、津波ー！",
+      "japaneseHtml": "ああーっ！ <ruby>津波<rt>つなみ</rt></ruby>だ！ <ruby>津波<rt>つなみ</rt></ruby>が<ruby>来<rt>き</rt></ruby>た！ <ruby>津波<rt>つなみ</rt></ruby>が<ruby>来<rt>き</rt></ruby>た！ あっ、あっ、<ruby>津波<rt>つなみ</rt></ruby>ー！",
+      "translation": "啊！海嘯！海嘯來了！海嘯來了！啊、啊，海嘯！",
+      "performance": "表演：被噴水後一路加速，是本段最大喜劇爆發點。"
+    },
+    {
+      "index": 63,
+      "start": 252.68,
+      "end": 253.76,
+      "role": "リサ",
+      "japanese": "どうしました？ トキさん。",
+      "japaneseHtml": "どうしました？ トキさん。",
+      "translation": "怎麼了？辰婆婆。",
+      "performance": "表演：從室內趕來，先關心。"
+    },
+    {
+      "index": 64,
+      "start": 253.76,
+      "end": 256.14,
+      "role": "トキ",
+      "japanese": "ああ、服が台無しー！",
+      "japaneseHtml": "ああ、<ruby>服<rt>ふく</rt></ruby>が<ruby>台無<rt>だいな</rt></ruby>しー！",
+      "translation": "啊，我的衣服全毀了！",
+      "performance": "表演：由恐慌轉成委屈。"
+    },
+    {
+      "index": 65,
+      "start": 264.2,
+      "end": 268.1,
+      "role": "リサ",
+      "japanese": "宗介！",
+      "japaneseHtml": "<ruby>宗介<rt>そうすけ</rt></ruby>！",
+      "translation": "宗介！",
+      "performance": "表演：從遠處呼喊；聲音要有距離感。"
+    },
+    {
+      "index": 66,
+      "start": 270.16,
+      "end": 276.5,
+      "role": "リサ",
+      "japanese": "宗介ー！ 宗介！ 宗介！",
+      "japaneseHtml": "<ruby>宗介<rt>そうすけ</rt></ruby>ー！ <ruby>宗介<rt>そうすけ</rt></ruby>！ <ruby>宗介<rt>そうすけ</rt></ruby>！",
+      "translation": "宗介！",
+      "performance": "表演：連續尋人，越來越急，但不要每次都同一強度。"
+    },
+    {
+      "index": 67,
+      "start": 278.74,
+      "end": 283.22,
+      "role": "リサ",
+      "japanese": "宗介ー！ トキさんに謝りなさーい！",
+      "japaneseHtml": "<ruby>宗介<rt>そうすけ</rt></ruby>ー！ トキさんに<ruby>謝<rt>あやま</rt></ruby>りなさーい！",
+      "translation": "宗介！快向辰婆婆道歉！",
+      "performance": "表演：母親的命令要穿透遠景。"
+    },
+    {
+      "index": 68,
+      "start": 292.86,
+      "end": 296.64,
+      "role": "宗介",
+      "japanese": "心配しなくていいよ。僕が守ってあげるからね。",
+      "japaneseHtml": "<ruby>心配<rt>しんぱい</rt></ruby>しなくていいよ。<ruby>僕<rt>ぼく</rt></ruby>が<ruby>守<rt>まも</rt></ruby>ってあげるからね。",
+      "translation": "不用擔心，我會保護妳。",
+      "performance": "表演：收小音量，溫柔但堅定。"
+    },
+    {
+      "index": 69,
+      "start": 298.58,
+      "end": 299.72,
+      "role": "ポニョ",
+      "japanese": "そすけ。",
+      "japaneseHtml": "そすけ。",
+      "translation": "宗介。",
+      "performance": "表演：模仿遠方呼喊，第一次說話，慢而稚嫩。"
+    },
+    {
+      "index": 70,
+      "start": 303.44,
+      "end": 304.48,
+      "role": "ポニョ",
+      "japanese": "そすけ。",
+      "japaneseHtml": "そすけ。",
+      "translation": "宗介。",
+      "performance": "表演：再說一次，確定自己發得出聲音。"
+    },
+    {
+      "index": 71,
+      "start": 306.0,
+      "end": 307.0,
+      "role": "宗介",
+      "japanese": "あっ、ああ…！",
+      "japaneseHtml": "あっ、ああ…！",
+      "translation": "啊、啊……！",
+      "performance": "表演：難以置信，先吸氣再出聲。"
+    },
+    {
+      "index": 72,
+      "start": 308.98,
+      "end": 309.86,
+      "role": "ポニョ",
+      "japanese": "ポニョ！",
+      "japaneseHtml": "ポニョ！",
+      "translation": "波妞！",
+      "performance": "表演：指著自己，自我介紹。"
+    },
+    {
+      "index": 73,
+      "start": 312.72,
+      "end": 313.56,
+      "role": "宗介",
+      "japanese": "ポニョ！",
+      "japaneseHtml": "ポニョ！",
+      "translation": "波妞！",
+      "performance": "表演：驚喜地確認。"
+    },
+    {
+      "index": 74,
+      "start": 314.18,
+      "end": 314.98,
+      "role": "ポニョ",
+      "japanese": "そすけ。",
+      "japaneseHtml": "そすけ。",
+      "translation": "宗介。",
+      "performance": "表演：指向他，發音仍保留幼兒感。"
+    },
+    {
+      "index": 75,
+      "start": 315.76,
+      "end": 319.0,
+      "role": "ポニョ",
+      "japanese": "ポニョ、そすけ、好き！",
+      "japaneseHtml": "ポニョ、そすけ、<ruby>好<rt>す</rt></ruby>き！",
+      "translation": "波妞喜歡宗介！",
+      "performance": "表演：每個詞之間留空，單純直接。"
+    },
+    {
+      "index": 76,
+      "start": 325.46,
+      "end": 326.58,
+      "role": "宗介",
+      "japanese": "僕も好き！",
+      "japaneseHtml": "<ruby>僕<rt>ぼく</rt></ruby>も<ruby>好<rt>す</rt></ruby>き！",
+      "translation": "我也喜歡！",
+      "performance": "表演：笑著回應，乾淨真誠。"
+    },
+    {
+      "index": 77,
+      "start": 327.06,
+      "end": 329.62,
+      "role": "ポニョ",
+      "japanese": "ポニョ、そすけ、好き！",
+      "japaneseHtml": "ポニョ、そすけ、<ruby>好<rt>す</rt></ruby>き！",
+      "translation": "波妞喜歡宗介！",
+      "performance": "表演：更開心地重複，收在明亮笑意。"
+    }
+  ],
+  "soundCues": [
+    {
+      "time": "00:07–00:29",
+      "sound": "走る・草むら・バケツ",
+      "method": "手指或鞋尖輕敲木板做跑步；揉薄紙做樹葉；空塑膠桶只輕碰一次。"
+    },
+    {
+      "time": "01:14–01:17",
+      "sound": "水を吹く",
+      "method": "嘴巴短促做「噗」聲，再拍一下摺疊塑膠布；不使用真水。"
+    },
+    {
+      "time": "01:47–02:18",
+      "sound": "バケツ・転倒・走る",
+      "method": "空桶輕倒在墊過的木板上，再加兩三步鞋聲。"
+    },
+    {
+      "time": "02:19–02:40",
+      "sound": "窓辺へ走る",
+      "method": "指尖輕敲木板做腳步，芳江婆婆開口前完全停止。"
+    },
+    {
+      "time": "03:59–04:08",
+      "sound": "水しぶき・騒ぎ",
+      "method": "塑膠布較有力地拍一次；後續只靠辰婆婆的聲音呈現混亂。"
+    },
+    {
+      "time": "04:17–04:47",
+      "sound": "走る・海辺",
+      "method": "木板腳步逐漸變遠，輕揮布條做海風；不可蓋住理莎呼喊。"
+    },
+    {
+      "time": "05:19–05:25",
+      "sound": "ポニョの水はね",
+      "method": "塑膠布間隔拍兩下做濺水；宗介說「我也喜歡」前必須完全停下。"
+    }
+  ]
+}

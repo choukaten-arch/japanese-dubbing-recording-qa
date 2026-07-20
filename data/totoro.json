@@ -1,0 +1,615 @@
+{
+  "slug": "totoro",
+  "title": "龍貓",
+  "navTitle": "龍貓",
+  "position": 5,
+  "page": "totoro.html",
+  "video": "media/totoro.mp4",
+  "poster": "assets/totoro.jpg",
+  "sourceSegment": "原片 00:13:27.000–00:17:59.000",
+  "durationLabel": "04:32.000",
+  "duration": 272.022,
+  "lineCount": 54,
+  "roleCount": 5,
+  "roles": [
+    {
+      "role": "おばあちゃん",
+      "lineCount": 21,
+      "characterCount": 293
+    },
+    {
+      "role": "お父さん",
+      "lineCount": 7,
+      "characterCount": 84
+    },
+    {
+      "role": "さつき",
+      "lineCount": 19,
+      "characterCount": 194
+    },
+    {
+      "role": "メイ",
+      "lineCount": 5,
+      "characterCount": 38
+    },
+    {
+      "role": "カンタ",
+      "lineCount": 2,
+      "characterCount": 24
+    }
+  ],
+  "lines": [
+    {
+      "index": 1,
+      "start": 0.0,
+      "end": 0.7,
+      "role": "おばあちゃん",
+      "japanese": "ああ……。",
+      "japaneseHtml": "ああ……。",
+      "translation": "哎呀……。",
+      "performance": "表演：被小梅突然撞到時的短促反應。"
+    },
+    {
+      "index": 2,
+      "start": 1.5,
+      "end": 2.61,
+      "role": "お父さん",
+      "japanese": "メイ！",
+      "japaneseHtml": "メイ！",
+      "translation": "小梅！",
+      "performance": "表演：爸爸在屋內叫住小梅，短促自然。"
+    },
+    {
+      "index": 3,
+      "start": 13.24,
+      "end": 15.2,
+      "role": "おばあちゃん",
+      "japanese": "アハハ、元気だねぇ。",
+      "japaneseHtml": "アハハ、<ruby>元気<rt>げんき</rt></ruby>だねぇ。",
+      "translation": "哈哈，真有精神啊。",
+      "performance": "表演：婆婆笑著招呼孩子。"
+    },
+    {
+      "index": 4,
+      "start": 15.64,
+      "end": 18.36,
+      "role": "お父さん",
+      "japanese": "このうちを管理されてる、隣のおばあちゃんだよ。",
+      "japaneseHtml": "このうちを<ruby>管理<rt>かんり</rt></ruby>されてる、<ruby>隣<rt>となり</rt></ruby>のおばあちゃんだよ。",
+      "translation": "這位是負責照料這間房子的鄰居婆婆。",
+      "performance": "表演：爸爸平穩介紹。"
+    },
+    {
+      "index": 5,
+      "start": 18.86,
+      "end": 20.32,
+      "role": "お父さん",
+      "japanese": "応援に来てくださったんだ。",
+      "japaneseHtml": "<ruby>応援<rt>おうえん</rt></ruby>に<ruby>来<rt>き</rt></ruby>てくださったんだ。",
+      "translation": "她是來幫忙的。",
+      "performance": "表演：帶著感謝。"
+    },
+    {
+      "index": 6,
+      "start": 20.92,
+      "end": 23.48,
+      "role": "さつき",
+      "japanese": "さつきです。妹のメイです。こんにちは。",
+      "japaneseHtml": "さつきです。<ruby>妹<rt>いもうと</rt></ruby>のメイです。こんにちは。",
+      "translation": "我是皋月，這是妹妹小梅。您好。",
+      "performance": "表演：清楚有禮。"
+    },
+    {
+      "index": 7,
+      "start": 25.36,
+      "end": 26.0,
+      "role": "おばあちゃん",
+      "japanese": "はい、こんにちは。",
+      "japaneseHtml": "はい、こんにちは。",
+      "translation": "妳好。",
+      "performance": "表演：親切回應。"
+    },
+    {
+      "index": 8,
+      "start": 27.36,
+      "end": 29.1,
+      "role": "おばあちゃん",
+      "japanese": "賢そうな子だよ。",
+      "japaneseHtml": "<ruby>賢<rt>かしこ</rt></ruby>そうな<ruby>子<rt>こ</rt></ruby>だよ。",
+      "translation": "看起來是個聰明的孩子。",
+      "performance": "表演：帶鄉音、語氣親切。"
+    },
+    {
+      "index": 9,
+      "start": 29.68,
+      "end": 33.22,
+      "role": "おばあちゃん",
+      "japanese": "こんなに急ぎでなきゃ、うちの手入れもしといたんだけんど。",
+      "japaneseHtml": "こんなに<ruby>急<rt>いそ</rt></ruby>ぎでなきゃ、うちの<ruby>手入<rt>てい</rt></ruby>れもしといたんだけんど。",
+      "translation": "若不是家裡這麼忙，我本來也會幫你們整理房子。",
+      "performance": "表演：保留婆婆的地方口音。"
+    },
+    {
+      "index": 10,
+      "start": 34.1,
+      "end": 36.16,
+      "role": "お父さん",
+      "japanese": "はは、これで十分ですよ。",
+      "japaneseHtml": "はは、これで<ruby>十分<rt>じゅうぶん</rt></ruby>ですよ。",
+      "translation": "哈哈，這樣已經很足夠了。",
+      "performance": "表演：客氣、放鬆。"
+    },
+    {
+      "index": 11,
+      "start": 36.68,
+      "end": 41.1,
+      "role": "おばあちゃん",
+      "japanese": "今時分は田んぼが忙しくって、んでも時々掃除はしといたんだ。",
+      "japaneseHtml": "<ruby>今<rt>いま</rt></ruby><ruby>時分<rt>じぶん</rt></ruby>は<ruby>田<rt>た</rt></ruby>んぼが<ruby>忙<rt>いそが</rt></ruby>しくって、んでも<ruby>時々<rt>ときどき</rt></ruby><ruby>掃除<rt>そうじ</rt></ruby>はしといたんだ。",
+      "translation": "最近田裡很忙，不過我還是偶爾來打掃了。",
+      "performance": "表演：「今時分」與方言要說清楚。"
+    },
+    {
+      "index": 12,
+      "start": 42.82,
+      "end": 45.56,
+      "role": "さつき",
+      "japanese": "メイ、手、真っ黒じゃない。どうしたの？",
+      "japaneseHtml": "メイ、<ruby>手<rt>て</rt></ruby>、<ruby>真<rt>ま</rt></ruby>っ<ruby>黒<rt>くろ</rt></ruby>じゃない。どうしたの？",
+      "translation": "小梅，妳的手怎麼黑成這樣？怎麼了？",
+      "performance": "表演：先注意到手，再追問。"
+    },
+    {
+      "index": 13,
+      "start": 45.56,
+      "end": 47.88,
+      "role": "メイ",
+      "japanese": "真っ黒くろすけ、逃げちゃった。",
+      "japaneseHtml": "<ruby>真<rt>ま</rt></ruby>っ<ruby>黒<rt>くろ</rt></ruby>くろすけ、<ruby>逃<rt>に</rt></ruby>げちゃった。",
+      "translation": "黑漆漆小煤球逃走了。",
+      "performance": "表演：興奮又急著解釋。"
+    },
+    {
+      "index": 14,
+      "start": 47.88,
+      "end": 49.78,
+      "role": "さつき",
+      "japanese": "あ、メイの足。",
+      "japaneseHtml": "あ、メイの<ruby>足<rt>あし</rt></ruby>。",
+      "translation": "啊，小梅的腳。",
+      "performance": "表演：突然發現腳也黑了。"
+    },
+    {
+      "index": 15,
+      "start": 53.94,
+      "end": 56.34,
+      "role": "さつき",
+      "japanese": "あ、私のも真っ黒。",
+      "japaneseHtml": "あ、<ruby>私<rt>わたし</rt></ruby>のも<ruby>真<rt>ま</rt></ruby>っ<ruby>黒<rt>くろ</rt></ruby>。",
+      "translation": "啊，我的腳也全黑了。",
+      "performance": "表演：驚訝但不要拖長。"
+    },
+    {
+      "index": 16,
+      "start": 56.34,
+      "end": 57.6,
+      "role": "おばあちゃん",
+      "japanese": "ホォホォ……。",
+      "japaneseHtml": "ホォホォ……。",
+      "translation": "呵呵呵……。",
+      "performance": "表演：婆婆看到滿腳煤灰，帶笑發出感嘆。"
+    },
+    {
+      "index": 17,
+      "start": 59.28,
+      "end": 64.62,
+      "role": "おばあちゃん",
+      "japanese": "いや、いや、いや、いや、いや。",
+      "japaneseHtml": "いや、いや、いや、いや、いや。",
+      "translation": "哎呀、哎呀、哎呀、哎呀、哎呀。",
+      "performance": "表演：一邊笑一邊連續感嘆，保留方言節奏。"
+    },
+    {
+      "index": 18,
+      "start": 64.62,
+      "end": 67.54,
+      "role": "おばあちゃん",
+      "japanese": "うん……こりゃ、すすわたりが出たな。",
+      "japaneseHtml": "うん……こりゃ、すすわたりが<ruby>出<rt>で</rt></ruby>たな。",
+      "translation": "嗯……是煤炭小妖跑出來了啊。",
+      "performance": "表演：像認出老朋友。"
+    },
+    {
+      "index": 19,
+      "start": 67.54,
+      "end": 68.74,
+      "role": "さつき",
+      "japanese": "すすわたり？",
+      "japaneseHtml": "すすわたり？",
+      "translation": "煤炭小妖？",
+      "performance": "表演：疑惑地重複。"
+    },
+    {
+      "index": 20,
+      "start": 69.0,
+      "end": 73.2,
+      "role": "さつき",
+      "japanese": "すすわたりって、こんなんでゾワゾワって動くもの？",
+      "japaneseHtml": "すすわたりって、こんなんでゾワゾワって<ruby>動<rt>うご</rt></ruby>くもの？",
+      "translation": "煤炭小妖是像這樣窸窸窣窣移動的東西嗎？",
+      "performance": "表演：邊比動作邊問。"
+    },
+    {
+      "index": 21,
+      "start": 74.06,
+      "end": 82.34,
+      "role": "おばあちゃん",
+      "japanese": "んだ。誰もいねえ古い家に湧いて、そこら中すすとほこりだらけにしちゃうのよぉ。",
+      "japaneseHtml": "んだ。<ruby>誰<rt>だれ</rt></ruby>もいねえ<ruby>古<rt>ふる</rt></ruby>い<ruby>家<rt>いえ</rt></ruby>に<ruby>湧<rt>わ</rt></ruby>いて、そこら<ruby>中<rt>じゅう</rt></ruby>すすとほこりだらけにしちゃうのよぉ。",
+      "translation": "是啊，會在沒人住的老房子裡出現，把四周弄得滿是煤灰和灰塵。",
+      "performance": "表演：像講老故事，節奏不要趕。"
+    },
+    {
+      "index": 22,
+      "start": 83.24,
+      "end": 90.58,
+      "role": "おばあちゃん",
+      "japanese": "小ちぇ頃にはわしにも見えたが、そうか、あんたらにも見えたんけ。",
+      "japaneseHtml": "<ruby>小<rt>ちい</rt></ruby>ちぇ<ruby>頃<rt>ころ</rt></ruby>にはわしにも<ruby>見<rt>み</rt></ruby>えたが、そうか、あんたらにも<ruby>見<rt>み</rt></ruby>えたんけ。",
+      "translation": "我小時候也看得見，原來你們也看得見啊。",
+      "performance": "表演：方言自然，後半帶驚喜。"
+    },
+    {
+      "index": 23,
+      "start": 90.58,
+      "end": 92.48,
+      "role": "お父さん",
+      "japanese": "そりゃ妖怪ですか？",
+      "japaneseHtml": "そりゃ<ruby>妖怪<rt>ようかい</rt></ruby>ですか？",
+      "translation": "那是妖怪嗎？",
+      "performance": "表演：爸爸好奇確認。"
+    },
+    {
+      "index": 24,
+      "start": 93.08,
+      "end": 96.9,
+      "role": "おばあちゃん",
+      "japanese": "あ、そったら恐ろしげなもんじゃねえよ。",
+      "japaneseHtml": "あ、そったら<ruby>恐<rt>おそ</rt></ruby>ろしげなもんじゃねえよ。",
+      "translation": "不是什麼可怕的東西啦。",
+      "performance": "表演：溫和安撫。"
+    },
+    {
+      "index": 25,
+      "start": 96.9,
+      "end": 103.98,
+      "role": "おばあちゃん",
+      "japanese": "ニコニコしとれば悪さはしねえし、いつの間にかいねくなっちまうんだ。",
+      "japaneseHtml": "ニコニコしとれば<ruby>悪<rt>わる</rt></ruby>さはしねえし、いつの<ruby>間<rt>ま</rt></ruby>にかいねくなっちまうんだ。",
+      "translation": "只要笑咪咪的，牠們不會作怪，不知不覺就會消失。",
+      "performance": "表演：保持婆婆的方言節奏。"
+    },
+    {
+      "index": 26,
+      "start": 103.98,
+      "end": 107.66,
+      "role": "おばあちゃん",
+      "japanese": "今頃、天井裏で引っ越しの相談でもぶってんのかな。",
+      "japaneseHtml": "<ruby>今頃<rt>いまごろ</rt></ruby>、<ruby>天井<rt>てんじょう</rt></ruby><ruby>裏<rt>うら</rt></ruby>で<ruby>引<rt>ひ</rt></ruby>っ<ruby>越<rt>こ</rt></ruby>しの<ruby>相談<rt>そうだん</rt></ruby>でもぶってんのかな。",
+      "translation": "現在該不會正在天花板裡討論搬家吧。",
+      "performance": "表演：帶一點幽默想像。"
+    },
+    {
+      "index": 27,
+      "start": 113.8,
+      "end": 116.02,
+      "role": "さつき",
+      "japanese": "メイ、みんな逃げちゃうってさ。",
+      "japaneseHtml": "メイ、みんな<ruby>逃<rt>に</rt></ruby>げちゃうってさ。",
+      "translation": "小梅，婆婆說牠們都會逃走喔。",
+      "performance": "表演：轉頭告訴妹妹。"
+    },
+    {
+      "index": 28,
+      "start": 116.02,
+      "end": 116.92,
+      "role": "メイ",
+      "japanese": "つまんない。",
+      "japaneseHtml": "つまんない。",
+      "translation": "真無聊。",
+      "performance": "表演：孩子氣地抱怨。"
+    },
+    {
+      "index": 29,
+      "start": 116.92,
+      "end": 120.0,
+      "role": "さつき",
+      "japanese": "だって、こんなの出てきたらどうするの？",
+      "japaneseHtml": "だって、こんなの<ruby>出<rt>で</rt></ruby>てきたらどうするの？",
+      "translation": "可是，要是這種東西跑出來怎麼辦？",
+      "performance": "表演：故意嚇妹妹。"
+    },
+    {
+      "index": 30,
+      "start": 120.0,
+      "end": 121.7,
+      "role": "メイ",
+      "japanese": "メイ、怖くないもん！",
+      "japaneseHtml": "メイ、<ruby>怖<rt>こわ</rt></ruby>くないもん！",
+      "translation": "小梅才不怕呢！",
+      "performance": "表演：逞強、音量明亮。"
+    },
+    {
+      "index": 31,
+      "start": 121.7,
+      "end": 125.96,
+      "role": "さつき",
+      "japanese": "あら、じゃ夜になっても、お便所一緒に行ってやんない。",
+      "japaneseHtml": "あら、じゃ<ruby>夜<rt>よる</rt></ruby>になっても、お<ruby>便所<rt>べんじょ</rt></ruby><ruby>一緒<rt>いっしょ</rt></ruby>に<ruby>行<rt>い</rt></ruby>ってやんない。",
+      "translation": "那晚上我就不陪妳去廁所了。",
+      "performance": "表演：故意逗妹妹。"
+    },
+    {
+      "index": 32,
+      "start": 125.96,
+      "end": 127.78,
+      "role": "おばあちゃん",
+      "japanese": "えへへへへ。",
+      "japaneseHtml": "えへへへへ。",
+      "translation": "呵呵呵呵。",
+      "performance": "表演：被姊妹逗笑，接著把大家帶回打掃。"
+    },
+    {
+      "index": 33,
+      "start": 127.78,
+      "end": 130.16,
+      "role": "おばあちゃん",
+      "japanese": "さあさ、掃除しよう。",
+      "japaneseHtml": "さあさ、<ruby>掃除<rt>そうじ</rt></ruby>しよう。",
+      "translation": "好了好了，來打掃吧。",
+      "performance": "表演：把大家帶回工作。"
+    },
+    {
+      "index": 34,
+      "start": 130.16,
+      "end": 132.78,
+      "role": "おばあちゃん",
+      "japanese": "川で水を汲んできておくんな。",
+      "japaneseHtml": "<ruby>川<rt>かわ</rt></ruby>で<ruby>水<rt>みず</rt></ruby>を<ruby>汲<rt>く</rt></ruby>んできておくんな。",
+      "translation": "去河邊打點水回來。",
+      "performance": "表演：「おくんな」保持方言。"
+    },
+    {
+      "index": 35,
+      "start": 132.78,
+      "end": 133.62,
+      "role": "さつき",
+      "japanese": "川で？",
+      "japaneseHtml": "<ruby>川<rt>かわ</rt></ruby>で？",
+      "translation": "去河邊？",
+      "performance": "表演：立刻感到意外。"
+    },
+    {
+      "index": 36,
+      "start": 134.04,
+      "end": 134.82,
+      "role": "メイ",
+      "japanese": "メイも行く！",
+      "japaneseHtml": "メイも<ruby>行<rt>い</rt></ruby>く！",
+      "translation": "小梅也要去！",
+      "performance": "表演：興奮搶著參加。"
+    },
+    {
+      "index": 37,
+      "start": 134.82,
+      "end": 139.82,
+      "role": "さつき",
+      "japanese": "メイはそこで待ってな！",
+      "japaneseHtml": "メイはそこで<ruby>待<rt>ま</rt></ruby>ってな！",
+      "translation": "小梅就在那裡等著！",
+      "performance": "表演：一邊跑遠一邊喊。"
+    },
+    {
+      "index": 38,
+      "start": 149.5,
+      "end": 151.22,
+      "role": "メイ",
+      "japanese": "おさかな取れた？",
+      "japaneseHtml": "おさかな<ruby>取<rt>と</rt></ruby>れた？",
+      "translation": "抓到魚了嗎？",
+      "performance": "表演：從遠處好奇地問。"
+    },
+    {
+      "index": 39,
+      "start": 163.26,
+      "end": 165.68,
+      "role": "さつき",
+      "japanese": "おばあちゃん、出た！",
+      "japaneseHtml": "おばあちゃん、<ruby>出<rt>で</rt></ruby>た！",
+      "translation": "婆婆，水出來了！",
+      "performance": "表演：開心地大聲回報。"
+    },
+    {
+      "index": 40,
+      "start": 165.68,
+      "end": 170.24,
+      "role": "おばあちゃん",
+      "japanese": "よくこぎな。水が冷たくなるまで。",
+      "japaneseHtml": "よくこぎな。<ruby>水<rt>みず</rt></ruby>が<ruby>冷<rt>つめ</rt></ruby>たくなるまで。",
+      "translation": "好好壓水泵，壓到水變涼為止。",
+      "performance": "表演：從遠處指導，聲音要傳出去。"
+    },
+    {
+      "index": 41,
+      "start": 170.6,
+      "end": 172.03,
+      "role": "さつき",
+      "japanese": "はーい！",
+      "japaneseHtml": "はーい！",
+      "translation": "好！",
+      "performance": "表演：拉長回應。"
+    },
+    {
+      "index": 42,
+      "start": 213.72,
+      "end": 216.92,
+      "role": "さつき",
+      "japanese": "あ、さっきの。何？ ご用？",
+      "japaneseHtml": "あ、さっきの。<ruby>何<rt>なに</rt></ruby>？ ご<ruby>用<rt>よう</rt></ruby>？",
+      "translation": "啊，是剛才那個。怎麼了？有事嗎？",
+      "performance": "表演：看到勘太後先認出他。"
+    },
+    {
+      "index": 43,
+      "start": 218.48,
+      "end": 222.48,
+      "role": "カンタ",
+      "japanese": "か、母ちゃんが婆ちゃんに。",
+      "japaneseHtml": "か、<ruby>母<rt>かあ</rt></ruby>ちゃんが<ruby>婆<rt>ばあ</rt></ruby>ちゃんに。",
+      "translation": "我、我媽要給婆婆的。",
+      "performance": "表演：害羞結巴，把東西遞出。"
+    },
+    {
+      "index": 44,
+      "start": 223.18,
+      "end": 223.86,
+      "role": "さつき",
+      "japanese": "何？",
+      "japaneseHtml": "<ruby>何<rt>なに</rt></ruby>？",
+      "translation": "什麼？",
+      "performance": "表演：沒聽懂，短促追問。"
+    },
+    {
+      "index": 45,
+      "start": 226.76,
+      "end": 231.72,
+      "role": "さつき",
+      "japanese": "え、あ、あ、待って！ これ何？",
+      "japaneseHtml": "え、あ、あ、<ruby>待<rt>ま</rt></ruby>って！ これ<ruby>何<rt>なに</rt></ruby>？",
+      "translation": "欸，啊，等等！這是什麼？",
+      "performance": "表演：先慌張接住，再叫住勘太。"
+    },
+    {
+      "index": 46,
+      "start": 232.91,
+      "end": 234.72,
+      "role": "おばあちゃん",
+      "japanese": "カンタかい？",
+      "japaneseHtml": "カンタかい？",
+      "translation": "是勘太嗎？",
+      "performance": "表演：從屋內辨認孫子。"
+    },
+    {
+      "index": 47,
+      "start": 236.7,
+      "end": 240.78,
+      "role": "カンタ",
+      "japanese": "やーい、お前んち、おっばけやーしきー！",
+      "japaneseHtml": "やーい、お<ruby>前<rt>まえ</rt></ruby>んち、おっばけやーしきー！",
+      "translation": "略略略，妳家是鬼屋！",
+      "performance": "表演：跑遠後故意拉長挑釁。"
+    },
+    {
+      "index": 48,
+      "start": 242.0,
+      "end": 242.68,
+      "role": "おばあちゃん",
+      "japanese": "カンタ！",
+      "japaneseHtml": "カンタ！",
+      "translation": "勘太！",
+      "performance": "表演：立刻出聲斥責。"
+    },
+    {
+      "index": 49,
+      "start": 242.68,
+      "end": 243.5,
+      "role": "さつき",
+      "japanese": "べー！",
+      "japaneseHtml": "べー！",
+      "translation": "略！",
+      "performance": "表演：孩子氣地吐舌回敬。"
+    },
+    {
+      "index": 50,
+      "start": 253.76,
+      "end": 256.68,
+      "role": "お父さん",
+      "japanese": "そういうの、お父さんにも覚えがあるな。",
+      "japaneseHtml": "そういうの、お<ruby>父<rt>とう</rt></ruby>さんにも<ruby>覚<rt>おぼ</rt></ruby>えがあるな。",
+      "translation": "這種事，爸爸我也有印象。",
+      "performance": "表演：笑著回想童年。"
+    },
+    {
+      "index": 51,
+      "start": 256.68,
+      "end": 262.24,
+      "role": "さつき",
+      "japanese": "男の子嫌い！ でも、おばあちゃんちのおはぎは、とっても好き。",
+      "japaneseHtml": "<ruby>男<rt>おとこ</rt></ruby>の<ruby>子<rt>こ</rt></ruby><ruby>嫌<rt>きら</rt></ruby>い！ でも、おばあちゃんちのおはぎは、とっても<ruby>好<rt>す</rt></ruby>き。",
+      "translation": "我討厭男孩子！不過我最喜歡婆婆家的紅豆萩餅。",
+      "performance": "表演：前半生氣，後半立刻轉甜。"
+    },
+    {
+      "index": 52,
+      "start": 262.24,
+      "end": 264.5,
+      "role": "おばあちゃん",
+      "japanese": "たんとお上がり。",
+      "japaneseHtml": "たんとお<ruby>上<rt>あ</rt></ruby>がり。",
+      "translation": "多吃一點。",
+      "performance": "表演：熱情招呼孩子。"
+    },
+    {
+      "index": 53,
+      "start": 264.92,
+      "end": 266.2,
+      "role": "さつき",
+      "japanese": "ご苦労さま。",
+      "japaneseHtml": "ご<ruby>苦労<rt>くろう</rt></ruby>さま。",
+      "translation": "辛苦了。",
+      "performance": "表演：有禮地向幫忙的人道謝。"
+    },
+    {
+      "index": 54,
+      "start": 269.37,
+      "end": 271.3,
+      "role": "お父さん",
+      "japanese": "どうもありがとうございました。",
+      "japaneseHtml": "どうもありがとうございました。",
+      "translation": "真的非常謝謝您。",
+      "performance": "表演：明亮、完整地收尾。"
+    }
+  ],
+  "soundCues": [
+    {
+      "time": "00:00–00:15",
+      "sound": "屋內腳步、木箱與灰塵",
+      "method": "以輕腳步、木板與薄紙現場製作；台詞出現時降低音量。"
+    },
+    {
+      "time": "00:49–01:08",
+      "sound": "腳底煤灰、婆婆驚嘆",
+      "method": "輕拍衣料或薄紙；婆婆的笑聲與感嘆已列入劇本，現場以台詞為主。"
+    },
+    {
+      "time": "02:15–02:52",
+      "sound": "跑步、提桶、河邊",
+      "method": "交替做輕腳步，空金屬桶只輕放一次。"
+    },
+    {
+      "time": "02:52–03:34",
+      "sound": "手壓水泵與流水",
+      "method": "用木柄或桌面做規律壓水聲；水聲維持弱音，不蓋過遠處喊話。"
+    },
+    {
+      "time": "03:34–04:13",
+      "sound": "打掃、搬動與庭院聲",
+      "method": "掃帚、布料與短腳步分段進入，避免整段持續製造噪音。"
+    },
+    {
+      "time": "04:13–04:32",
+      "sound": "勘太跑遠、爸爸笑聲",
+      "method": "跑步聲由近到遠；爸爸笑聲現場演出，最後道謝前全部停下。"
+    }
+  ]
+}

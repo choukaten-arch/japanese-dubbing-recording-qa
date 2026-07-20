@@ -512,7 +512,7 @@ async function initialize() {
   cacheElements();
   drawIdleWaveform();
   try {
-    const response = await fetch("data/kiki.json");
+    const response = await fetch(window.QA_CONFIG.dataFile || "data/kiki.json");
     if (!response.ok) throw new Error(`Data ${response.status}`);
     state.data = await response.json();
     renderHeader();

@@ -1,0 +1,800 @@
+{
+  "slug": "spirited-away",
+  "title": "神隱少女",
+  "navTitle": "神隱少女",
+  "position": 4,
+  "page": "spirited-away.html",
+  "video": "media/spirited-away.mp4",
+  "poster": "assets/spirited-away.jpg",
+  "sourceSegment": "原片 00:36:12.000–00:41:40.000",
+  "durationLabel": "05:28.040",
+  "duration": 328.036,
+  "lineCount": 70,
+  "roleCount": 8,
+  "roles": [
+    {
+      "role": "千尋",
+      "lineCount": 14,
+      "characterCount": 93
+    },
+    {
+      "role": "湯婆婆",
+      "lineCount": 41,
+      "characterCount": 615
+    },
+    {
+      "role": "ハク",
+      "lineCount": 9,
+      "characterCount": 101
+    },
+    {
+      "role": "父役",
+      "lineCount": 2,
+      "characterCount": 22
+    },
+    {
+      "role": "兄役",
+      "lineCount": 1,
+      "characterCount": 7
+    },
+    {
+      "role": "蛙たち",
+      "lineCount": 1,
+      "characterCount": 19
+    },
+    {
+      "role": "湯女イ",
+      "lineCount": 1,
+      "characterCount": 18
+    },
+    {
+      "role": "湯女ロ",
+      "lineCount": 1,
+      "characterCount": 9
+    }
+  ],
+  "lines": [
+    {
+      "index": 1,
+      "start": 0.12,
+      "end": 2.0,
+      "role": "千尋",
+      "japanese": "ここで働かせてください。",
+      "japaneseHtml": "ここで<ruby>働<rt>はたら</rt></ruby>かせてください。",
+      "translation": "請讓我在這裡工作。",
+      "performance": "表演：鼓起勇氣，句尾清楚。"
+    },
+    {
+      "index": 2,
+      "start": 11.28,
+      "end": 13.96,
+      "role": "湯婆婆",
+      "japanese": "馬鹿なおしゃべりはやめとくれ。",
+      "japaneseHtml": "<ruby>馬鹿<rt>ばか</rt></ruby>なおしゃべりはやめとくれ。",
+      "translation": "別再說這種蠢話。",
+      "performance": "表演：不耐煩地打斷。"
+    },
+    {
+      "index": 3,
+      "start": 14.38,
+      "end": 17.48,
+      "role": "湯婆婆",
+      "japanese": "そんなヒョロヒョロに何ができるのさ。",
+      "japaneseHtml": "そんなヒョロヒョロに<ruby>何<rt>なに</rt></ruby>ができるのさ。",
+      "translation": "妳這麼瘦弱，能做什麼？",
+      "performance": "表演：帶嘲諷，咬字俐落。"
+    },
+    {
+      "index": 4,
+      "start": 17.9,
+      "end": 21.76,
+      "role": "湯婆婆",
+      "japanese": "ここはね、人間の来るところじゃないんだ。",
+      "japaneseHtml": "ここはね、<ruby>人間<rt>にんげん</rt></ruby>の<ruby>来<rt>く</rt></ruby>るところじゃないんだ。",
+      "translation": "這裡不是人類該來的地方。",
+      "performance": "表演：像宣告規矩。"
+    },
+    {
+      "index": 5,
+      "start": 23.3,
+      "end": 28.68,
+      "role": "湯婆婆",
+      "japanese": "八百万の神さまたちが疲れを癒やしに来るお湯屋なんだよ。",
+      "japaneseHtml": "<ruby>八百万<rt>やおよろず</rt></ruby>の<ruby>神<rt>かみ</rt></ruby>さまたちが<ruby>疲<rt>つか</rt></ruby>れを<ruby>癒<rt>い</rt></ruby>やしに<ruby>来<rt>く</rt></ruby>るお<ruby>湯屋<rt>ゆや</rt></ruby>なんだよ。",
+      "translation": "這是讓八百萬神明前來療癒疲勞的澡堂。",
+      "performance": "表演：拉開語氣，帶威嚴。"
+    },
+    {
+      "index": 6,
+      "start": 30.2,
+      "end": 33.72,
+      "role": "湯婆婆",
+      "japanese": "それなのに、お前の親はなんだい！",
+      "japaneseHtml": "それなのに、お<ruby>前<rt>まえ</rt></ruby>の<ruby>親<rt>おや</rt></ruby>はなんだい！",
+      "translation": "可是妳的父母算什麼！",
+      "performance": "表演：責備突然升高。"
+    },
+    {
+      "index": 7,
+      "start": 33.92,
+      "end": 37.26,
+      "role": "湯婆婆",
+      "japanese": "お客さまの食べ物を豚のように食い散らして。",
+      "japaneseHtml": "お<ruby>客<rt>きゃく</rt></ruby>さまの<ruby>食<rt>た</rt></ruby>べ<ruby>物<rt>もの</rt></ruby>を<ruby>豚<rt>ぶた</rt></ruby>のように<ruby>食<rt>く</rt></ruby>い<ruby>散<rt>ち</rt></ruby>らして。",
+      "translation": "把客人的食物像豬一樣吃得亂七八糟。",
+      "performance": "表演：嫌惡地說。"
+    },
+    {
+      "index": 8,
+      "start": 37.26,
+      "end": 38.76,
+      "role": "湯婆婆",
+      "japanese": "当然の報いさ。",
+      "japaneseHtml": "<ruby>当然<rt>とうぜん</rt></ruby>の<ruby>報<rt>むく</rt></ruby>いさ。",
+      "translation": "這是他們應得的報應。",
+      "performance": "表演：短、冷、斬釘截鐵。"
+    },
+    {
+      "index": 9,
+      "start": 40.12,
+      "end": 44.76,
+      "role": "湯婆婆",
+      "japanese": "お前も元の世界には戻れないよ。",
+      "japaneseHtml": "お<ruby>前<rt>まえ</rt></ruby>も<ruby>元<rt>もと</rt></ruby>の<ruby>世界<rt>せかい</rt></ruby>には<ruby>戻<rt>もど</rt></ruby>れないよ。",
+      "translation": "妳也回不了原來的世界。",
+      "performance": "表演：壓低聲量威脅。"
+    },
+    {
+      "index": 10,
+      "start": 48.96,
+      "end": 50.84,
+      "role": "湯婆婆",
+      "japanese": "フー、仔豚にしてやろう……。",
+      "japaneseHtml": "フー、<ruby>仔豚<rt>こぶた</rt></ruby>にしてやろう……。",
+      "translation": "呼，把妳變成小豬吧……。",
+      "performance": "表演：像思考處置方式。"
+    },
+    {
+      "index": 11,
+      "start": 50.84,
+      "end": 54.84,
+      "role": "湯婆婆",
+      "japanese": "ウン、石炭という手もあるね。",
+      "japaneseHtml": "ウン、<ruby>石炭<rt>せきたん</rt></ruby>という<ruby>手<rt>て</rt></ruby>もあるね。",
+      "translation": "嗯，變成煤炭也是個辦法。",
+      "performance": "表演：接著冷冷補上一個選項。"
+    },
+    {
+      "index": 12,
+      "start": 62.62,
+      "end": 68.28,
+      "role": "湯婆婆",
+      "japanese": "ふるえているねえ。でもまあ、よくここまでやって来たよ。",
+      "japaneseHtml": "ふるえているねえ。でもまあ、よくここまでやって<ruby>来<rt>き</rt></ruby>たよ。",
+      "translation": "妳在發抖呢。不過能一路來到這裡，也算不簡單。",
+      "performance": "表演：先取笑，再短暫放柔。"
+    },
+    {
+      "index": 13,
+      "start": 68.28,
+      "end": 71.94,
+      "role": "湯婆婆",
+      "japanese": "誰かが親切に世話を焼いたんだね。",
+      "japaneseHtml": "<ruby>誰<rt>だれ</rt></ruby>かが<ruby>親切<rt>しんせつ</rt></ruby>に<ruby>世話<rt>せわ</rt></ruby>を<ruby>焼<rt>や</rt></ruby>いたんだね。",
+      "translation": "一定有人好心照顧妳吧。",
+      "performance": "表演：像在套話。"
+    },
+    {
+      "index": 14,
+      "start": 71.94,
+      "end": 74.14,
+      "role": "湯婆婆",
+      "japanese": "ほめてやらなきゃ。",
+      "japaneseHtml": "ほめてやらなきゃ。",
+      "translation": "我可得稱讚那個人才行。",
+      "performance": "表演：假裝親切。"
+    },
+    {
+      "index": 15,
+      "start": 74.56,
+      "end": 78.6,
+      "role": "湯婆婆",
+      "japanese": "誰だい、それは。教えておくれな。",
+      "japaneseHtml": "<ruby>誰<rt>だれ</rt></ruby>だい、それは。<ruby>教<rt>おし</rt></ruby>えておくれな。",
+      "translation": "那個人是誰？告訴我吧。",
+      "performance": "表演：步步逼問。"
+    },
+    {
+      "index": 16,
+      "start": 81.68,
+      "end": 83.38,
+      "role": "千尋",
+      "japanese": "ここで働かせてください！",
+      "japaneseHtml": "ここで<ruby>働<rt>はたら</rt></ruby>かせてください！",
+      "translation": "請讓我在這裡工作！",
+      "performance": "表演：比第一次更堅定。"
+    },
+    {
+      "index": 17,
+      "start": 83.82,
+      "end": 85.0,
+      "role": "湯婆婆",
+      "japanese": "まだそれを言うのかい！",
+      "japaneseHtml": "まだそれを<ruby>言<rt>い</rt></ruby>うのかい！",
+      "translation": "妳還在說這個！",
+      "performance": "表演：立刻喝斥。"
+    },
+    {
+      "index": 18,
+      "start": 85.2,
+      "end": 86.58,
+      "role": "千尋",
+      "japanese": "ここで働きたいんです！",
+      "japaneseHtml": "ここで<ruby>働<rt>はたら</rt></ruby>きたいんです！",
+      "translation": "我想在這裡工作！",
+      "performance": "表演：不退縮地接上。"
+    },
+    {
+      "index": 19,
+      "start": 86.58,
+      "end": 92.8,
+      "role": "湯婆婆",
+      "japanese": "だまれー！",
+      "japaneseHtml": "だまれー！",
+      "translation": "閉嘴！",
+      "performance": "表演：長音一路拉滿，但咬字仍要清楚。"
+    },
+    {
+      "index": 20,
+      "start": 95.45,
+      "end": 99.41,
+      "role": "湯婆婆",
+      "japanese": "なんであたしがお前を雇わなきゃならないんだい。",
+      "japaneseHtml": "なんであたしがお<ruby>前<rt>まえ</rt></ruby>を<ruby>雇<rt>やと</rt></ruby>わなきゃならないんだい。",
+      "translation": "我為什麼非得雇用妳不可？",
+      "performance": "表演：怒氣尚未退下。"
+    },
+    {
+      "index": 21,
+      "start": 99.65,
+      "end": 108.81,
+      "role": "湯婆婆",
+      "japanese": "見るからにグズで、甘ったれで、泣き虫で、頭の悪い小娘に仕事なんかあるもんかね。",
+      "japaneseHtml": "<ruby>見<rt>み</rt></ruby>るからにグズで、<ruby>甘<rt>あま</rt></ruby>ったれで、<ruby>泣<rt>な</rt></ruby>き<ruby>虫<rt>むし</rt></ruby>で、<ruby>頭<rt>あたま</rt></ruby>の<ruby>悪<rt>わる</rt></ruby>い<ruby>小娘<rt>こむすめ</rt></ruby>に<ruby>仕事<rt>しごと</rt></ruby>なんかあるもんかね。",
+      "translation": "一看就是笨手笨腳、愛撒嬌、愛哭又沒腦袋的小丫頭，哪有工作給妳？",
+      "performance": "表演：連珠炮式批判，層層加重。"
+    },
+    {
+      "index": 22,
+      "start": 109.21,
+      "end": 110.87,
+      "role": "湯婆婆",
+      "japanese": "お断りだね。",
+      "japaneseHtml": "お<ruby>断<rt>ことわ</rt></ruby>りだね。",
+      "translation": "我拒絕。",
+      "performance": "表演：乾脆俐落。"
+    },
+    {
+      "index": 23,
+      "start": 111.17,
+      "end": 114.75,
+      "role": "湯婆婆",
+      "japanese": "これ以上ごくつぶしを増やして、どうしろというんだい。",
+      "japaneseHtml": "これ<ruby>以上<rt>いじょう</rt></ruby>ごくつぶしを<ruby>増<rt>ふ</rt></ruby>やして、どうしろというんだい。",
+      "translation": "再增加一個吃閒飯的，要我怎麼辦？",
+      "performance": "表演：越說越不耐煩。"
+    },
+    {
+      "index": 24,
+      "start": 116.34,
+      "end": 124.9,
+      "role": "湯婆婆",
+      "japanese": "それとも一番つらい、きつい仕事を死ぬまでやらせてやろうか。",
+      "japaneseHtml": "それとも<ruby>一番<rt>いちばん</rt></ruby>つらい、きつい<ruby>仕事<rt>しごと</rt></ruby>を<ruby>死<rt>し</rt></ruby>ぬまでやらせてやろうか。",
+      "translation": "還是要我讓妳做最辛苦、最累的工作，做到死為止？",
+      "performance": "表演：尾句拉出威脅感。"
+    },
+    {
+      "index": 25,
+      "start": 139.4,
+      "end": 142.54,
+      "role": "湯婆婆",
+      "japanese": "やめなさい！ どうしたの、エッ。",
+      "japaneseHtml": "やめなさい！ どうしたの、エッ。",
+      "translation": "別哭了！怎麼了，嗯？",
+      "performance": "表演：對坊立刻換成哄孩子的聲線。"
+    },
+    {
+      "index": 26,
+      "start": 143.79,
+      "end": 146.99,
+      "role": "湯婆婆",
+      "japanese": "いますぐ行くから、いい子でいなさいね。",
+      "japaneseHtml": "いますぐ<ruby>行<rt>い</rt></ruby>くから、いい<ruby>子<rt>こ</rt></ruby>でいなさいね。",
+      "translation": "我馬上就過去，要乖乖的喔。",
+      "performance": "表演：溫柔安撫坊。"
+    },
+    {
+      "index": 27,
+      "start": 146.99,
+      "end": 149.77,
+      "role": "湯婆婆",
+      "japanese": "まだいたのかい！ さっさと出ていきな。",
+      "japaneseHtml": "まだいたのかい！ さっさと<ruby>出<rt>で</rt></ruby>ていきな。",
+      "translation": "妳還在這裡！快點出去。",
+      "performance": "表演：轉向千尋時瞬間變兇。"
+    },
+    {
+      "index": 28,
+      "start": 149.77,
+      "end": 151.77,
+      "role": "千尋",
+      "japanese": "ここで働きたいんです。",
+      "japaneseHtml": "ここで<ruby>働<rt>はたら</rt></ruby>きたいんです。",
+      "translation": "我想在這裡工作。",
+      "performance": "表演：壓住害怕，繼續堅持。"
+    },
+    {
+      "index": 29,
+      "start": 151.77,
+      "end": 154.05,
+      "role": "湯婆婆",
+      "japanese": "大きな声を出すんじゃないよ。",
+      "japaneseHtml": "<ruby>大<rt>おお</rt></ruby>きな<ruby>声<rt>こえ</rt></ruby>を<ruby>出<rt>だ</rt></ruby>すんじゃないよ。",
+      "translation": "不准那麼大聲。",
+      "performance": "表演：怕吵到坊，壓低但急。"
+    },
+    {
+      "index": 30,
+      "start": 155.63,
+      "end": 157.31,
+      "role": "湯婆婆",
+      "japanese": "ああ、ちょっと待ちなさい、ネ、ネ……。",
+      "japaneseHtml": "ああ、ちょっと<ruby>待<rt>ま</rt></ruby>ちなさい、ネ、ネ……。",
+      "translation": "啊，等一下喔，乖、乖……。",
+      "performance": "表演：忙著安撫坊。"
+    },
+    {
+      "index": 31,
+      "start": 159.89,
+      "end": 160.69,
+      "role": "湯婆婆",
+      "japanese": "いい子だから、ホラホラ。",
+      "japaneseHtml": "いい<ruby>子<rt>こ</rt></ruby>だから、ホラホラ。",
+      "translation": "乖孩子，來、來。",
+      "performance": "表演：哄孩子的柔聲。"
+    },
+    {
+      "index": 32,
+      "start": 162.93,
+      "end": 164.95,
+      "role": "千尋",
+      "japanese": "働かせてください。",
+      "japaneseHtml": "<ruby>働<rt>はたら</rt></ruby>かせてください。",
+      "translation": "請讓我工作。",
+      "performance": "表演：放低音量但不放棄。"
+    },
+    {
+      "index": 33,
+      "start": 164.95,
+      "end": 168.21,
+      "role": "湯婆婆",
+      "japanese": "わかったから、静かにしておくれ。",
+      "japaneseHtml": "わかったから、<ruby>静<rt>しず</rt></ruby>かにしておくれ。",
+      "translation": "知道了，妳安靜一點。",
+      "performance": "表演：終於妥協，仍要顧著坊。"
+    },
+    {
+      "index": 34,
+      "start": 170.99,
+      "end": 171.79,
+      "role": "湯婆婆",
+      "japanese": "ああ、よしよし。",
+      "japaneseHtml": "ああ、よしよし。",
+      "translation": "啊，好乖、好乖。",
+      "performance": "表演：完全轉回哄孩子。"
+    },
+    {
+      "index": 35,
+      "start": 192.73,
+      "end": 199.97,
+      "role": "湯婆婆",
+      "japanese": "契約書だよ。そこに名前を書きな。働かせてやる。",
+      "japaneseHtml": "<ruby>契約<rt>けいやく</rt></ruby><ruby>書<rt>しょ</rt></ruby>だよ。そこに<ruby>名前<rt>なまえ</rt></ruby>を<ruby>書<rt>か</rt></ruby>きな。<ruby>働<rt>はたら</rt></ruby>かせてやる。",
+      "translation": "這是契約書。在那裡寫名字，我會讓妳工作。",
+      "performance": "表演：一邊丟出契約，一邊下命令。"
+    },
+    {
+      "index": 36,
+      "start": 200.37,
+      "end": 205.47,
+      "role": "湯婆婆",
+      "japanese": "その代わり、イヤだとか帰りたいとか言ったら、すぐ仔豚にしてやるからね。",
+      "japaneseHtml": "その<ruby>代<rt>か</rt></ruby>わり、イヤだとか<ruby>帰<rt>かえ</rt></ruby>りたいとか<ruby>言<rt>い</rt></ruby>ったら、すぐ<ruby>仔豚<rt>こぶた</rt></ruby>にしてやるからね。",
+      "translation": "但只要說不要或想回家，我就立刻把妳變成小豬。",
+      "performance": "表演：把條件說成威脅。"
+    },
+    {
+      "index": 37,
+      "start": 206.75,
+      "end": 208.69,
+      "role": "千尋",
+      "japanese": "あの、名前ってここですか？",
+      "japaneseHtml": "あの、<ruby>名前<rt>なまえ</rt></ruby>ってここですか？",
+      "translation": "那個，名字是寫在這裡嗎？",
+      "performance": "表演：小心翼翼確認。"
+    },
+    {
+      "index": 38,
+      "start": 209.13,
+      "end": 215.01,
+      "role": "湯婆婆",
+      "japanese": "そうだよ。グズグズしないで、さっさと書きな。",
+      "japaneseHtml": "そうだよ。グズグズしないで、さっさと<ruby>書<rt>か</rt></ruby>きな。",
+      "translation": "對。別再磨磨蹭蹭，快點寫。",
+      "performance": "表演：不耐煩地催促。"
+    },
+    {
+      "index": 39,
+      "start": 217.25,
+      "end": 223.77,
+      "role": "湯婆婆",
+      "japanese": "まったく、つまらない誓いを立てちまったもんだよ。",
+      "japaneseHtml": "まったく、つまらない<ruby>誓<rt>ちか</rt></ruby>いを<ruby>立<rt>た</rt></ruby>てちまったもんだよ。",
+      "translation": "真是的，竟然立下這麼無聊的誓約。",
+      "performance": "表演：自言自語抱怨。"
+    },
+    {
+      "index": 40,
+      "start": 223.77,
+      "end": 227.45,
+      "role": "湯婆婆",
+      "japanese": "働きたい者には仕事をやるだなんて。",
+      "japaneseHtml": "<ruby>働<rt>はたら</rt></ruby>きたい<ruby>者<rt>もの</rt></ruby>には<ruby>仕事<rt>しごと</rt></ruby>をやるだなんて。",
+      "translation": "居然規定想工作的人就得給他工作。",
+      "performance": "表演：越想越後悔。"
+    },
+    {
+      "index": 41,
+      "start": 229.93,
+      "end": 230.63,
+      "role": "湯婆婆",
+      "japanese": "書いたかい？",
+      "japaneseHtml": "<ruby>書<rt>か</rt></ruby>いたかい？",
+      "translation": "寫好了嗎？",
+      "performance": "表演：突然催問。"
+    },
+    {
+      "index": 42,
+      "start": 230.63,
+      "end": 231.22,
+      "role": "千尋",
+      "japanese": "はい。",
+      "japaneseHtml": "はい。",
+      "translation": "好了。",
+      "performance": "表演：小聲但確定。"
+    },
+    {
+      "index": 43,
+      "start": 231.98,
+      "end": 232.32,
+      "role": "千尋",
+      "japanese": "あっ……！",
+      "japaneseHtml": "あっ……！",
+      "translation": "啊……！",
+      "performance": "表演：紙突然被抽走。"
+    },
+    {
+      "index": 44,
+      "start": 236.21,
+      "end": 238.15,
+      "role": "湯婆婆",
+      "japanese": "ふん、千尋というのかい？",
+      "japaneseHtml": "ふん、<ruby>千尋<rt>ちひろ</rt></ruby>というのかい？",
+      "translation": "哼，妳叫千尋嗎？",
+      "performance": "表演：讀出名字，帶嘲弄。"
+    },
+    {
+      "index": 45,
+      "start": 238.15,
+      "end": 238.5,
+      "role": "千尋",
+      "japanese": "はい。",
+      "japaneseHtml": "はい。",
+      "translation": "是。",
+      "performance": "表演：短促回答。"
+    },
+    {
+      "index": 46,
+      "start": 238.71,
+      "end": 240.95,
+      "role": "湯婆婆",
+      "japanese": "ぜいたくな名だね。",
+      "japaneseHtml": "ぜいたくな<ruby>名<rt>な</rt></ruby>だね。",
+      "translation": "真是奢侈的名字。",
+      "performance": "表演：嫌棄地評論。"
+    },
+    {
+      "index": 47,
+      "start": 250.93,
+      "end": 253.45,
+      "role": "湯婆婆",
+      "japanese": "今から、お前の名は千だ。",
+      "japaneseHtml": "<ruby>今<rt>いま</rt></ruby>から、お<ruby>前<rt>まえ</rt></ruby>の<ruby>名<rt>な</rt></ruby>は<ruby>千<rt>せん</rt></ruby>だ。",
+      "translation": "從現在起，妳的名字叫千。",
+      "performance": "表演：像施下不可逆的命令。"
+    },
+    {
+      "index": 48,
+      "start": 254.15,
+      "end": 255.45,
+      "role": "湯婆婆",
+      "japanese": "いいかい、千だよ。",
+      "japaneseHtml": "いいかい、<ruby>千<rt>せん</rt></ruby>だよ。",
+      "translation": "聽好了，是千。",
+      "performance": "表演：短促強調新名字。"
+    },
+    {
+      "index": 49,
+      "start": 256.16,
+      "end": 258.28,
+      "role": "湯婆婆",
+      "japanese": "分かったら返事をするんだ、千！",
+      "japaneseHtml": "<ruby>分<rt>わ</rt></ruby>かったら<ruby>返事<rt>へんじ</rt></ruby>をするんだ、<ruby>千<rt>せん</rt></ruby>！",
+      "translation": "懂了就回答，千！",
+      "performance": "表演：最後突然提高音量。"
+    },
+    {
+      "index": 50,
+      "start": 258.46,
+      "end": 259.6,
+      "role": "千尋",
+      "japanese": "は、はい！",
+      "japaneseHtml": "は、はい！",
+      "translation": "是、是！",
+      "performance": "表演：被嚇到後立刻回應。"
+    },
+    {
+      "index": 51,
+      "start": 260.66,
+      "end": 261.5,
+      "role": "ハク",
+      "japanese": "お呼びですか？",
+      "japaneseHtml": "お<ruby>呼<rt>よ</rt></ruby>びですか？",
+      "translation": "您叫我嗎？",
+      "performance": "表演：從門外平靜回應。"
+    },
+    {
+      "index": 52,
+      "start": 265.06,
+      "end": 268.08,
+      "role": "湯婆婆",
+      "japanese": "今日からその子が働くよ。世話をしな。",
+      "japaneseHtml": "<ruby>今日<rt>きょう</rt></ruby>からその<ruby>子<rt>こ</rt></ruby>が<ruby>働<rt>はたら</rt></ruby>くよ。<ruby>世話<rt>せわ</rt></ruby>をしな。",
+      "translation": "這孩子從今天起要工作，照顧她。",
+      "performance": "表演：對白龍下令。"
+    },
+    {
+      "index": 53,
+      "start": 268.68,
+      "end": 269.08,
+      "role": "ハク",
+      "japanese": "はい。",
+      "japaneseHtml": "はい。",
+      "translation": "是。",
+      "performance": "表演：簡短服從。"
+    },
+    {
+      "index": 54,
+      "start": 269.18,
+      "end": 270.82,
+      "role": "ハク",
+      "japanese": "名は何という？",
+      "japaneseHtml": "<ruby>名<rt>な</rt></ruby>は<ruby>何<rt>なん</rt></ruby>という？",
+      "translation": "妳叫什麼名字？",
+      "performance": "表演：公事公辦地問。"
+    },
+    {
+      "index": 55,
+      "start": 271.3,
+      "end": 274.8,
+      "role": "千尋",
+      "japanese": "えっ？ ち……あ、千です。",
+      "japaneseHtml": "えっ？ ち……あ、<ruby>千<rt>せん</rt></ruby>です。",
+      "translation": "咦？千……啊，我叫千。",
+      "performance": "表演：差點說出原名，急忙改口。"
+    },
+    {
+      "index": 56,
+      "start": 275.28,
+      "end": 276.76,
+      "role": "ハク",
+      "japanese": "では千、来なさい。",
+      "japaneseHtml": "では<ruby>千<rt>せん</rt></ruby>、<ruby>来<rt>き</rt></ruby>なさい。",
+      "translation": "那麼，千，跟我來。",
+      "performance": "表演：平穩命令。"
+    },
+    {
+      "index": 57,
+      "start": 285.72,
+      "end": 287.52,
+      "role": "千尋",
+      "japanese": "ハク……あの……。",
+      "japaneseHtml": "ハク……あの……。",
+      "translation": "白龍……那個……。",
+      "performance": "表演：想確認他是否記得自己。"
+    },
+    {
+      "index": 58,
+      "start": 287.52,
+      "end": 288.6,
+      "role": "ハク",
+      "japanese": "無駄口をきくな。",
+      "japaneseHtml": "<ruby>無駄口<rt>むだぐち</rt></ruby>をきくな。",
+      "translation": "不准多嘴。",
+      "performance": "表演：故意冷淡，避免被發現。"
+    },
+    {
+      "index": 59,
+      "start": 289.28,
+      "end": 291.2,
+      "role": "ハク",
+      "japanese": "私のことはハクさまと呼べ。",
+      "japaneseHtml": "<ruby>私<rt>わたし</rt></ruby>のことはハクさまと<ruby>呼<rt>よ</rt></ruby>べ。",
+      "translation": "要稱呼我為白龍大人。",
+      "performance": "表演：像公事上的命令。"
+    },
+    {
+      "index": 60,
+      "start": 291.3,
+      "end": 291.95,
+      "role": "千尋",
+      "japanese": "えっ……。",
+      "japaneseHtml": "えっ……。",
+      "translation": "咦……。",
+      "performance": "表演：困惑又受傷。"
+    },
+    {
+      "index": 61,
+      "start": 307.13,
+      "end": 310.19,
+      "role": "父役",
+      "japanese": "いくら湯婆婆さまのおっしゃりでも、それは……。",
+      "japaneseHtml": "いくら<ruby>湯婆婆<rt>ゆばあば</rt></ruby>さまのおっしゃりでも、それは……。",
+      "translation": "就算是湯婆婆大人的命令，這也……。",
+      "performance": "表演：為難地向白龍推辭。"
+    },
+    {
+      "index": 62,
+      "start": 310.59,
+      "end": 311.95,
+      "role": "兄役",
+      "japanese": "人間は困ります。",
+      "japaneseHtml": "<ruby>人間<rt>にんげん</rt></ruby>は<ruby>困<rt>こま</rt></ruby>ります。",
+      "translation": "人類會造成困擾。",
+      "performance": "表演：接著明確拒絕。"
+    },
+    {
+      "index": 63,
+      "start": 312.81,
+      "end": 314.11,
+      "role": "ハク",
+      "japanese": "すでに契約されたのだ。",
+      "japaneseHtml": "すでに<ruby>契約<rt>けいやく</rt></ruby>されたのだ。",
+      "translation": "契約已經成立了。",
+      "performance": "表演：冷靜提醒規則。"
+    },
+    {
+      "index": 64,
+      "start": 314.33,
+      "end": 315.05,
+      "role": "父役",
+      "japanese": "なんと……。",
+      "japaneseHtml": "なんと……。",
+      "translation": "什麼……。",
+      "performance": "表演：意外、無話可說。"
+    },
+    {
+      "index": 65,
+      "start": 315.25,
+      "end": 316.13,
+      "role": "千尋",
+      "japanese": "よろしくお願いします。",
+      "japaneseHtml": "よろしくお<ruby>願<rt>ねが</rt></ruby>いします。",
+      "translation": "請多多指教。",
+      "performance": "表演：真誠向眾人行禮。"
+    },
+    {
+      "index": 66,
+      "start": 315.7,
+      "end": 317.1,
+      "role": "蛙たち",
+      "japanese": "むちゃじゃ。／たまらんわー。／ダメじゃ！ 人は要らぬ。",
+      "japaneseHtml": "むちゃじゃ。／たまらんわー。／ダメじゃ！ <ruby>人<rt>ひと</rt></ruby>は<ruby>要<rt>い</rt></ruby>らぬ。",
+      "translation": "太亂來了。／受不了啊。／不行！我們不要人類。",
+      "performance": "表演：三個聲音錯開疊入。重疊字幕：畫面上方"
+    },
+    {
+      "index": 67,
+      "start": 317.14,
+      "end": 318.8,
+      "role": "湯女イ",
+      "japanese": "あたしらのところへはよこさないどくれ。",
+      "japaneseHtml": "あたしらのところへはよこさないどくれ。",
+      "translation": "可別把她送到我們那裡。",
+      "performance": "表演：嫌棄地搶先拒絕。"
+    },
+    {
+      "index": 68,
+      "start": 319.06,
+      "end": 320.42,
+      "role": "湯女ロ",
+      "japanese": "人臭くてかなわんわ。",
+      "japaneseHtml": "<ruby>人臭<rt>ひとくさ</rt></ruby>くてかなわんわ。",
+      "translation": "人類的味道真讓人受不了。",
+      "performance": "表演：皺眉抱怨。"
+    },
+    {
+      "index": 69,
+      "start": 321.12,
+      "end": 323.44,
+      "role": "ハク",
+      "japanese": "ここのものを三日も食べれば、ニオイは消えよう。",
+      "japaneseHtml": "ここのものを<ruby>三<rt>みっ</rt></ruby><ruby>日<rt>か</rt></ruby>も<ruby>食<rt>た</rt></ruby>べれば、ニオイは<ruby>消<rt>き</rt></ruby>えよう。",
+      "translation": "吃這裡的東西三天，氣味就會消失。",
+      "performance": "表演：平靜說明處置方式。"
+    },
+    {
+      "index": 70,
+      "start": 324.31,
+      "end": 327.67,
+      "role": "ハク",
+      "japanese": "それで使いものにならなければ、焼こうが煮ようが好きにするがいい。",
+      "japaneseHtml": "それで<ruby>使<rt>つか</rt></ruby>いものにならなければ、<ruby>焼<rt>や</rt></ruby>こうが<ruby>煮<rt>に</rt></ruby>ようが<ruby>好<rt>す</rt></ruby>きにするがいい。",
+      "translation": "如果還是派不上用場，要燒要煮都隨你們。",
+      "performance": "表演：冷淡收尾，讓眾人無法反駁。"
+    }
+  ],
+  "soundCues": [
+    {
+      "time": "00:00–00:11",
+      "sound": "門扉、房內壓迫感",
+      "method": "厚紙門做一次開關，之後保持安靜，讓千尋第一句突出。"
+    },
+    {
+      "time": "00:54–01:02",
+      "sound": "湯婆婆低笑與呼吸",
+      "method": "由湯婆婆角色現場完成，不另放預錄音。"
+    },
+    {
+      "time": "01:26–01:35",
+      "sound": "怒吼、紙張飛散",
+      "method": "長吼由角色本人演出；結尾以數張紙快速抖動一次。"
+    },
+    {
+      "time": "02:05–02:52",
+      "sound": "坊哭聲、哄睡與房間震動",
+      "method": "由一名學生現場做坊哭聲；與湯婆婆台詞錯開，音量不可壓過千尋。"
+    },
+    {
+      "time": "03:12–03:50",
+      "sound": "契約書與筆",
+      "method": "紙張落桌一次，鉛筆劃兩三下；名字被抽走時快速拉紙。"
+    },
+    {
+      "time": "04:18–04:36",
+      "sound": "門外應答與腳步",
+      "method": "白龍在舞台側後方回答，再以兩三步靠近。"
+    },
+    {
+      "time": "04:46–05:06",
+      "sound": "走廊腳步",
+      "method": "兩人的輕腳步在白龍台詞前停止。"
+    },
+    {
+      "time": "05:15–05:21",
+      "sound": "澡堂眾人交疊抱怨",
+      "method": "蛙群三句依序疊入；這些是角色台詞，不以額外環境音取代。"
+    }
+  ]
+}
