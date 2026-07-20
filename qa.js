@@ -31,7 +31,7 @@ function cacheElements() {
     "selectedJapanese", "selectedTranslation", "recordState", "recordTimer", "waveform",
     "startRecording", "stopRecording", "recordingPlayback", "recognizedText",
     "recognitionStatus", "evaluateRecording", "resetRecording", "resultPanel", "overallScore",
-    "resultMode", "scoreRows", "textDiff", "issueList", "searchLines", "roleFilter",
+    "resultMode", "performanceRadar", "scoreRows", "textDiff", "issueList", "searchLines", "roleFilter",
     "visibleCount", "lineList", "fatalState",
   ].forEach((id) => { elements[id] = document.getElementById(id); });
 }
@@ -60,7 +60,7 @@ function currentLine() {
 
 function renderHeader() {
   elements.workMeta.textContent = `${state.data.durationLabel} · ${state.data.lineCount} 句 · ${state.data.roleCount} 角`;
-  elements.evaluationMode.textContent = window.QA_CONFIG.evaluationApiUrl ? "API 評分" : "瀏覽器測試評分";
+  elements.evaluationMode.textContent = window.QA_CONFIG.evaluationApiUrl ? "API 評分" : "瀏覽器練習指標";
   elements.referenceVideo.src = new URL(state.data.video, window.QA_CONFIG.productionSiteBase).href;
   elements.referenceVideo.poster = new URL(state.data.poster, window.QA_CONFIG.productionSiteBase).href;
 
@@ -405,7 +405,84 @@ function lcsDiff(target, actual) {
   return output.join("");
 }
 
-function localEvaluation() {
+function percentile(values, ratio) {
+  if (!values.length) return 0;
+  const sorted = values.slice().sort((left, right) => left - right);
+  return sorted[Math.max(0, Math.min(sorted.length - 1, Math.round((sorted.length - 1) * ratio)))];
+}
+
+function estimatePitch(samples, sampleRate) {
+  let mean = 0;
+  for (let index = 0; index < samples.length; index += 1) mean += samples[index];
+  mean /= samples.length;
+  const minLag = Math.max(2, Math.floor(sampleRate / 450));
+  const maxLag = Math.min(samples.length - 4, Math.ceil(sampleRate / 75));
+  let bestLag = 0;
+  let bestCorrelation = 0;
+  for (let lag = minLag; lag <= maxLag; lag += 1) {
+    let product = 0;
+    let leftEnergy = 0;
+    let rightEnergy = 0;
+    for (let index = 0; index < samples.length - lag; index += 2) {
+      const left = samples[index] - mean;
+      const right = samples[index + lag] - mean;
+      product += left * right;
+      leftEnergy += left * left;
+      rightEnergy += right * right;
+    }
+    const correlation = product / Math.sqrt(Math.max(leftEnergy * rightEnergy, 1e-12));
+    if (correlation > bestCorrelation) {
+      bestCorrelation = correlation;
+      bestLag = lag;
+    }
+  }
+  return bestCorrelation >= 0.28 && bestLag ? sampleRate / bestLag : 0;
+}
+
+async function analyzeRecordingAudio() {
+  const fallbackRms = state.waveformSamples ? Math.sqrt(state.waveformSquares / state.waveformSamples) : 0;
+  const fallback = { rms: fallbackRms, voicedRatio: 0, pitchRange: 0, pitchMovement: 0 };
+  if (!state.recordingBlob || !window.AudioContext) return fallback;
+  let context;
+  try {
+    context = new AudioContext();
+    const bytes = await state.recordingBlob.arrayBuffer();
+    const buffer = await context.decodeAudioData(bytes.slice(0));
+    const samples = buffer.getChannelData(0);
+    if (samples.length < 512) return fallback;
+    const frameSize = Math.min(2048, 2 ** Math.max(9, Math.floor(Math.log2(samples.length / 24))));
+    const frameCount = Math.max(12, Math.min(48, Math.floor(samples.length / frameSize)));
+    const step = Math.max(1, Math.floor((samples.length - frameSize) / Math.max(1, frameCount - 1)));
+    const frames = [];
+    for (let offset = 0; offset + frameSize <= samples.length && frames.length < frameCount; offset += step) {
+      const frame = samples.subarray(offset, offset + frameSize);
+      let squares = 0;
+      for (let index = 0; index < frame.length; index += 1) squares += frame[index] * frame[index];
+      frames.push({ frame, rms: Math.sqrt(squares / frame.length) });
+    }
+    const rmsValues = frames.map((item) => item.rms);
+    const peakRms = Math.max(...rmsValues, fallbackRms);
+    const threshold = Math.max(0.006, peakRms * 0.16);
+    const pitches = frames
+      .filter((item) => item.rms >= threshold)
+      .map((item) => estimatePitch(item.frame, buffer.sampleRate))
+      .filter((pitch) => pitch >= 75 && pitch <= 450);
+    const semitones = pitches.map((pitch) => 12 * Math.log2(pitch / 220));
+    const movements = semitones.slice(1).map((value, index) => Math.abs(value - semitones[index]));
+    return {
+      rms: rmsValues.length ? Math.sqrt(rmsValues.reduce((sum, value) => sum + value * value, 0) / rmsValues.length) : fallbackRms,
+      voicedRatio: frames.length ? pitches.length / frames.length : 0,
+      pitchRange: semitones.length > 2 ? percentile(semitones, 0.9) - percentile(semitones, 0.1) : 0,
+      pitchMovement: movements.length ? movements.reduce((sum, value) => sum + value, 0) / movements.length : 0,
+    };
+  } catch {
+    return fallback;
+  } finally {
+    await context?.close().catch(() => {});
+  }
+}
+
+async function localEvaluation() {
   const line = currentLine();
   const target = normalizeJapanese(line.japanese);
   const actual = normalizeJapanese(elements.recognizedText.value);
@@ -414,11 +491,19 @@ function localEvaluation() {
   const targetDuration = line.end - line.start;
   const ratio = state.recordingDuration / Math.max(targetDuration, 0.1);
   const timing = Math.round(Math.max(0, 100 - Math.abs(Math.log(Math.max(ratio, 0.05))) * 105));
-  const rms = state.waveformSamples ? Math.sqrt(state.waveformSquares / state.waveformSamples) : 0;
+  const audioFeatures = await analyzeRecordingAudio();
+  const rms = Math.max(audioFeatures.rms, state.waveformSamples ? Math.sqrt(state.waveformSquares / state.waveformSamples) : 0);
   const clipping = state.waveformSamples ? state.clippingSamples / state.waveformSamples : 0;
   let audio = rms < 0.008 ? 30 : rms < 0.025 ? 65 : rms <= 0.22 ? 95 : 78;
   if (clipping > 0.01) audio = Math.max(35, audio - 30);
-  const overall = Math.round(accuracy * 0.6 + timing * 0.25 + audio * 0.15);
+  const pitchPresence = Math.min(1, audioFeatures.voicedRatio / 0.55);
+  const rangeStrength = Math.min(1, audioFeatures.pitchRange / 6);
+  const accent = Math.round(Math.max(30, Math.min(100, 34 + pitchPresence * 30 + rangeStrength * 36)));
+  const movementStrength = Math.min(1, audioFeatures.pitchMovement / 2.4);
+  const excessiveMovementPenalty = Math.max(0, audioFeatures.pitchMovement - 5) * 5;
+  const intonation = Math.round(Math.max(30, Math.min(100, 36 + pitchPresence * 26 + movementStrength * 34 - excessiveMovementPenalty)));
+  const aspects = { accent, intonation, speed: timing, volume: audio };
+  const overall = Math.round(accuracy * 0.45 + accent * 0.12 + intonation * 0.13 + timing * 0.15 + audio * 0.15);
   const issues = [];
   if (!actual) issues.push("沒有取得辨識文字，台詞正確度暫以 0 分計算。可手動輸入後重新評分。");
   else if (accuracy >= 96) issues.push("辨識台詞與標準台詞高度一致。");
@@ -430,12 +515,16 @@ function localEvaluation() {
   if (rms < 0.008) issues.push("麥克風音量很小或接近靜音，請靠近麥克風再試一次。");
   else if (clipping > 0.01) issues.push("錄音有爆音跡象，請稍微遠離麥克風。");
   else issues.push("錄音音量可供分析。");
+  if (audioFeatures.voicedRatio < 0.18) issues.push("可分析的有聲區段較少，重音與語調分數僅供本次練習參考。");
+  else if (audioFeatures.pitchRange < 1.5) issues.push("音高變化較平，重聽示範中的重音位置與句尾語調後再試一次。");
+  else issues.push("已取得可比較的音高輪廓，請搭配示範音逐句確認重音與語調。");
   return {
     overall,
-    scores: { "台詞正確度": accuracy, "節奏長度": timing, "錄音品質": audio },
+    aspects,
+    scores: { "台詞正確度": accuracy, "重音": accent, "語調": intonation, "語速": timing, "音量": audio },
     issues,
     diffHtml: lcsDiff(target, actual),
-    mode: "QA 測試分數",
+    mode: "瀏覽器練習指標",
   };
 }
 
@@ -455,16 +544,24 @@ async function apiEvaluation() {
 }
 
 function renderResult(result) {
+  const aspects = {
+    accent: result.aspects?.accent ?? result.scores?.["重音"] ?? 0,
+    intonation: result.aspects?.intonation ?? result.scores?.["語調"] ?? 0,
+    speed: result.aspects?.speed ?? result.scores?.["語速"] ?? result.scores?.["節奏長度"] ?? 0,
+    volume: result.aspects?.volume ?? result.scores?.["音量"] ?? result.scores?.["錄音品質"] ?? 0,
+  };
+  result.aspects = aspects;
   elements.overallScore.textContent = result.overall;
   elements.resultMode.textContent = result.mode || "API 評分";
-  elements.scoreRows.innerHTML = Object.entries(result.scores)
+  elements.scoreRows.innerHTML = Object.entries(result.scores || {})
     .map(([label, score]) => `<div class="score-row"><span>${escapeHtml(label)}</span><div><span style="width:${Math.max(0, Math.min(100, score))}%"></span></div><strong>${Math.round(score)}</strong></div>`)
     .join("");
   elements.textDiff.innerHTML = result.diffHtml
     ? safeDiffHtml(result.diffHtml)
     : escapeHtml(elements.recognizedText.value);
-  elements.issueList.innerHTML = result.issues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join("");
+  elements.issueList.innerHTML = (result.issues || []).map((issue) => `<li>${escapeHtml(issue)}</li>`).join("");
   elements.resultPanel.hidden = false;
+  window.drawPracticeRadar?.(elements.performanceRadar, aspects);
   elements.resultPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
   document.dispatchEvent(new CustomEvent("qa:evaluated", {
     detail: {
@@ -486,11 +583,11 @@ async function evaluateRecording() {
     try {
       result = await apiEvaluation();
     } catch {
-      result = localEvaluation();
+      result = await localEvaluation();
       result.issues.unshift("API 暫時無法使用，本次改用瀏覽器測試評分。");
     }
   } else {
-    result = localEvaluation();
+    result = await localEvaluation();
   }
   renderResult(result);
   elements.evaluateRecording.disabled = false;

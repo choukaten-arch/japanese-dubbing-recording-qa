@@ -9,6 +9,7 @@ const portalState = {
   teacherData: null,
   workData: new Map(),
   selectedRoleLines: [],
+  selfPractice: [],
   credentials: [],
   setupRequired: false,
   demo: new URLSearchParams(location.search).get("demo") === "1",
@@ -22,11 +23,14 @@ function cachePortalElements() {
     "studentLoginPanel", "teacherLoginPanel", "studentId", "studentPin", "teacherPin",
     "loginMessage", "studentView", "studentDate", "studentTitle", "studentCompleted", "studentNotice",
     "studentPreferenceBar", "studentPreferencePoster", "studentPreferenceLabel", "changePreference",
-    "preferenceDialog", "preferenceForm", "preferenceClose", "preferenceWork", "preferenceRole",
+    "studentPerformance", "studentRadar", "studentPracticedLines", "studentTotalAttempts", "studentTotalDuration",
+    "preferenceDialog", "preferenceForm", "preferenceClose", "preferenceWork", "preferenceRoles",
     "preferencePoster", "preferenceMessage", "classProgressSection", "classProgressUpdated", "classProgressGroups",
-    "taskList", "studentEmpty", "teacherView", "sheetLink", "driveLink", "metricStudents",
+    "taskList", "studentEmpty", "selfPracticeSection", "selfPracticeCount", "selfPracticeList",
+    "teacherView", "sheetLink", "driveLink", "metricStudents",
     "metricAssignments", "metricSubmissions", "metricAverage", "assignPanel", "progressPanel",
     "groupsPanel", "groupRows", "studentsPanel", "assignmentForm", "assignmentTitle", "targetClass", "assignedDate", "dueDate",
+    "masteryGoalFields", "lineGoalFields", "targetPercent", "targetScore",
     "assignmentWork", "assignmentRole", "assignmentStart", "assignmentCount", "linePreview",
     "assignmentLineCount", "assignmentMessage", "assignmentRows", "recentResultRows", "refreshTeacher",
     "studentCountLabel", "studentImportForm", "studentImportText", "resetExistingPins", "studentRows", "knownGroups",
@@ -85,6 +89,15 @@ function displayDuration(value) {
 
 function masteryText(value) {
   return `${Math.max(0, Math.min(100, Number(value) || 0)).toFixed(1).replace(/\.0$/, "")}%`;
+}
+
+function profileRoles(profile) {
+  const values = Array.isArray(profile?.roles) && profile.roles.length ? profile.roles : [profile?.role];
+  return [...new Set(values.map((role) => String(role || "").trim()).filter(Boolean))];
+}
+
+function profileRoleLabel(profile) {
+  return profileRoles(profile).join("、") || "—";
 }
 
 function posterUrl(slug) {
@@ -175,17 +188,25 @@ function demoStore() {
         workSlug: "kiki",
         workTitle: "魔女宅急便",
         role: "琪琪",
+        goalMode: "line_score",
+        targetScore: null,
         requiredCount: 5,
         lineIndices: [1, 3, 6, 9, 10],
         status: "Active",
       }],
       lineResults: {},
+      selfResults: {},
       recentResults: [],
       profile: null,
       groupName: "第 1 組",
     };
     localStorage.setItem(key, JSON.stringify(value));
   }
+  value.lineResults ||= {};
+  value.selfResults ||= {};
+  value.recentResults ||= [];
+  value.assignments ||= [];
+  value.assignments.forEach((assignment) => { assignment.goalMode ||= "line_score"; });
   return {
     value,
     save() { localStorage.setItem(key, JSON.stringify(value)); },
@@ -196,12 +217,30 @@ function demoTasks() {
   const store = demoStore();
   return store.value.assignments
     .filter((assignment) => assignment.status === "Active")
-    .filter((assignment) => store.value.profile
+    .filter((assignment) => assignment.goalMode === "mastery_target" || (store.value.profile
       && assignment.workSlug === store.value.profile.workSlug
-      && assignment.role === store.value.profile.role)
+      && profileRoles(store.value.profile).includes(assignment.role)))
     .map((assignment) => {
+      if (assignment.goalMode === "mastery_target") {
+        const progress = demoClassProgress()[0];
+        const achieved = progress.masteryPercent >= assignment.targetPercent;
+        return {
+          ...assignment,
+          currentMastery: progress.masteryPercent,
+          achieved,
+          completed: achieved ? 1 : 0,
+          requiredCount: 1,
+          lineIndices: [],
+          lineResults: {},
+          completionRate: Math.min(100, Math.round((progress.masteryPercent / assignment.targetPercent) * 100)),
+          overdue: assignment.dueDate < taipeiDate(),
+        };
+      }
       const lineResults = store.value.lineResults[assignment.assignmentId] || {};
-      const completed = Object.keys(lineResults).length;
+      Object.values(lineResults).forEach((result) => {
+        result.achieved = assignment.targetScore == null || Number(result.score) >= Number(assignment.targetScore);
+      });
+      const completed = Object.values(lineResults).filter((result) => result.achieved).length;
       return {
         ...assignment,
         completed,
@@ -212,18 +251,71 @@ function demoTasks() {
     });
 }
 
+function demoSelfKey(workSlug, role) {
+  return `${workSlug}|${role}`;
+}
+
+async function demoSelfPractice() {
+  const store = demoStore();
+  const profile = store.value.profile;
+  if (!profile) return [];
+  const data = await fetchWorkData(profile.workSlug);
+  return profileRoles(profile).map((role) => {
+    const lineIndices = data.lines.filter((line) => line.role === role).map((line) => line.index);
+    const lineResults = { ...(store.value.selfResults[demoSelfKey(profile.workSlug, role)] || {}) };
+    store.value.assignments.filter((assignment) => assignment.workSlug === profile.workSlug && assignment.role === role)
+      .forEach((assignment) => Object.assign(lineResults, store.value.lineResults[assignment.assignmentId] || {}));
+    const values = Object.values(lineResults);
+    const scoreTotal = values.reduce((sum, result) => sum + (Number(result.score) || 0), 0);
+    return {
+      assignmentId: `SELF-${profile.workSlug}-${role}`,
+      title: `${role}自主練習`,
+      goalMode: "self_practice",
+      selfPractice: true,
+      workSlug: profile.workSlug,
+      workTitle: profile.workTitle,
+      role,
+      lineIndices,
+      requiredCount: lineIndices.length,
+      completed: values.length,
+      completionRate: lineIndices.length ? Math.round((values.length / lineIndices.length) * 100) : 0,
+      masteryPercent: lineIndices.length ? Math.round((scoreTotal / lineIndices.length) * 10) / 10 : 0,
+      lineResults,
+    };
+  });
+}
+
 function demoClassProgress() {
   const store = demoStore();
-  const scores = Object.values(store.value.lineResults).flatMap((resultMap) => Object.values(resultMap).map((result) => Number(result.score) || 0));
-  const mastery = store.value.profile && scores.length ? Math.round((scores.reduce((sum, score) => sum + score, 0) / 22) * 10) / 10 : 0;
+  const latest = {};
+  store.value.assignments.forEach((assignment) => {
+    if (!store.value.profile || assignment.workSlug !== store.value.profile.workSlug || !profileRoles(store.value.profile).includes(assignment.role)) return;
+    Object.entries(store.value.lineResults[assignment.assignmentId] || {}).forEach(([lineIndex, result]) => { latest[`${assignment.role}|${lineIndex}`] = result; });
+  });
+  Object.entries(store.value.selfResults).forEach(([key, resultMap]) => {
+    const separator = key.indexOf("|");
+    const workSlug = separator >= 0 ? key.slice(0, separator) : store.value.profile?.workSlug;
+    const role = separator >= 0 ? key.slice(separator + 1) : key;
+    if (!store.value.profile || workSlug !== store.value.profile.workSlug || !profileRoles(store.value.profile).includes(role)) return;
+    Object.entries(resultMap || {}).forEach(([lineIndex, result]) => { latest[`${role}|${lineIndex}`] = result; });
+  });
+  const scores = Object.values(latest).map((result) => Number(result.score) || 0);
+  const selectedLineTotal = Number(store.value.profile?.totalLines) || (store.value.profile ? 22 : 0);
+  const mastery = selectedLineTotal && scores.length ? Math.round((scores.reduce((sum, score) => sum + score, 0) / selectedLineTotal) * 10) / 10 : 0;
   const attempts = store.value.recentResults.length;
   const duration = store.value.recentResults.reduce((sum, result) => sum + Math.max(0, Number(result.durationSec) || 0), 0);
   return [
-    { seatNo: "0", studentId: "demo", name: "測試學生", className: "416", groupName: store.value.groupName, profile: store.value.profile, masteryPercent: mastery, practicedLines: scores.length, totalLines: store.value.profile ? 22 : 0, totalAttempts: attempts, totalDurationSec: duration },
-    { seatNo: "2", studentId: "demo-02", name: "示範組員甲", className: "416", groupName: "第 1 組", profile: { workSlug: "kiki", workTitle: "魔女宅急便", role: "琪琪" }, masteryPercent: 46.2, practicedLines: 12, totalLines: 22, totalAttempts: 27, totalDurationSec: 218 },
-    { seatNo: "3", studentId: "demo-03", name: "示範組員乙", className: "416", groupName: "第 1 組", profile: { workSlug: "kiki", workTitle: "魔女宅急便", role: "老夫人" }, masteryPercent: 51.8, practicedLines: 13, totalLines: 18, totalAttempts: 31, totalDurationSec: 246 },
-    { seatNo: "4", studentId: "demo-04", name: "示範組員丙", className: "416", groupName: "第 2 組", profile: { workSlug: "ponyo", workTitle: "崖上的波妞", role: "波妞" }, masteryPercent: 37.5, practicedLines: 10, totalLines: 24, totalAttempts: 19, totalDurationSec: 164 },
+    { seatNo: "0", studentId: "demo", name: "測試學生", className: "416", groupName: store.value.groupName, profile: store.value.profile, masteryPercent: mastery, practicedLines: scores.length, totalLines: selectedLineTotal, totalAttempts: attempts, totalDurationSec: duration, aspectAverages: demoAspectAverages(store.value.recentResults) },
+    { seatNo: "2", studentId: "demo-02", name: "示範組員甲", className: "416", groupName: "第 1 組", profile: { workSlug: "kiki", workTitle: "魔女宅急便", roles: ["琪琪", "吉吉"], role: "琪琪" }, masteryPercent: 46.2, practicedLines: 12, totalLines: 28, totalAttempts: 27, totalDurationSec: 218, aspectAverages: { accent: 72, intonation: 68, speed: 81, volume: 76 } },
+    { seatNo: "3", studentId: "demo-03", name: "示範組員乙", className: "416", groupName: "第 1 組", profile: { workSlug: "kiki", workTitle: "魔女宅急便", roles: ["老夫人"], role: "老夫人" }, masteryPercent: 51.8, practicedLines: 13, totalLines: 18, totalAttempts: 31, totalDurationSec: 246, aspectAverages: { accent: 76, intonation: 75, speed: 70, volume: 82 } },
+    { seatNo: "4", studentId: "demo-04", name: "示範組員丙", className: "416", groupName: "第 2 組", profile: { workSlug: "ponyo", workTitle: "崖上的波妞", roles: ["波妞"], role: "波妞" }, masteryPercent: 37.5, practicedLines: 10, totalLines: 24, totalAttempts: 19, totalDurationSec: 164, aspectAverages: { accent: 66, intonation: 73, speed: 64, volume: 79 } },
   ];
+}
+
+function demoAspectAverages(results) {
+  const entries = results.map((item) => item.aspects).filter(Boolean);
+  const average = (key) => entries.length ? Math.round(entries.reduce((sum, item) => sum + (Number(item[key]) || 0), 0) / entries.length) : 0;
+  return { accent: average("accent"), intonation: average("intonation"), speed: average("speed"), volume: average("volume") };
 }
 
 async function mockRequest(action, payload) {
@@ -247,19 +339,28 @@ async function mockRequest(action, payload) {
   }
   if (action === "studentTasks") {
     const profile = demoStore().value.profile;
+    const progress = demoClassProgress()[0];
     return {
       ok: true,
       account: { type: "student", studentId: "demo", name: "測試學生", className: "416", seatNo: "0", profile },
       profile,
       needsSetup: !profile,
+      progress,
       classProgress: demoClassProgress(),
+      selfPractice: await demoSelfPractice(),
       tasks: demoTasks(),
     };
   }
   if (action === "setStudentPreference") {
     const store = demoStore();
     const work = (window.QA_WORKS || []).find((item) => item.slug === payload.workSlug);
-    store.value.profile = { groupName: store.value.groupName, workSlug: payload.workSlug, workTitle: work?.title || payload.workSlug, role: payload.role };
+    const roleInputs = Array.isArray(payload.roles) ? payload.roles : [payload.role];
+    const roles = [...new Set(roleInputs.map((role) => String(role || "").trim()).filter(Boolean))];
+    const workData = portalState.workData.get(payload.workSlug);
+    const totalLines = (workData?.roles || [])
+      .filter((role) => roles.includes(role.role))
+      .reduce((sum, role) => sum + Number(role.lineCount || 0), 0);
+    store.value.profile = { groupName: store.value.groupName, workSlug: payload.workSlug, workTitle: work?.title || payload.workSlug, roles, role: roles[0], totalLines };
     store.save();
     return { ok: true, profile: store.value.profile };
   }
@@ -275,22 +376,28 @@ async function mockRequest(action, payload) {
   if (action === "createAssignment") {
     const store = demoStore();
     const work = (window.QA_WORKS || []).find((item) => item.slug === payload.assignment.workSlug);
+    const goalMode = payload.assignment.goalMode || "line_score";
     const assignment = {
       assignmentId: `DEMO-${Date.now()}`,
-      title: payload.assignment.title || `${work?.title || "作品"}練習`,
+      title: payload.assignment.title || (goalMode === "mastery_target"
+        ? `熟練度達 ${payload.assignment.targetPercent}%`
+        : `${work?.title || "作品"}練習`),
       targetClass: payload.assignment.targetClass,
       assignedDate: payload.assignment.assignedDate,
       dueDate: payload.assignment.dueDate,
-      workSlug: payload.assignment.workSlug,
-      workTitle: work?.title || payload.assignment.workSlug,
-      role: payload.assignment.role,
-      requiredCount: payload.assignment.lineIndices.length,
-      lineIndices: payload.assignment.lineIndices,
+      goalMode,
+      targetPercent: goalMode === "mastery_target" ? Number(payload.assignment.targetPercent) : null,
+      targetScore: goalMode === "line_score" ? Number(payload.assignment.targetScore) : null,
+      workSlug: goalMode === "line_score" ? payload.assignment.workSlug : "",
+      workTitle: goalMode === "line_score" ? work?.title || payload.assignment.workSlug : "依學生目前選角",
+      role: goalMode === "line_score" ? payload.assignment.role : "",
+      requiredCount: goalMode === "line_score" ? payload.assignment.lineIndices.length : 0,
+      lineIndices: goalMode === "line_score" ? payload.assignment.lineIndices : [],
       status: "Active",
     };
     store.value.assignments.unshift(assignment);
     store.save();
-    return { ok: true, assignmentId: assignment.assignmentId, title: assignment.title, lineIndices: assignment.lineIndices };
+    return { ok: true, assignmentId: assignment.assignmentId, title: assignment.title, goalMode, lineIndices: assignment.lineIndices };
   }
   if (action === "updateAssignmentStatus") {
     const store = demoStore();
@@ -309,14 +416,28 @@ async function mockRequest(action, payload) {
 function mockTeacherOverview() {
   const store = demoStore();
   const assignments = store.value.assignments.map((assignment) => {
+    if (assignment.goalMode === "mastery_target") {
+      const progress = demoClassProgress()[0];
+      const achieved = progress.masteryPercent >= assignment.targetPercent ? 1 : 0;
+      return {
+        ...assignment,
+        students: 1,
+        achievedStudents: achieved,
+        completedLines: achieved,
+        expectedLines: 1,
+        completionRate: achieved * 100,
+        averageScore: progress.masteryPercent,
+      };
+    }
     const results = store.value.lineResults[assignment.assignmentId] || {};
     const values = Object.values(results);
+    const achieved = values.filter((item) => assignment.targetScore == null || Number(item.score) >= Number(assignment.targetScore));
     return {
       ...assignment,
       students: 1,
-      completedLines: values.length,
+      completedLines: achieved.length,
       expectedLines: assignment.lineIndices.length,
-      completionRate: Math.round((values.length / assignment.lineIndices.length) * 100),
+      completionRate: Math.round((achieved.length / assignment.lineIndices.length) * 100),
       averageScore: values.length ? Math.round(values.reduce((sum, item) => sum + item.score, 0) / values.length) : null,
     };
   });
@@ -446,14 +567,28 @@ async function showStudentDashboard() {
     const response = await platformRequest("studentTasks", { token: session.token });
     const profile = response.profile || response.account?.profile || null;
     saveSession({ session, account: { ...account, ...(response.account || {}), profile } });
+    portalState.selfPractice = response.selfPractice || [];
     renderStudentProfile(profile);
+    renderStudentPerformance(response.progress || {});
     renderClassProgress(response.classProgress || []);
     renderStudentTasks(response.tasks || []);
+    renderSelfPractice(portalState.selfPractice);
     if (response.needsSetup) await openPreferenceDialog(true);
   } catch (error) {
     handleSessionError(error);
     portalElements.taskList.innerHTML = `<div class="empty-state"><strong>無法載入作業</strong><span>${escapePortalHtml(error.message)}</span></div>`;
   }
+}
+
+function renderStudentPerformance(progress) {
+  const hasProfile = Boolean(portalState.session?.account?.profile);
+  portalElements.studentPerformance.hidden = !hasProfile;
+  if (!hasProfile) return;
+  portalElements.studentCompleted.textContent = masteryText(progress.masteryPercent);
+  portalElements.studentPracticedLines.textContent = `${Number(progress.practicedLines) || 0} / ${Number(progress.totalLines) || 0}`;
+  portalElements.studentTotalAttempts.textContent = `${Number(progress.totalAttempts) || 0} 次`;
+  portalElements.studentTotalDuration.textContent = displayDuration(progress.totalDurationSec);
+  window.drawPracticeRadar?.(portalElements.studentRadar, progress.aspectAverages || {});
 }
 
 function renderStudentProfile(profile) {
@@ -462,7 +597,7 @@ function renderStudentProfile(profile) {
   portalElements.studentPreferencePoster.src = posterUrl(profile.workSlug);
   portalElements.studentPreferencePoster.alt = profile.workTitle;
   const group = profile.groupName ? `${profile.groupName}｜` : "";
-  portalElements.studentPreferenceLabel.textContent = `${group}${profile.workTitle} · ${profile.role}`;
+  portalElements.studentPreferenceLabel.textContent = `${group}${profile.workTitle} · ${profileRoleLabel(profile)}`;
 }
 
 function renderClassProgress(students) {
@@ -502,21 +637,30 @@ function populatePreferenceWorks() {
   });
 }
 
-async function updatePreferenceRoles(preferredRole = "") {
+async function updatePreferenceRoles(preferredRoles = []) {
   const work = (window.QA_WORKS || []).find((item) => item.slug === portalElements.preferenceWork.value);
   portalElements.preferencePoster.src = posterUrl(portalElements.preferenceWork.value);
   portalElements.preferencePoster.alt = work?.title || "配音作品";
-  portalElements.preferenceRole.innerHTML = '<option value="">選擇角色</option>';
+  portalElements.preferenceRoles.innerHTML = '<span class="role-loading">載入角色中</span>';
   const data = await fetchWorkData(portalElements.preferenceWork.value);
+  const selected = new Set(Array.isArray(preferredRoles) ? preferredRoles : [preferredRoles]);
+  const fragment = document.createDocumentFragment();
   data.roles.forEach((role) => {
-    const option = document.createElement("option");
-    option.value = role.role;
-    option.textContent = `${role.role}（${role.lineCount} 句）`;
-    portalElements.preferenceRole.append(option);
+    const label = document.createElement("label");
+    label.className = "preference-role-option";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.name = "preferenceRole";
+    input.value = role.role;
+    input.checked = selected.has(role.role);
+    const name = document.createElement("strong");
+    name.textContent = role.role;
+    const count = document.createElement("small");
+    count.textContent = `${role.lineCount} 句`;
+    label.append(input, name, count);
+    fragment.append(label);
   });
-  if (preferredRole && [...portalElements.preferenceRole.options].some((option) => option.value === preferredRole)) {
-    portalElements.preferenceRole.value = preferredRole;
-  }
+  portalElements.preferenceRoles.replaceChildren(fragment);
 }
 
 async function openPreferenceDialog(required = false) {
@@ -526,12 +670,18 @@ async function openPreferenceDialog(required = false) {
   populatePreferenceWorks();
   const profile = portalState.session?.account?.profile;
   if (profile?.workSlug) portalElements.preferenceWork.value = profile.workSlug;
-  await updatePreferenceRoles(profile?.role || "");
+  await updatePreferenceRoles(profileRoles(profile));
   if (!portalElements.preferenceDialog.open) portalElements.preferenceDialog.showModal();
 }
 
 async function handlePreferenceSubmit(event) {
   event.preventDefault();
+  const roles = [...portalElements.preferenceRoles.querySelectorAll('input[type="checkbox"]:checked')]
+    .map((input) => input.value);
+  if (!roles.length) {
+    portalElements.preferenceMessage.textContent = "請至少選擇一個角色。";
+    return;
+  }
   const button = event.submitter;
   setBusy(button, true, "儲存中");
   portalElements.preferenceMessage.textContent = "";
@@ -539,7 +689,7 @@ async function handlePreferenceSubmit(event) {
     const response = await platformRequest("setStudentPreference", {
       token: portalState.session.session.token,
       workSlug: portalElements.preferenceWork.value,
-      role: portalElements.preferenceRole.value,
+      roles,
     });
     saveSession({
       session: portalState.session.session,
@@ -559,31 +709,83 @@ async function handlePreferenceSubmit(event) {
 function renderStudentTasks(tasks) {
   portalElements.taskList.replaceChildren();
   portalElements.studentEmpty.hidden = tasks.length > 0;
-  const completedTotal = tasks.reduce((sum, task) => sum + Number(task.completed || 0), 0);
-  portalElements.studentCompleted.textContent = String(completedTotal);
-  const overdue = tasks.filter((task) => task.overdue && task.completed < task.requiredCount).length;
+  const overdue = tasks.filter((task) => task.overdue && !task.achieved && task.completed < task.requiredCount).length;
   portalElements.studentNotice.hidden = overdue === 0;
-  portalElements.studentNotice.textContent = overdue ? `有 ${overdue} 份作業已到截止日，仍可繼續完成。` : "";
+  portalElements.studentNotice.textContent = overdue ? `有 ${overdue} 項要求已到截止日，仍可繼續練習。` : "";
 
   tasks.forEach((task) => {
-    const firstIncomplete = task.lineIndices.find((index) => !task.lineResults?.[index]) || task.lineIndices[0];
-    const complete = task.completed >= task.requiredCount;
+    const masteryGoal = task.goalMode === "mastery_target";
+    const complete = masteryGoal ? Boolean(task.achieved) : task.completed >= task.requiredCount;
     const article = document.createElement("article");
     article.className = "task-item";
     const demoParam = portalState.demo ? "&demo=1" : "";
+    let linkedTask = task;
+    let href;
+    let detail;
+    let progressLabel;
+    let actionLabel;
+    let actionHint;
+    if (masteryGoal) {
+      linkedTask = portalState.selfPractice[0] || null;
+      const next = linkedTask ? nextPracticeLine(linkedTask) : 1;
+      href = linkedTask
+        ? `index.html?work=${encodeURIComponent(linkedTask.workSlug)}&practice=1&role=${encodeURIComponent(linkedTask.role)}${demoParam}#line-${next}`
+        : "#";
+      detail = `目前 ${masteryText(task.currentMastery)} · 目標 ${masteryText(task.targetPercent)} · 截止 ${displayDate(task.dueDate)}`;
+      progressLabel = complete ? "已達成今日完成度" : `還差 ${masteryText(Math.max(0, task.targetPercent - task.currentMastery))}`;
+      actionLabel = complete ? "繼續精進" : "前往練習";
+      actionHint = linkedTask ? `從 ${linkedTask.role} 開始` : "請先設定角色";
+    } else {
+      const firstIncomplete = task.lineIndices.find((index) => !task.lineResults?.[index]?.achieved) || task.lineIndices[0];
+      href = `index.html?work=${encodeURIComponent(task.workSlug)}&assignment=${encodeURIComponent(task.assignmentId)}${demoParam}#line-${firstIncomplete}`;
+      const scoreGoal = task.targetScore == null ? "完成指定句" : `每句至少 ${task.targetScore} 分`;
+      detail = `${task.workTitle} · ${task.role} · ${scoreGoal} · 截止 ${displayDate(task.dueDate)}`;
+      progressLabel = `${task.completed} / ${task.requiredCount} 句達標`;
+      actionLabel = complete ? "再次練習" : task.completed ? "繼續練習" : "開始練習";
+      actionHint = complete ? "可重錄更新最後版本" : `尚餘 ${task.requiredCount - task.completed} 句`;
+    }
     article.innerHTML = `
-      <img class="task-poster" src="${escapePortalHtml(posterUrl(task.workSlug))}" alt="${escapePortalHtml(task.workTitle)}">
+      <img class="task-poster" src="${escapePortalHtml(posterUrl(task.workSlug || portalState.session.account.profile?.workSlug))}" alt="${escapePortalHtml(task.workTitle || portalState.session.account.profile?.workTitle || "配音作品")}">
       <div class="task-content">
-        <div class="task-topline"><strong>${escapePortalHtml(task.title)}</strong><span class="task-role">${escapePortalHtml(task.role)}</span>${task.overdue && !complete ? '<span class="status-badge is-overdue">已到期</span>' : complete ? '<span class="status-badge">已完成</span>' : ""}</div>
-        <p>${escapePortalHtml(task.workTitle)} · 第 ${task.lineIndices.join("、")} 句 · 截止 ${escapePortalHtml(displayDate(task.dueDate))}</p>
+        <div class="task-topline"><strong>${escapePortalHtml(task.title)}</strong><span class="task-role">${masteryGoal ? "整體完成度" : escapePortalHtml(task.role)}</span>${task.overdue && !complete ? '<span class="status-badge is-overdue">已到期</span>' : complete ? '<span class="status-badge">已達標</span>' : ""}</div>
+        <p>${escapePortalHtml(detail)}</p>
         <div class="progress-track" aria-label="完成率 ${task.completionRate}%"><span style="width:${Math.max(0, Math.min(100, task.completionRate))}%"></span></div>
-        <div class="task-progress-label">${task.completed} / ${task.requiredCount} 句完成</div>
+        <div class="task-progress-label">${escapePortalHtml(progressLabel)}</div>
       </div>
-      <div class="task-action"><a href="index.html?work=${encodeURIComponent(task.workSlug)}&assignment=${encodeURIComponent(task.assignmentId)}${demoParam}#line-${firstIncomplete}">${complete ? "再次練習" : task.completed ? "繼續練習" : "開始練習"}</a><span>${complete ? "可重錄更新最後版本" : `尚餘 ${task.requiredCount - task.completed} 句`}</span></div>`;
+      <div class="task-action"><a href="${escapePortalHtml(href)}" ${linkedTask ? "" : 'aria-disabled="true"'}>${escapePortalHtml(actionLabel)}</a><span>${escapePortalHtml(actionHint)}</span></div>`;
+    article.querySelector("a").addEventListener("click", () => {
+      if (linkedTask) localStorage.setItem(platformConfig.taskKey, JSON.stringify(linkedTask));
+    });
+    portalElements.taskList.append(article);
+  });
+}
+
+function nextPracticeLine(task) {
+  const unpracticed = task.lineIndices.find((index) => !task.lineResults?.[index]);
+  if (unpracticed) return unpracticed;
+  return task.lineIndices.slice().sort((left, right) => Number(task.lineResults?.[left]?.score || 0) - Number(task.lineResults?.[right]?.score || 0))[0]
+    || task.lineIndices[0];
+}
+
+function renderSelfPractice(practices) {
+  portalElements.selfPracticeSection.hidden = practices.length === 0;
+  portalElements.selfPracticeCount.textContent = `${practices.length} 個角色`;
+  portalElements.selfPracticeList.replaceChildren();
+  practices.forEach((task) => {
+    const next = nextPracticeLine(task);
+    const demoParam = portalState.demo ? "&demo=1" : "";
+    const article = document.createElement("article");
+    article.className = "self-practice-item";
+    article.innerHTML = `<div class="self-practice-copy">
+      <h3>${escapePortalHtml(task.role)}</h3>
+      <p>${task.completed} / ${task.requiredCount} 句已練 · 熟練度 ${masteryText(task.masteryPercent)}</p>
+      <div class="progress-track" aria-label="熟練度 ${masteryText(task.masteryPercent)}"><span style="width:${Math.max(0, Math.min(100, Number(task.masteryPercent) || 0))}%"></span></div>
+    </div>
+    <div class="self-practice-action"><a href="index.html?work=${encodeURIComponent(task.workSlug)}&practice=1&role=${encodeURIComponent(task.role)}${demoParam}#line-${next}">${task.completed ? "繼續練習" : "開始練習"}</a><span>第 ${next} 句</span></div>`;
     article.querySelector("a").addEventListener("click", () => {
       localStorage.setItem(platformConfig.taskKey, JSON.stringify(task));
     });
-    portalElements.taskList.append(article);
+    portalElements.selfPracticeList.append(article);
   });
 }
 
@@ -594,6 +796,7 @@ async function showTeacherDashboard() {
   portalElements.teacherView.hidden = false;
   setTeacherDates();
   populateWorkSelect();
+  syncAssignmentGoalMode();
   await refreshTeacherData();
 }
 
@@ -601,6 +804,29 @@ function setTeacherDates() {
   const today = taipeiDate();
   portalElements.assignedDate.value ||= today;
   portalElements.dueDate.value ||= today;
+}
+
+function selectedAssignmentGoalMode() {
+  return document.querySelector('input[name="assignmentGoalMode"]:checked')?.value || "mastery_target";
+}
+
+function syncAssignmentGoalMode() {
+  const mastery = selectedAssignmentGoalMode() === "mastery_target";
+  portalElements.masteryGoalFields.hidden = !mastery;
+  portalElements.lineGoalFields.hidden = mastery;
+  portalElements.targetPercent.disabled = !mastery;
+  portalElements.targetPercent.required = mastery;
+  [portalElements.assignmentWork, portalElements.assignmentRole, portalElements.assignmentStart, portalElements.assignmentCount, portalElements.targetScore]
+    .forEach((element) => {
+      element.disabled = mastery;
+      element.required = !mastery;
+    });
+  if (!portalElements.assignmentTitle.value) {
+    portalElements.assignmentTitle.placeholder = mastery
+      ? `例如：${displayDate(portalElements.assignedDate.value)} 熟練度達 ${portalElements.targetPercent.value}%`
+      : "例如：琪琪每句達 80 分";
+  }
+  updateLinePreview();
 }
 
 function populateWorkSelect() {
@@ -655,7 +881,7 @@ async function updateRoleLines() {
   if (Number(portalElements.assignmentCount.value) > portalState.selectedRoleLines.length) {
     portalElements.assignmentCount.value = String(Math.min(5, portalState.selectedRoleLines.length));
   }
-  if (!portalElements.assignmentTitle.value && portalElements.assignmentRole.value) {
+  if (selectedAssignmentGoalMode() === "line_score" && !portalElements.assignmentTitle.value && portalElements.assignmentRole.value) {
     portalElements.assignmentTitle.value = `${displayDate(portalElements.assignedDate.value)} ${portalElements.assignmentRole.value}台詞練習`;
   }
   updateLinePreview();
@@ -668,6 +894,11 @@ function selectedAssignmentLines() {
 }
 
 function updateLinePreview() {
+  if (selectedAssignmentGoalMode() === "mastery_target") {
+    const target = Math.max(1, Math.min(100, Number(portalElements.targetPercent.value) || 80));
+    portalElements.assignmentLineCount.textContent = `完成度目標 ${target}%`;
+    return;
+  }
   const lines = selectedAssignmentLines();
   portalElements.assignmentLineCount.textContent = lines.length ? `將指定 ${lines.length} 句` : "尚未選擇";
   if (!lines.length) {
@@ -679,8 +910,9 @@ function updateLinePreview() {
 
 async function handleAssignmentSubmit(event) {
   event.preventDefault();
-  const lines = selectedAssignmentLines();
-  if (!lines.length) {
+  const goalMode = selectedAssignmentGoalMode();
+  const lines = goalMode === "line_score" ? selectedAssignmentLines() : [];
+  if (goalMode === "line_score" && !lines.length) {
     portalElements.assignmentMessage.textContent = "請先選擇角色與句數。";
     return;
   }
@@ -695,8 +927,11 @@ async function handleAssignmentSubmit(event) {
         targetClass: portalElements.targetClass.value.trim(),
         assignedDate: portalElements.assignedDate.value,
         dueDate: portalElements.dueDate.value,
-        workSlug: portalElements.assignmentWork.value,
-        role: portalElements.assignmentRole.value,
+        goalMode,
+        targetPercent: Number(portalElements.targetPercent.value),
+        targetScore: Number(portalElements.targetScore.value),
+        workSlug: goalMode === "line_score" ? portalElements.assignmentWork.value : "",
+        role: goalMode === "line_score" ? portalElements.assignmentRole.value : "",
         lineIndices: lines.map((line) => line.index),
       },
     });
@@ -751,11 +986,18 @@ function renderAssignmentRows(assignments) {
   portalElements.assignmentRows.innerHTML = assignments.length ? assignments.map((assignment) => {
     const nextStatus = assignment.status === "Active" ? "Closed" : "Active";
     const actionLabel = assignment.status === "Active" ? "關閉" : "重新開放";
+    const mastery = assignment.goalMode === "mastery_target";
+    const goal = mastery
+      ? `整體熟練度 ${masteryText(assignment.targetPercent)}`
+      : `${assignment.role} · ${assignment.requiredCount} 句 · 每句 ${assignment.targetScore == null ? "完成" : `${assignment.targetScore} 分`}`;
+    const progress = mastery
+      ? `${assignment.achievedStudents ?? assignment.completedLines} / ${assignment.students} 人`
+      : `${assignment.completedLines} / ${assignment.expectedLines} 句`;
     return `<tr>
       <td><strong>${escapePortalHtml(assignment.title)}</strong><br>${escapePortalHtml(assignment.workTitle)}</td>
-      <td>${escapePortalHtml(assignment.role)} · ${assignment.requiredCount} 句</td>
+      <td>${escapePortalHtml(goal)}</td>
       <td>${escapePortalHtml(displayDate(assignment.dueDate))}</td>
-      <td>${assignment.completedLines} / ${assignment.expectedLines}</td>
+      <td>${escapePortalHtml(progress)}</td>
       <td>${assignment.completionRate}%</td>
       <td class="score-cell">${assignment.averageScore ?? "—"}</td>
       <td><span class="table-status ${assignment.status === "Active" ? "" : "is-closed"}">${assignment.status === "Active" ? "進行中" : "已關閉"}</span> <button class="row-button assignment-status-button" type="button" data-id="${escapePortalHtml(assignment.assignmentId)}" data-status="${nextStatus}">${actionLabel}</button></td>
@@ -785,7 +1027,7 @@ function renderStudentRows(students) {
     <td><strong>${escapePortalHtml(student.name)}</strong></td>
     <td><div class="group-editor"><input class="group-name-input" aria-label="${escapePortalHtml(student.name)}的組別" data-id="${escapePortalHtml(student.studentId)}" value="${escapePortalHtml(student.groupName || "")}" list="knownGroups" maxlength="40"><button class="row-button save-group-button" type="button" data-id="${escapePortalHtml(student.studentId)}">儲存</button></div></td>
     <td>${escapePortalHtml(student.profile?.workTitle || "尚未選擇")}</td>
-    <td>${escapePortalHtml(student.profile?.role || "—")}</td>
+    <td>${escapePortalHtml(profileRoleLabel(student.profile))}</td>
     <td class="mastery-cell"><strong>${masteryText(student.masteryPercent)}</strong><div class="mastery-track"><span style="width:${Math.max(0, Math.min(100, Number(student.masteryPercent) || 0))}%"></span></div></td>
     <td>${escapePortalHtml(displayDateTime(student.lastLoginAt))}</td>
     <td><button class="row-button history-button" type="button" data-id="${escapePortalHtml(student.studentId)}">查看歷程</button></td>
@@ -994,6 +1236,8 @@ function bindPortalEvents() {
   portalElements.assignmentRole.addEventListener("change", updateRoleLines);
   portalElements.assignmentStart.addEventListener("change", updateLinePreview);
   portalElements.assignmentCount.addEventListener("input", updateLinePreview);
+  portalElements.targetPercent.addEventListener("input", updateLinePreview);
+  document.querySelectorAll('input[name="assignmentGoalMode"]').forEach((input) => input.addEventListener("change", syncAssignmentGoalMode));
   portalElements.assignedDate.addEventListener("change", () => {
     if (portalElements.dueDate.value < portalElements.assignedDate.value) portalElements.dueDate.value = portalElements.assignedDate.value;
   });

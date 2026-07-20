@@ -15,9 +15,16 @@ const ALLOWED_AUDIO_TYPES = Object.freeze(["audio/webm", "audio/mp4", "audio/ogg
 const HISTORY_HEADERS = Object.freeze([
   "attempt_id", "result_key", "assignment_id", "student_id", "student_name", "class",
   "group_name", "work_slug", "work_title", "role", "line_index", "target_text", "transcript",
-  "overall_score", "text_accuracy", "timing_score", "audio_quality", "attempt_number",
+  "overall_score", "text_accuracy", "accent_score", "intonation_score", "speed_score", "volume_score",
+  "timing_score", "audio_quality", "attempt_number",
   "recording_duration_sec", "audio_url", "submitted_at",
 ]);
+
+const RESULT_SCORE_HEADERS = Object.freeze([
+  "total_recording_duration_sec", "accent_score", "intonation_score", "speed_score", "volume_score",
+]);
+
+const ASSIGNMENT_GOAL_HEADERS = Object.freeze(["goal_mode", "target_percent", "target_score"]);
 
 function onOpen() {
   SpreadsheetApp.getUi()
@@ -37,9 +44,11 @@ function setupPlatform() {
     "selected_work_slug",
     "selected_work_title",
     "selected_role",
+    "selected_roles",
     "preference_updated_at",
   ]);
-  ensureSheetColumns_(spreadsheet, SHEETS.RESULTS, ["total_recording_duration_sec"]);
+  ensureSheetColumns_(spreadsheet, SHEETS.ASSIGNMENTS, ASSIGNMENT_GOAL_HEADERS);
+  ensureSheetColumns_(spreadsheet, SHEETS.RESULTS, RESULT_SCORE_HEADERS);
   ensureSheetWithHeaders_(spreadsheet, SHEETS.HISTORY, HISTORY_HEADERS);
 
   const settings = settingsMapFrom_(spreadsheet);
@@ -134,8 +143,13 @@ function route_(payload, event) {
     case "studentLogin": return studentLogin_(payload.studentId, payload.pin, userAgent);
     case "teacherLogin": return teacherLogin_(payload.pin, userAgent);
     case "studentTasks": return studentTasks_(payload.token);
-    case "setStudentPreference": return setStudentPreference_(payload.token, payload.workSlug, payload.role);
+    case "setStudentPreference": return setStudentPreference_(
+      payload.token,
+      payload.workSlug,
+      payload.roles === undefined ? payload.role : payload.roles,
+    );
     case "submitAttempt": return submitAttempt_(payload);
+    case "submitPracticeAttempt": return submitPracticeAttempt_(payload);
     case "teacherOverview": return teacherOverview_(payload.token);
     case "studentHistory": return studentHistory_(payload.token, payload.studentId);
     case "upsertStudents": return upsertStudents_(payload.token, payload.students, Boolean(payload.resetExisting));
@@ -233,16 +247,44 @@ function studentTasks_(token) {
   const results = allResults.filter((row) => normalizeStudentId_(row.student_id) === identity.sub);
   const catalogs = readTable_(SHEETS.WORK_ROLES).records;
   const today = formatDate_(new Date(), "yyyy-MM-dd");
+  const progress = studentProgress_(student, allResults, catalogs);
+  const selfPractice = buildSelfPractice_(student, results, catalogs);
 
   const tasks = assignments
     .filter((assignment) => String(assignment.status) === "Active")
     .filter((assignment) => !assignment.assigned_date || dateKey_(assignment.assigned_date) <= today)
     .filter((assignment) => assignmentTargetsStudent_(assignment, student))
-    .filter((assignment) => profile
-      && String(assignment.work_slug) === profile.workSlug
-      && String(assignment.role) === profile.role)
+    .filter((assignment) => assignmentGoalMode_(assignment) === "mastery_target"
+      || studentMatchesAssignmentProfile_(student, assignment))
     .map((assignment) => {
+      const goalMode = assignmentGoalMode_(assignment);
+      const dueDate = dateKey_(assignment.due_date);
+      if (goalMode === "mastery_target") {
+        const targetPercent = clampGoalValue_(assignment.target_percent, 80);
+        const achieved = progress.masteryPercent >= targetPercent;
+        return {
+          assignmentId: String(assignment.assignment_id),
+          title: String(assignment.title),
+          goalMode,
+          targetPercent,
+          currentMastery: progress.masteryPercent,
+          assignedDate: dateKey_(assignment.assigned_date),
+          dueDate,
+          overdue: Boolean(dueDate && dueDate < today),
+          workSlug: profile ? profile.workSlug : "",
+          workTitle: profile ? profile.workTitle : "",
+          role: "",
+          requiredCount: 1,
+          lineIndices: [],
+          completed: achieved ? 1 : 0,
+          achieved,
+          completionRate: targetPercent ? Math.min(100, Math.round((progress.masteryPercent / targetPercent) * 100)) : 100,
+          lineResults: {},
+        };
+      }
+
       const lineIndices = parseLineIndices_(assignment.line_indices);
+      const targetScore = clampOptionalScore_(assignment.target_score);
       const lineResults = {};
       results
         .filter((row) => String(row.assignment_id) === String(assignment.assignment_id))
@@ -253,13 +295,16 @@ function studentTasks_(token) {
             score: clampScore_(row.overall_score),
             attempts: Math.max(1, Number(row.attempt_count) || 1),
             updatedAt: isoValue_(row.updated_at || row.submitted_at),
+            achieved: targetScore === null || clampScore_(row.overall_score) >= targetScore,
+            aspects: scoreAspectsFromRow_(row),
           };
         });
-      const completed = Object.keys(lineResults).length;
-      const dueDate = dateKey_(assignment.due_date);
+      const completed = Object.values(lineResults).filter((result) => result.achieved).length;
       return {
         assignmentId: String(assignment.assignment_id),
         title: String(assignment.title),
+        goalMode,
+        targetScore,
         assignedDate: dateKey_(assignment.assigned_date),
         dueDate,
         overdue: Boolean(dueDate && dueDate < today),
@@ -286,20 +331,25 @@ function studentTasks_(token) {
     },
     profile,
     needsSetup: !profile,
+    progress,
     classProgress: buildClassProgress_(allStudents, allResults, catalogs),
+    selfPractice,
     tasks,
   };
 }
 
-function setStudentPreference_(token, workSlugInput, roleInput) {
+function setStudentPreference_(token, workSlugInput, rolesInput) {
   const identity = verifySession_(token, "student");
   activeStudent_(identity.sub, identity.pinTag);
   const workSlug = cleanText_(workSlugInput, 80);
-  const role = cleanText_(roleInput, 80);
-  const catalog = readTable_(SHEETS.WORK_ROLES).records.find(
-    (row) => String(row.work_slug) === workSlug && String(row.role) === role,
+  const requestedRoles = Array.isArray(rolesInput) ? rolesInput : [rolesInput];
+  const roles = [...new Set(requestedRoles.map((role) => cleanText_(role, 80)).filter(Boolean))];
+  if (!roles.length) fail_("INVALID_PREFERENCE", "請至少選擇一個角色。");
+  if (roles.length > 12) fail_("INVALID_PREFERENCE", "一次最多選擇 12 個角色。");
+  const catalogs = readTable_(SHEETS.WORK_ROLES).records.filter(
+    (row) => String(row.work_slug) === workSlug && roles.includes(String(row.role)),
   );
-  if (!catalog) fail_("INVALID_PREFERENCE", "找不到這個作品或角色，請重新選擇。");
+  if (catalogs.length !== roles.length) fail_("INVALID_PREFERENCE", "找不到其中一個作品或角色，請重新選擇。");
 
   const spreadsheet = spreadsheet_();
   ensureSheetColumns_(spreadsheet, SHEETS.STUDENTS, [
@@ -307,6 +357,7 @@ function setStudentPreference_(token, workSlugInput, roleInput) {
     "selected_work_slug",
     "selected_work_title",
     "selected_role",
+    "selected_roles",
     "preference_updated_at",
   ]);
   const table = readTable_(SHEETS.STUDENTS);
@@ -315,13 +366,15 @@ function setStudentPreference_(token, workSlugInput, roleInput) {
   const profile = {
     groupName: String(student.group_name || ""),
     workSlug,
-    workTitle: String(catalog.work_title || workSlug),
-    role,
+    workTitle: String(catalogs[0].work_title || workSlug),
+    roles,
+    role: roles[0],
   };
   writeRecord_(table, student.__row, {
     selected_work_slug: profile.workSlug,
     selected_work_title: profile.workTitle,
     selected_role: profile.role,
+    selected_roles: JSON.stringify(profile.roles),
     preference_updated_at: new Date(),
   });
   return { profile };
@@ -337,10 +390,13 @@ function submitAttempt_(payload) {
   const assignmentTable = readTable_(SHEETS.ASSIGNMENTS);
   const assignment = assignmentTable.records.find((row) => String(row.assignment_id) === assignmentId);
   if (!assignment || String(assignment.status) !== "Active") fail_("ASSIGNMENT_CLOSED", "這份作業目前未開放。");
+  if (assignmentGoalMode_(assignment) !== "line_score") {
+    fail_("PRACTICE_REQUIRED", "完成度目標請從自主練習區選擇台詞。");
+  }
   if (!assignmentTargetsStudent_(assignment, student)) fail_("NOT_ASSIGNED", "這份作業沒有指派給此帳號。");
   const profile = studentProfile_(student);
   if (!profile) fail_("PROFILE_REQUIRED", "請先選擇配音作品與角色。");
-  if (String(assignment.work_slug) !== profile.workSlug || String(assignment.role) !== profile.role) {
+  if (String(assignment.work_slug) !== profile.workSlug || !profile.roles.includes(String(assignment.role))) {
     fail_("PROFILE_MISMATCH", "這份作業與目前選擇的作品或角色不一致。");
   }
 
@@ -350,7 +406,55 @@ function submitAttempt_(payload) {
     fail_("ASSIGNMENT_MISMATCH", "作品或角色與作業不一致。");
   }
 
+  const saved = saveAttemptRecord_(payload, identity, student, {
+    assignmentId,
+    workSlug: String(assignment.work_slug),
+    workTitle: String(assignment.work_title),
+    role: String(assignment.role),
+  });
+  const refreshed = studentTasks_(payload.token);
+  const task = refreshed.tasks.find((item) => item.assignmentId === assignmentId);
+  return { saved: true, audioUrl: saved.audioUrl, task };
+}
+
+function submitPracticeAttempt_(payload) {
+  const identity = verifySession_(payload.token, "student");
+  const student = activeStudent_(identity.sub, identity.pinTag);
+  const profile = studentProfile_(student);
+  if (!profile) fail_("PROFILE_REQUIRED", "請先選擇配音作品與角色。");
+
+  const workSlug = cleanText_(payload.workSlug, 80);
+  const role = cleanText_(payload.role, 80);
+  const lineIndex = Math.floor(Number(payload.lineIndex));
+  if (!Number.isFinite(lineIndex)) fail_("INVALID_ATTEMPT", "缺少台詞編號。");
+  if (workSlug !== profile.workSlug || !profile.roles.includes(role)) {
+    fail_("PROFILE_MISMATCH", "只能自主練習目前所選作品與角色。");
+  }
+  const catalog = readTable_(SHEETS.WORK_ROLES).records.find(
+    (row) => String(row.work_slug) === workSlug && String(row.role) === role,
+  );
+  if (!catalog || !parseLineIndices_(catalog.line_indices).includes(lineIndex)) {
+    fail_("INVALID_PRACTICE_LINE", "找不到這個角色的指定台詞。");
+  }
+
+  const assignmentId = selfPracticeId_(workSlug, role);
+  const saved = saveAttemptRecord_(payload, identity, student, {
+    assignmentId,
+    workSlug,
+    workTitle: String(catalog.work_title || profile.workTitle),
+    role,
+  });
+  const refreshed = studentTasks_(payload.token);
+  const task = refreshed.selfPractice.find((item) => item.role === role) || null;
+  return { saved: true, audioUrl: saved.audioUrl, task };
+}
+
+function saveAttemptRecord_(payload, identity, student, context) {
+  const assignmentId = context.assignmentId;
+  const lineIndex = Math.floor(Number(payload.lineIndex));
   const scores = payload.scores || {};
+  const speedScore = clampScore_(scores.speed === undefined ? scores.timing : scores.speed);
+  const volumeScore = clampScore_(scores.volume === undefined ? scores.audioQuality : scores.volume);
   const recordingDuration = Math.max(0, Math.min(120, Number(payload.recordingDuration) || 0));
   const now = new Date();
   const savedAudio = saveLatestAudio_({
@@ -359,11 +463,11 @@ function submitAttempt_(payload) {
     lineIndex,
     audioBase64: payload.audioBase64,
     mimeType: payload.mimeType,
-    description: `${assignment.work_title} / ${assignment.role} / 第 ${lineIndex} 句 / ${student.name}`,
+    description: `${context.workTitle} / ${context.role} / 第 ${lineIndex} 句 / ${student.name}`,
   });
 
   const spreadsheet = spreadsheet_();
-  ensureSheetColumns_(spreadsheet, SHEETS.RESULTS, ["total_recording_duration_sec"]);
+  ensureSheetColumns_(spreadsheet, SHEETS.RESULTS, RESULT_SCORE_HEADERS);
   ensureSheetWithHeaders_(spreadsheet, SHEETS.HISTORY, HISTORY_HEADERS);
 
   const lock = LockService.getScriptLock();
@@ -382,16 +486,20 @@ function submitAttempt_(payload) {
       student_id: identity.sub,
       student_name: String(student.name || ""),
       class: String(student.class || ""),
-      work_slug: String(assignment.work_slug),
-      work_title: String(assignment.work_title),
-      role: String(assignment.role),
+      work_slug: context.workSlug,
+      work_title: context.workTitle,
+      role: context.role,
       line_index: lineIndex,
       target_text: cleanText_(payload.targetText, 1000),
       transcript: cleanText_(payload.transcript, 1000),
       overall_score: clampScore_(payload.overallScore),
       text_accuracy: clampScore_(scores.textAccuracy),
-      timing_score: clampScore_(scores.timing),
-      audio_quality: clampScore_(scores.audioQuality),
+      accent_score: clampScore_(scores.accent),
+      intonation_score: clampScore_(scores.intonation),
+      speed_score: speedScore,
+      volume_score: volumeScore,
+      timing_score: speedScore,
+      audio_quality: volumeScore,
       attempt_count: attemptCount,
       recording_duration_sec: recordingDuration,
       total_recording_duration_sec: previousDuration + recordingDuration,
@@ -410,14 +518,18 @@ function submitAttempt_(payload) {
       student_name: String(student.name || ""),
       class: String(student.class || ""),
       group_name: String(student.group_name || ""),
-      work_slug: String(assignment.work_slug),
-      work_title: String(assignment.work_title),
-      role: String(assignment.role),
+      work_slug: context.workSlug,
+      work_title: context.workTitle,
+      role: context.role,
       line_index: lineIndex,
       target_text: values.target_text,
       transcript: values.transcript,
       overall_score: values.overall_score,
       text_accuracy: values.text_accuracy,
+      accent_score: values.accent_score,
+      intonation_score: values.intonation_score,
+      speed_score: values.speed_score,
+      volume_score: values.volume_score,
       timing_score: values.timing_score,
       audio_quality: values.audio_quality,
       attempt_number: attemptCount,
@@ -428,10 +540,7 @@ function submitAttempt_(payload) {
   } finally {
     lock.releaseLock();
   }
-
-  const refreshed = studentTasks_(payload.token);
-  const task = refreshed.tasks.find((item) => item.assignmentId === assignmentId);
-  return { saved: true, audioUrl: savedAudio.url, task };
+  return { audioUrl: savedAudio.url };
 }
 
 function teacherOverview_(token) {
@@ -445,14 +554,48 @@ function teacherOverview_(token) {
   const today = formatDate_(new Date(), "yyyy-MM-dd");
 
   const assignmentSummaries = assignments.map((assignment) => {
-    const eligible = activeStudents.filter((student) => assignmentTargetsStudent_(assignment, student));
+    const goalMode = assignmentGoalMode_(assignment);
+    const eligible = activeStudents.filter((student) => assignmentTargetsStudent_(assignment, student)
+      && (goalMode === "mastery_target" || studentMatchesAssignmentProfile_(student, assignment)));
+    if (goalMode === "mastery_target") {
+      const targetPercent = clampGoalValue_(assignment.target_percent, 80);
+      const progresses = eligible.map((student) => studentProgress_(student, results, catalogs));
+      const achievedStudents = progresses.filter((progress) => progress.masteryPercent >= targetPercent).length;
+      return {
+        assignmentId: String(assignment.assignment_id),
+        title: String(assignment.title),
+        goalMode,
+        targetPercent,
+        targetClass: String(assignment.target_class || ""),
+        assignedDate: dateKey_(assignment.assigned_date),
+        dueDate: dateKey_(assignment.due_date),
+        workSlug: "",
+        workTitle: "依學生目前選角",
+        role: "",
+        requiredCount: 0,
+        status: String(assignment.status),
+        students: eligible.length,
+        achievedStudents,
+        completedLines: achievedStudents,
+        expectedLines: eligible.length,
+        completionRate: eligible.length ? Math.round((achievedStudents / eligible.length) * 100) : 0,
+        averageScore: progresses.length ? roundOne_(average_(progresses.map((progress) => progress.masteryPercent))) : null,
+      };
+    }
+
     const lines = parseLineIndices_(assignment.line_indices);
-    const matching = results.filter((row) => String(row.assignment_id) === String(assignment.assignment_id));
+    const eligibleIds = new Set(eligible.map((student) => normalizeStudentId_(student.student_id)));
+    const matching = results.filter((row) => String(row.assignment_id) === String(assignment.assignment_id)
+      && eligibleIds.has(normalizeStudentId_(row.student_id)));
     const scores = matching.map((row) => Number(row.overall_score)).filter(Number.isFinite);
+    const targetScore = clampOptionalScore_(assignment.target_score);
+    const achievedResults = matching.filter((row) => targetScore === null || clampScore_(row.overall_score) >= targetScore);
     const expected = eligible.length * lines.length;
     return {
       assignmentId: String(assignment.assignment_id),
       title: String(assignment.title),
+      goalMode,
+      targetScore,
       targetClass: String(assignment.target_class || ""),
       assignedDate: dateKey_(assignment.assigned_date),
       dueDate: dateKey_(assignment.due_date),
@@ -462,9 +605,9 @@ function teacherOverview_(token) {
       requiredCount: lines.length,
       status: String(assignment.status),
       students: eligible.length,
-      completedLines: matching.length,
+      completedLines: achievedResults.length,
       expectedLines: expected,
-      completionRate: expected ? Math.round((matching.length / expected) * 100) : 0,
+      completionRate: expected ? Math.round((achievedResults.length / expected) * 100) : 0,
       averageScore: scores.length ? Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 10) / 10 : null,
     };
   }).sort((left, right) => String(right.assignedDate).localeCompare(String(left.assignedDate)));
@@ -484,6 +627,7 @@ function teacherOverview_(token) {
       role: String(row.role),
       lineIndex: Number(row.line_index),
       score: clampScore_(row.overall_score),
+      aspects: scoreAspectsFromRow_(row),
       attempts: Number(row.attempt_count) || 1,
       audioUrl: String(row.audio_url || ""),
       updatedAt: isoValue_(row.updated_at || row.submitted_at),
@@ -543,6 +687,7 @@ function studentHistory_(token, studentIdInput) {
     if (!lineGroups[key].targetText) lineGroups[key].targetText = String(row.target_text || "");
     lineGroups[key].attempts.push({
       score: clampScore_(row.overall_score),
+      aspects: scoreAspectsFromRow_(row),
       durationSec: Math.max(0, Number(row.recording_duration_sec) || 0),
       submittedAt: isoValue_(row.submitted_at),
       attemptNumber: Math.max(1, Number(row.attempt_number) || 1),
@@ -560,6 +705,7 @@ function studentHistory_(token, studentIdInput) {
       targetText: String(row.target_text || ""),
       attempts: [{
         score: clampScore_(row.overall_score),
+        aspects: scoreAspectsFromRow_(row),
         durationSec: Math.max(0, Number(row.total_recording_duration_sec) || Number(row.recording_duration_sec) || 0),
         submittedAt: isoValue_(row.updated_at || row.submitted_at),
         attemptNumber: Math.max(1, Number(row.attempt_count) || 1),
@@ -591,7 +737,7 @@ function studentHistory_(token, studentIdInput) {
     || left.lineIndex - right.lineIndex);
 
   const trendAttempts = history.filter((row) => !profile
-    || (String(row.work_slug) === profile.workSlug && String(row.role) === profile.role));
+    || (String(row.work_slug) === profile.workSlug && profile.roles.includes(String(row.role))));
   const trendScores = trendAttempts.map((row) => clampScore_(row.overall_score));
   const sampleSize = Math.min(5, trendScores.length);
   const firstAverage = sampleSize ? average_(trendScores.slice(0, sampleSize)) : null;
@@ -613,6 +759,7 @@ function studentHistory_(token, studentIdInput) {
     lines,
     timeline: trendAttempts.slice(-40).map((row) => ({
       score: clampScore_(row.overall_score),
+      aspects: scoreAspectsFromRow_(row),
       durationSec: Math.max(0, Number(row.recording_duration_sec) || 0),
       lineIndex: Number(row.line_index),
       submittedAt: isoValue_(row.submitted_at),
@@ -717,26 +864,43 @@ function createAssignment_(token, input) {
     : String(input.targetStudents || "").split(",").map(normalizeStudentId_).filter(Boolean);
   if (!targetClass && !targetStudents.length) fail_("MISSING_TARGET", "請指定班級或學生。");
 
-  const workSlug = cleanText_(input.workSlug, 80);
-  const role = cleanText_(input.role, 80);
-  const catalog = readTable_(SHEETS.WORK_ROLES).records.find(
-    (row) => String(row.work_slug) === workSlug && String(row.role) === role,
-  );
-  if (!catalog) fail_("INVALID_ROLE", "找不到指定的作品與角色。");
-
-  const allowed = parseLineIndices_(catalog.line_indices);
-  const lineIndices = Array.isArray(input.lineIndices)
-    ? [...new Set(input.lineIndices.map(Number).filter((value) => Number.isInteger(value) && allowed.includes(value)))]
-    : [];
-  if (!lineIndices.length) fail_("NO_LINES", "請至少指定一句台詞。");
-  if (lineIndices.length > 30) fail_("TOO_MANY_LINES", "單次作業最多指定 30 句。");
-
   const assignedDate = validateDate_(input.assignedDate || formatDate_(new Date(), "yyyy-MM-dd"));
   const dueDate = validateDate_(input.dueDate || assignedDate);
   if (dueDate < assignedDate) fail_("INVALID_DUE_DATE", "截止日不可早於發派日。");
 
+  const goalMode = String(input.goalMode || "line_score") === "mastery_target" ? "mastery_target" : "line_score";
+  let workSlug = "";
+  let workTitle = "";
+  let role = "";
+  let lineIndices = [];
+  let targetPercent = "";
+  let targetScore = "";
+  if (goalMode === "mastery_target") {
+    targetPercent = clampGoalValue_(input.targetPercent, 80);
+  } else {
+    workSlug = cleanText_(input.workSlug, 80);
+    role = cleanText_(input.role, 80);
+    const catalog = readTable_(SHEETS.WORK_ROLES).records.find(
+      (row) => String(row.work_slug) === workSlug && String(row.role) === role,
+    );
+    if (!catalog) fail_("INVALID_ROLE", "找不到指定的作品與角色。");
+    workTitle = String(catalog.work_title || workSlug);
+    const allowed = parseLineIndices_(catalog.line_indices);
+    lineIndices = Array.isArray(input.lineIndices)
+      ? [...new Set(input.lineIndices.map(Number).filter((value) => Number.isInteger(value) && allowed.includes(value)))]
+      : [];
+    if (!lineIndices.length) fail_("NO_LINES", "請至少指定一句台詞。");
+    if (lineIndices.length > 30) fail_("TOO_MANY_LINES", "單次作業最多指定 30 句。");
+    targetScore = clampGoalValue_(input.targetScore, 80);
+  }
+
   const assignmentId = `A${formatDate_(new Date(), "yyyyMMdd-HHmmss")}-${randomHex_(3)}`;
-  const title = cleanText_(input.title, 120) || `${catalog.work_title}｜${role}｜${lineIndices.length} 句`;
+  const defaultTitle = goalMode === "mastery_target"
+    ? `${assignedDate.slice(5).replace("-", "/")} 熟練度達 ${targetPercent}%`
+    : `${workTitle}｜${role}｜每句 ${targetScore} 分`;
+  const title = cleanText_(input.title, 120) || defaultTitle;
+  const spreadsheet = spreadsheet_();
+  ensureSheetColumns_(spreadsheet, SHEETS.ASSIGNMENTS, ASSIGNMENT_GOAL_HEADERS);
   const table = readTable_(SHEETS.ASSIGNMENTS);
   writeRecord_(table, null, {
     assignment_id: assignmentId,
@@ -745,8 +909,11 @@ function createAssignment_(token, input) {
     target_students: targetStudents.join(","),
     assigned_date: assignedDate,
     due_date: dueDate,
+    goal_mode: goalMode,
+    target_percent: targetPercent,
+    target_score: targetScore,
     work_slug: workSlug,
-    work_title: String(catalog.work_title),
+    work_title: workTitle,
     role,
     required_count: lineIndices.length,
     line_indices: lineIndices.sort((a, b) => a - b).join(","),
@@ -754,7 +921,7 @@ function createAssignment_(token, input) {
     created_at: new Date(),
     created_by: "teacher",
   });
-  return { assignmentId, title, lineIndices };
+  return { assignmentId, title, goalMode, targetPercent, targetScore, lineIndices };
 }
 
 function updateAssignmentStatus_(token, assignmentIdInput, statusInput) {
@@ -917,33 +1084,176 @@ function activeStudent_(studentId, expectedPinTag) {
 
 function studentProfile_(student) {
   const workSlug = String(student && student.selected_work_slug || "").trim();
-  const role = String(student && student.selected_role || "").trim();
-  if (!workSlug || !role) return null;
+  const roles = parseSelectedRoles_(student && student.selected_roles, student && student.selected_role);
+  if (!workSlug || !roles.length) return null;
   return {
     groupName: String(student.group_name || "").trim(),
     workSlug,
     workTitle: String(student.selected_work_title || workSlug),
-    role,
+    roles,
+    role: roles[0],
     updatedAt: isoValue_(student.preference_updated_at),
   };
+}
+
+function parseSelectedRoles_(value, fallbackRole) {
+  let values = [];
+  if (Array.isArray(value)) {
+    values = value;
+  } else {
+    const text = String(value || "").trim();
+    if (text) {
+      try {
+        const parsed = JSON.parse(text);
+        values = Array.isArray(parsed) ? parsed : [text];
+      } catch (error) {
+        values = text.split(/[,、]/);
+      }
+    }
+  }
+  const fallback = String(fallbackRole || "").trim();
+  if (!values.length && fallback) values = [fallback];
+  return [...new Set(values.map((role) => cleanText_(role, 80)).filter(Boolean))];
+}
+
+function studentMatchesAssignmentProfile_(student, assignment) {
+  if (assignmentGoalMode_(assignment) === "mastery_target") return Boolean(studentProfile_(student));
+  const profile = studentProfile_(student);
+  return Boolean(profile
+    && String(assignment.work_slug) === profile.workSlug
+    && profile.roles.includes(String(assignment.role)));
+}
+
+function assignmentGoalMode_(assignment) {
+  return String(assignment && assignment.goal_mode || "line_score") === "mastery_target"
+    ? "mastery_target"
+    : "line_score";
+}
+
+function clampGoalValue_(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(1, Math.min(100, Math.round(number))) : fallback;
+}
+
+function clampOptionalScore_(value) {
+  if (value === "" || value === null || value === undefined) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.min(100, Math.round(number))) : null;
+}
+
+function selfPracticeId_(workSlug, role) {
+  return `SELF-${cleanText_(workSlug, 80)}-${cleanText_(role, 80)}`;
+}
+
+function scoreValueFromRow_(row, primary, fallback) {
+  let value = row && row[primary];
+  if ((value === "" || value === null || value === undefined) && fallback) value = row && row[fallback];
+  if (value === "" || value === null || value === undefined || !Number.isFinite(Number(value))) return null;
+  return clampScore_(value);
+}
+
+function scoreAspectsFromRow_(row) {
+  return {
+    accent: scoreValueFromRow_(row, "accent_score", null) || 0,
+    intonation: scoreValueFromRow_(row, "intonation_score", null) || 0,
+    speed: scoreValueFromRow_(row, "speed_score", "timing_score") || 0,
+    volume: scoreValueFromRow_(row, "volume_score", "audio_quality") || 0,
+  };
+}
+
+function aspectAveragesFromRows_(rows) {
+  const fields = {
+    accent: ["accent_score", null],
+    intonation: ["intonation_score", null],
+    speed: ["speed_score", "timing_score"],
+    volume: ["volume_score", "audio_quality"],
+  };
+  const output = {};
+  Object.keys(fields).forEach((key) => {
+    const values = rows.map((row) => scoreValueFromRow_(row, fields[key][0], fields[key][1]))
+      .filter((value) => value !== null);
+    output[key] = values.length ? roundOne_(average_(values)) : 0;
+  });
+  return output;
+}
+
+function buildSelfPractice_(student, studentResults, catalogs) {
+  const profile = studentProfile_(student);
+  if (!profile) return [];
+  return profile.roles.map((role) => {
+    const catalog = catalogs.find((row) => String(row.work_slug) === profile.workSlug && String(row.role) === role);
+    if (!catalog) return null;
+    const lineIndices = parseLineIndices_(catalog.line_indices);
+    const matching = studentResults.filter((row) => String(row.work_slug) === profile.workSlug
+      && String(row.role) === role && lineIndices.includes(Number(row.line_index)));
+    const latestByLine = {};
+    matching.forEach((row) => {
+      const lineIndex = Number(row.line_index);
+      const current = latestByLine[lineIndex];
+      if (!current || isoValue_(row.updated_at || row.submitted_at) > isoValue_(current.updated_at || current.submitted_at)) {
+        latestByLine[lineIndex] = row;
+      }
+    });
+    const lineResults = {};
+    Object.keys(latestByLine).forEach((lineIndex) => {
+      const row = latestByLine[lineIndex];
+      lineResults[lineIndex] = {
+        score: clampScore_(row.overall_score),
+        attempts: matching.filter((item) => Number(item.line_index) === Number(lineIndex))
+          .reduce((sum, item) => sum + Math.max(1, Number(item.attempt_count) || 1), 0),
+        updatedAt: isoValue_(row.updated_at || row.submitted_at),
+        achieved: true,
+        aspects: scoreAspectsFromRow_(row),
+      };
+    });
+    const latestRows = Object.values(latestByLine);
+    const scoreTotal = latestRows.reduce((sum, row) => sum + clampScore_(row.overall_score), 0);
+    return {
+      assignmentId: selfPracticeId_(profile.workSlug, role),
+      title: `${role}自主練習`,
+      goalMode: "self_practice",
+      selfPractice: true,
+      workSlug: profile.workSlug,
+      workTitle: profile.workTitle,
+      role,
+      lineIndices,
+      requiredCount: lineIndices.length,
+      completed: latestRows.length,
+      completionRate: lineIndices.length ? Math.round((latestRows.length / lineIndices.length) * 100) : 0,
+      masteryPercent: lineIndices.length ? roundOne_(scoreTotal / lineIndices.length) : 0,
+      aspectAverages: aspectAveragesFromRows_(latestRows),
+      lineResults,
+    };
+  }).filter(Boolean);
 }
 
 function studentProgress_(student, allResults, catalogs) {
   const profile = studentProfile_(student);
   if (!profile) {
-    return { masteryPercent: 0, practicedLines: 0, totalLines: 0, totalAttempts: 0, totalDurationSec: 0 };
+    return {
+      masteryPercent: 0,
+      practicedLines: 0,
+      totalLines: 0,
+      totalAttempts: 0,
+      totalDurationSec: 0,
+      aspectAverages: { accent: 0, intonation: 0, speed: 0, volume: 0 },
+    };
   }
-  const catalog = catalogs.find((row) => String(row.work_slug) === profile.workSlug && String(row.role) === profile.role);
-  const totalLines = Math.max(0, Number(catalog && catalog.total_lines) || parseLineIndices_(catalog && catalog.line_indices).length);
+  const selectedRoles = new Set(profile.roles);
+  const selectedCatalogs = catalogs.filter((row) => String(row.work_slug) === profile.workSlug
+    && selectedRoles.has(String(row.role)));
+  const totalLines = selectedCatalogs.reduce((sum, catalog) => sum
+    + Math.max(0, Number(catalog.total_lines) || parseLineIndices_(catalog.line_indices).length), 0);
   const matching = allResults.filter((row) => normalizeStudentId_(row.student_id) === normalizeStudentId_(student.student_id)
     && String(row.work_slug) === profile.workSlug
-    && String(row.role) === profile.role);
+    && selectedRoles.has(String(row.role)));
   const latestByLine = {};
   matching.forEach((row) => {
     const lineIndex = Number(row.line_index);
-    const current = latestByLine[lineIndex];
+    const key = `${row.role}|${lineIndex}`;
+    const current = latestByLine[key];
     if (!current || isoValue_(row.updated_at || row.submitted_at) > isoValue_(current.updated_at || current.submitted_at)) {
-      latestByLine[lineIndex] = row;
+      latestByLine[key] = row;
     }
   });
   const latestRows = Object.values(latestByLine);
@@ -955,6 +1265,7 @@ function studentProgress_(student, allResults, catalogs) {
     totalAttempts: matching.reduce((sum, row) => sum + Math.max(1, Number(row.attempt_count) || 1), 0),
     totalDurationSec: roundOne_(matching.reduce((sum, row) => sum
       + Math.max(0, Number(row.total_recording_duration_sec) || Number(row.recording_duration_sec) || 0), 0)),
+    aspectAverages: aspectAveragesFromRows_(latestRows),
   };
 }
 

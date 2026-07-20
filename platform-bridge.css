@@ -25,6 +25,7 @@
 .platform-assignment-mode .script-toolbar { display: none; }
 
 .platform-assignment-mode .script-line.is-completed { background: #eef7f2; }
+.platform-assignment-mode .script-line.has-attempt { background: #fff8e8; }
 .completed-score {
   width: fit-content;
   margin-top: 5px;
@@ -35,6 +36,7 @@
   font-size: 11px;
   font-weight: 800;
 }
+.script-line.has-attempt .completed-score { background: #fae9bc; color: #775819; }
 
 .cloud-sync-status {
   margin-top: 18px;

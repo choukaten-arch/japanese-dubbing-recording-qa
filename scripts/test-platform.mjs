@@ -56,16 +56,25 @@ try {
   await page.locator("#studentLoginPanel button[type=submit]").click();
   await page.waitForFunction(() => document.querySelector("#preferenceDialog")?.open);
   assert(await page.locator("#preferenceClose").isHidden(), "首次登入不可略過作品與角色設定");
-  assert(await page.locator("#preferenceDialog input").count() === 0, "學生首次設定不應包含組別欄位");
+  assert(await page.locator("#preferenceDialog .group-editor").count() === 0, "學生首次設定不應包含組別欄位");
   await page.locator("#preferenceWork").selectOption("kiki");
-  await page.waitForFunction(() => document.querySelectorAll("#preferenceRole option").length > 1);
-  await page.locator("#preferenceRole").selectOption("琪琪");
+  await page.waitForFunction(() => document.querySelectorAll("#preferenceRoles input[type=checkbox]").length > 1);
+  await page.locator('#preferenceRoles input[value="琪琪"]').check();
+  await page.locator('#preferenceRoles input[value="老夫人"]').check();
   await page.locator("#preferenceForm button[type=submit]").click();
-  await page.waitForFunction(() => !document.querySelector("#studentView").hidden && document.querySelectorAll(".task-item").length > 0);
+  await page.waitForFunction(() => !document.querySelector("#studentView").hidden && document.querySelectorAll(".task-item").length > 0 && document.querySelectorAll(".self-practice-item").length === 2);
   assert((await page.locator("#taskList").innerText()).includes("琪琪台詞練習"), "學生登入後未顯示指派作業");
-  assert((await page.locator("#studentPreferenceLabel").innerText()).includes("魔女宅急便 · 琪琪"), "學生選角沒有保留在任務頁");
+  assert((await page.locator("#studentPreferenceLabel").innerText()).includes("魔女宅急便 · 琪琪、老夫人"), "學生複數選角沒有保留在任務頁");
+  assert((await page.locator("#selfPracticeList").innerText()).includes("琪琪"), "自主練習未顯示琪琪");
+  assert((await page.locator("#selfPracticeList").innerText()).includes("老夫人"), "未發派作業的角色未顯示自主練習入口");
+  assert(await page.locator("#studentRadar").isVisible(), "學生端未顯示四面向雷達圖");
   assert(await page.locator(".group-progress-block").count() >= 2, "學生端未顯示分組熟練度");
   assert(await page.locator(".group-member-list .is-current").count() === 1, "學生本人未在分組進度中標示");
+  await page.locator("#changePreference").click();
+  await page.waitForFunction(() => document.querySelector("#preferenceDialog")?.open);
+  assert(await page.locator('#preferenceRoles input[value="琪琪"]').isChecked(), "重新開啟選角時未保留琪琪");
+  assert(await page.locator('#preferenceRoles input[value="老夫人"]').isChecked(), "重新開啟選角時未保留老夫人");
+  await page.locator("#preferenceClose").click();
 
   await page.locator(".task-action a").click();
   await page.waitForFunction(() => [...document.querySelectorAll(".script-line")].filter((element) => !element.hidden).length === 5);
@@ -83,11 +92,38 @@ try {
   await page.waitForFunction(() => document.querySelector("#cloudSyncStatus")?.classList.contains("is-saved"));
   assert((await page.locator("#cloudSyncStatus").innerText()).includes("已保存"), "逐句評分沒有保存狀態");
   assert((await page.locator("#bridgeProgressValue").innerText()).startsWith("1 / 5"), "作業完成進度未更新");
+  assert((await page.locator("#scoreRows").innerText()).includes("重音"), "評分明細缺少重音分數");
+  assert((await page.locator("#scoreRows").innerText()).includes("語調"), "評分明細缺少語調分數");
+  const radarPixels = await page.locator("#performanceRadar").evaluate((canvas) => {
+    const pixels = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+    let colored = 0;
+    for (let index = 3; index < pixels.length; index += 4) if (pixels[index] > 0) colored += 1;
+    return colored;
+  });
+  assert(radarPixels > 1000, "四面向雷達圖沒有實際繪製");
   await page.screenshot({ path: `${outputDir}/student-assignment-desktop.png`, fullPage: true });
 
   await page.goto(`${baseUrl}portal.html?demo=1`, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => !document.querySelector("#studentView").hidden && document.querySelector("#taskList")?.textContent.includes("1 / 5 句完成"));
-  assert((await page.locator("#taskList").innerText()).includes("1 / 5 句完成"), "返回任務頁後完成狀態未保留");
+  await page.waitForFunction(() => !document.querySelector("#studentView").hidden && document.querySelector("#taskList")?.textContent.includes("1 / 5 句達標"));
+  assert((await page.locator("#taskList").innerText()).includes("1 / 5 句達標"), "返回任務頁後達標狀態未保留");
+
+  const selfRole = page.locator(".self-practice-item").filter({ hasText: "老夫人" });
+  await selfRole.locator("a").click();
+  await page.waitForFunction(() => document.querySelector(".qa-badge")?.textContent === "自主練習");
+  assert((await page.locator(".assignment-context").innerText()).includes("老夫人自主練習"), "自主練習頁缺少角色資訊");
+  assert(await page.locator(".script-line:visible").count() === 18, "自主練習沒有開放所選角色的全部台詞");
+  await page.locator("#startRecording").click();
+  await page.waitForFunction(() => document.body.classList.contains("is-recording"));
+  await page.waitForTimeout(650);
+  await page.locator("#stopRecording").click();
+  await page.waitForFunction(() => !document.querySelector("#recordingPlayback").hidden);
+  await page.locator("#recognizedText").fill(await page.locator("#selectedJapanese").innerText());
+  await page.locator("#evaluateRecording").click();
+  await page.waitForFunction(() => document.querySelector("#cloudSyncStatus")?.classList.contains("is-saved"));
+  assert((await page.locator("#cloudSyncStatus").innerText()).includes("自主練習已保存"), "自主練習沒有保存");
+
+  await page.goto(`${baseUrl}portal.html?demo=1`, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => !document.querySelector("#studentView").hidden && document.querySelector("#selfPracticeList")?.textContent.includes("1 / 18 句已練"));
   await page.locator("#logoutButton").click();
   await page.waitForFunction(() => !document.querySelector("#authView").hidden);
   await page.locator("#teacherMode").click();
@@ -106,6 +142,7 @@ try {
   await page.waitForFunction(() => document.querySelector("#toast")?.textContent.includes("組別已更新"));
   demoRow = page.locator("#studentRows tr").filter({ hasText: "測試學生" });
   assert(await demoRow.locator(".group-name-input").inputValue() === "第 3 組", "老師設定的學生組別沒有保存");
+  assert((await demoRow.innerText()).includes("琪琪、老夫人"), "老師名單未顯示學生的複數角色");
   await demoRow.locator(".history-button").click();
   await page.waitForFunction(() => document.querySelector("#historyDialog")?.open);
   assert((await page.locator("#historyTitle").innerText()).includes("測試學生"), "逐句歷程沒有顯示學生姓名");
@@ -116,16 +153,27 @@ try {
   await page.locator("#historyClose").click();
 
   await page.locator('.teacher-tab[data-tab="assign"]').click();
-  await page.locator("#assignmentWork").selectOption("totoro");
-  await page.waitForFunction(() => document.querySelectorAll("#assignmentRole option").length > 1);
-  await page.locator("#assignmentRole").selectOption("さつき");
-  await page.locator("#assignmentCount").fill("3");
-  await page.locator("#assignmentTitle").fill("皋月三句練習");
+  assert(await page.locator("#masteryGoalFields").isVisible(), "發派頁預設未顯示整體完成度模式");
+  assert(await page.locator("#lineGoalFields").isHidden(), "整體完成度模式不應同時顯示逐句欄位");
+  await page.locator("#targetPercent").fill("80");
+  await page.locator("#assignmentTitle").fill("今日熟練度 80%");
   await page.locator("#assignmentForm button[type=submit]").click();
   await page.waitForFunction(() => document.querySelector("#toast")?.textContent.includes("已發派"));
-  await page.waitForFunction(() => document.querySelector("#assignmentRows")?.textContent.includes("皋月三句練習"));
+  await page.waitForFunction(() => document.querySelector("#assignmentRows")?.textContent.includes("今日熟練度 80%"));
+
+  await page.locator('input[name="assignmentGoalMode"][value="line_score"]').check();
+  await page.locator("#assignmentWork").selectOption("kiki");
+  await page.waitForFunction(() => document.querySelectorAll("#assignmentRole option").length > 1);
+  await page.locator("#assignmentRole").selectOption("琪琪");
+  await page.locator("#assignmentCount").fill("3");
+  await page.locator("#targetScore").fill("55");
+  await page.locator("#assignmentTitle").fill("琪琪三句 55 分");
+  await page.locator("#assignmentForm button[type=submit]").click();
+  await page.waitForFunction(() => document.querySelector("#toast")?.textContent.includes("已發派"));
+  await page.waitForFunction(() => document.querySelector("#assignmentRows")?.textContent.includes("琪琪三句 55 分"));
   await page.locator('.teacher-tab[data-tab="progress"]').click();
-  assert((await page.locator("#assignmentRows").innerText()).includes("皋月三句練習"), "老師發派的新作業未出現在進度表");
+  assert((await page.locator("#assignmentRows").innerText()).includes("整體熟練度 80%"), "完成度要求未出現在進度表");
+  assert((await page.locator("#assignmentRows").innerText()).includes("每句 55 分"), "逐句最低分數未出現在進度表");
   await page.screenshot({ path: `${outputDir}/teacher-dashboard-desktop.png`, fullPage: true });
   await context.close();
 
@@ -144,10 +192,22 @@ try {
   await mobilePage.waitForFunction(() => document.querySelector("#preferenceDialog")?.open);
   await mobilePage.screenshot({ path: `${outputDir}/first-setup-mobile.png`, fullPage: true });
   await mobilePage.locator("#preferenceWork").selectOption("kiki");
-  await mobilePage.waitForFunction(() => document.querySelectorAll("#preferenceRole option").length > 1);
-  await mobilePage.locator("#preferenceRole").selectOption("琪琪");
+  await mobilePage.waitForFunction(() => document.querySelectorAll("#preferenceRoles input[type=checkbox]").length > 1);
+  await mobilePage.locator('#preferenceRoles input[value="琪琪"]').check();
+  await mobilePage.locator('#preferenceRoles input[value="吉吉"]').check();
   await mobilePage.locator("#preferenceForm button[type=submit]").click();
   await mobilePage.waitForFunction(() => document.querySelectorAll(".task-item").length > 0);
+  assert(await mobilePage.locator(".self-practice-item").count() === 2, "手機版未顯示複數角色自主練習");
+  await mobilePage.locator("#changePreference").click();
+  await mobilePage.waitForFunction(() => document.querySelector("#preferenceDialog")?.open);
+  await mobilePage.locator("#preferenceWork").selectOption("ponyo");
+  await mobilePage.waitForFunction(() => document.querySelectorAll("#preferenceRoles input[type=checkbox]").length > 1);
+  const firstPonyoRole = mobilePage.locator("#preferenceRoles input[type=checkbox]").first();
+  const firstPonyoRoleName = await firstPonyoRole.getAttribute("value");
+  await firstPonyoRole.check();
+  await mobilePage.locator("#preferenceForm button[type=submit]").click();
+  await mobilePage.waitForFunction(() => document.querySelector("#studentPreferenceLabel")?.textContent.includes("崖上的波妞"));
+  assert((await mobilePage.locator("#studentPreferenceLabel").innerText()).includes(firstPonyoRoleName), "學生變更作品與角色沒有保存");
   const studentOverflow = await mobilePage.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
   assert(!studentOverflow, "學生任務手機版出現水平溢位");
   await mobilePage.screenshot({ path: `${outputDir}/student-tasks-mobile.png`, fullPage: true });
@@ -164,7 +224,7 @@ try {
   await mobile.close();
 
   if (errors.length) throw new Error(errors.join("\n"));
-  process.stdout.write("Platform passed first-login role setup, grouped mastery, assigned-line recording, history, teacher grouping and assignment, desktop, and mobile checks.\n");
+  process.stdout.write("Platform passed multi-role changes, self-practice, two goal modes, four-aspect radar scoring, grouped mastery, history, desktop, and mobile checks.\n");
 } finally {
   await browser.close();
 }

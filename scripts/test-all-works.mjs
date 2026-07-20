@@ -104,7 +104,14 @@ try {
     await page.locator("#recognizedText").fill(data.lines[1].japanese);
     await page.locator("#evaluateRecording").click();
     await page.waitForFunction(() => !document.querySelector("#resultPanel").hidden);
-    assert(await page.locator(".score-row").count() === 3, `${work.title} 的評分明細錯誤`);
+    assert(await page.locator(".score-row").count() === 5, `${work.title} 的評分明細錯誤`);
+    const radarPixels = await page.locator("#performanceRadar").evaluate((canvas) => {
+      const pixels = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+      let colored = 0;
+      for (let index = 3; index < pixels.length; index += 4) if (pixels[index] > 0) colored += 1;
+      return colored;
+    });
+    assert(radarPixels > 1000, `${work.title} 的雷達圖沒有繪製`);
     assert(Number(await page.locator("#overallScore").textContent()) >= 55, `${work.title} 的測試分數異常`);
 
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);

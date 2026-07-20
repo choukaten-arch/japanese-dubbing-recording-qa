@@ -9,6 +9,7 @@
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="portal.css">
   <script src="config.js"></script>
+  <script src="radar-chart.js"></script>
   <script src="portal.js" defer></script>
 </head>
 <body>
@@ -70,7 +71,7 @@
           <p class="eyebrow" id="studentDate">今日作業</p>
           <h1 id="studentTitle">配音練習任務</h1>
         </div>
-        <div class="completion-summary"><strong id="studentCompleted">0</strong><span>已完成句數</span></div>
+        <div class="completion-summary"><strong id="studentCompleted">0%</strong><span>目前熟練度</span></div>
       </header>
       <section class="student-preference-bar" id="studentPreferenceBar" aria-label="目前配音作品與角色" hidden>
         <img id="studentPreferencePoster" alt="">
@@ -78,18 +79,34 @@
           <span>目前配音角色</span>
           <strong id="studentPreferenceLabel">尚未選擇</strong>
         </div>
-        <button class="secondary-button" id="changePreference" type="button">更換作品／角色</button>
+        <button class="secondary-button" id="changePreference" type="button">變更作品／增減角色</button>
       </section>
       <div class="notice-bar" id="studentNotice" hidden></div>
+      <section class="student-performance" id="studentPerformance" hidden aria-labelledby="studentPerformanceTitle">
+        <div class="performance-copy">
+          <p class="eyebrow">個人練習成果</p>
+          <h2 id="studentPerformanceTitle">四面向表現</h2>
+          <dl>
+            <div><dt>已練台詞</dt><dd id="studentPracticedLines">0 / 0</dd></div>
+            <div><dt>累計練習</dt><dd id="studentTotalAttempts">0 次</dd></div>
+            <div><dt>錄音時間</dt><dd id="studentTotalDuration">0 秒</dd></div>
+          </dl>
+        </div>
+        <canvas class="practice-radar" id="studentRadar" width="600" height="520" aria-label="重音、語調、語速、音量四面向雷達圖"></canvas>
+      </section>
       <section class="class-progress" id="classProgressSection" hidden aria-labelledby="classProgressTitle">
         <div class="section-heading"><div><p class="eyebrow">分組協作</p><h2 id="classProgressTitle">全班熟練度</h2></div><span id="classProgressUpdated"></span></div>
         <div class="group-progress-list" id="classProgressGroups"></div>
       </section>
       <div class="task-list" id="taskList" aria-live="polite"></div>
       <div class="empty-state" id="studentEmpty" hidden>
-        <strong>目前沒有開放中的作業</strong>
-        <span>老師發派後，重新整理此頁即可看到。</span>
+        <strong>今天沒有老師指定目標</strong>
+        <span>仍可在下方自主練習所選角色。</span>
       </div>
+      <section class="self-practice" id="selfPracticeSection" hidden aria-labelledby="selfPracticeTitle">
+        <div class="section-heading"><div><p class="eyebrow">隨時可練</p><h2 id="selfPracticeTitle">自主練習</h2></div><span id="selfPracticeCount">0 個角色</span></div>
+        <div class="self-practice-list" id="selfPracticeList"></div>
+      </section>
     </section>
 
     <section class="teacher-view page-shell" id="teacherView" hidden aria-labelledby="teacherTitle">
@@ -120,7 +137,7 @@
 
       <section class="teacher-panel" id="assignPanel" data-panel="assign" aria-labelledby="assignHeading">
         <div class="section-heading">
-          <div><p class="eyebrow">新增任務</p><h2 id="assignHeading">指定作品、角色與句數</h2></div>
+          <div><p class="eyebrow">新增要求</p><h2 id="assignHeading">設定今日完成目標</h2></div>
           <span id="assignmentLineCount">尚未選擇</span>
         </div>
         <form id="assignmentForm" class="assignment-form">
@@ -128,18 +145,29 @@
           <label>班級<input id="targetClass" value="416" maxlength="40" required></label>
           <label>發派日<input id="assignedDate" type="date" required></label>
           <label>截止日<input id="dueDate" type="date" required></label>
-          <label>作品<select id="assignmentWork" required></select></label>
-          <label>角色<select id="assignmentRole" required><option value="">請先選作品</option></select></label>
-          <label>從角色第幾句開始<select id="assignmentStart" required><option value="">請先選角色</option></select></label>
-          <label>指定句數<input id="assignmentCount" type="number" inputmode="numeric" min="1" max="30" value="5" required></label>
-          <div class="line-preview" id="linePreview" aria-live="polite"></div>
+          <fieldset class="assignment-goal-mode">
+            <legend>要求類型</legend>
+            <label><input type="radio" name="assignmentGoalMode" value="mastery_target" checked><span><strong>整體完成度</strong><small>要求今日熟練度達標</small></span></label>
+            <label><input type="radio" name="assignmentGoalMode" value="line_score"><span><strong>每日逐句進度</strong><small>指定每句最低分數</small></span></label>
+          </fieldset>
+          <div class="assignment-fields-group" id="masteryGoalFields">
+            <label>要求完成度<input id="targetPercent" type="number" inputmode="numeric" min="1" max="100" value="80" required><span class="input-suffix">%</span></label>
+          </div>
+          <div class="assignment-fields-group" id="lineGoalFields" hidden>
+            <label>作品<select id="assignmentWork"></select></label>
+            <label>角色<select id="assignmentRole"><option value="">請先選作品</option></select></label>
+            <label>從角色第幾句開始<select id="assignmentStart"><option value="">請先選角色</option></select></label>
+            <label>指定句數<input id="assignmentCount" type="number" inputmode="numeric" min="1" max="30" value="5"></label>
+            <label>每句至少<input id="targetScore" type="number" inputmode="numeric" min="1" max="100" value="80"><span class="input-suffix">分</span></label>
+            <div class="line-preview" id="linePreview" aria-live="polite"></div>
+          </div>
           <div class="form-actions"><button class="primary-button" type="submit">發派給班級</button><span id="assignmentMessage" role="status"></span></div>
         </form>
       </section>
 
       <section class="teacher-panel" id="progressPanel" data-panel="progress" hidden aria-labelledby="progressHeading">
         <div class="section-heading"><div><p class="eyebrow">完成狀態</p><h2 id="progressHeading">作業進度</h2></div><button class="quiet-button" id="refreshTeacher" type="button">重新整理</button></div>
-        <div class="table-shell"><table><thead><tr><th>作業</th><th>角色</th><th>截止</th><th>完成句數</th><th>完成率</th><th>平均</th><th>狀態</th></tr></thead><tbody id="assignmentRows"></tbody></table></div>
+        <div class="table-shell"><table><thead><tr><th>要求</th><th>目標</th><th>截止</th><th>已達標</th><th>達標率</th><th>目前平均</th><th>狀態</th></tr></thead><tbody id="assignmentRows"></tbody></table></div>
         <div class="section-heading subheading"><div><h2>最近逐句結果</h2></div></div>
         <div class="table-shell"><table><thead><tr><th>學生</th><th>作品／角色</th><th>句次</th><th>分數</th><th>練習次數</th><th>更新時間</th><th>錄音</th></tr></thead><tbody id="recentResultRows"></tbody></table></div>
       </section>
@@ -177,8 +205,10 @@
         <div class="preference-fields">
           <label for="preferenceWork">作品</label>
           <select id="preferenceWork" required></select>
-          <label for="preferenceRole">角色</label>
-          <select id="preferenceRole" required><option value="">請先選作品</option></select>
+          <fieldset class="preference-role-fieldset">
+            <legend>角色（可複選）</legend>
+            <div class="preference-role-options" id="preferenceRoles" aria-live="polite"></div>
+          </fieldset>
           <p class="form-message" id="preferenceMessage" role="status"></p>
           <button class="primary-button" type="submit">確認選擇</button>
         </div>
