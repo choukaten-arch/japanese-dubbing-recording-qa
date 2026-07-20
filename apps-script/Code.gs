@@ -25,6 +25,73 @@ const RESULT_SCORE_HEADERS = Object.freeze([
 ]);
 
 const ASSIGNMENT_GOAL_HEADERS = Object.freeze(["goal_mode", "target_percent", "target_score"]);
+const SOUND_EFFECT_LINE_BASE = 9001;
+const SOUND_EFFECT_WORKS = Object.freeze([
+  {
+    workSlug: "kiki",
+    workTitle: "魔女宅急便",
+    cues: [
+      ["00:33–00:50", "搬柴、柴門與木柴碰撞"],
+      ["00:51–01:16", "風箱送風、火焰燃燒"],
+      ["01:20–01:46", "烤箱與器皿"],
+      ["02:24", "時鐘提醒"],
+      ["02:31–03:10", "開爐、取派、奔跑、起飛"],
+      ["03:16–03:52", "風雨與雷"],
+      ["04:54", "門鈴"],
+      ["05:19–05:21", "關門"],
+    ],
+  },
+  {
+    workSlug: "maruko",
+    workTitle: "櫻桃小丸子：來自義大利的少年",
+    cues: [
+      ["00:00–00:48", "通学路の足音"],
+      ["01:03–01:27", "サッカー"],
+      ["02:34", "放課後の区切り"],
+      ["04:18–04:29", "もみ合い"],
+      ["05:03–05:10", "帰り道の足音"],
+    ],
+  },
+  {
+    workSlug: "ponyo",
+    workTitle: "崖上的波妞",
+    cues: [
+      ["00:07–00:29", "走る・草むら・バケツ"],
+      ["01:14–01:17", "水を吹く"],
+      ["01:47–02:18", "バケツ・転倒・走る"],
+      ["02:19–02:40", "窓辺へ走る"],
+      ["03:59–04:08", "水しぶき・騒ぎ"],
+      ["04:17–04:47", "走る・海辺"],
+      ["05:19–05:25", "ポニョの水はね"],
+    ],
+  },
+  {
+    workSlug: "spirited-away",
+    workTitle: "神隱少女",
+    cues: [
+      ["00:00–00:11", "門扉、房內壓迫感"],
+      ["00:54–01:02", "湯婆婆低笑與呼吸"],
+      ["01:26–01:35", "怒吼、紙張飛散"],
+      ["02:05–02:52", "坊哭聲、哄睡與房間震動"],
+      ["03:12–03:50", "契約書與筆"],
+      ["04:18–04:36", "門外應答與腳步"],
+      ["04:46–05:06", "走廊腳步"],
+      ["05:15–05:21", "澡堂眾人交疊抱怨"],
+    ],
+  },
+  {
+    workSlug: "totoro",
+    workTitle: "龍貓",
+    cues: [
+      ["00:00–00:15", "屋內腳步、木箱與灰塵"],
+      ["00:49–01:08", "腳底煤灰、婆婆驚嘆"],
+      ["02:15–02:52", "跑步、提桶、河邊"],
+      ["02:52–03:34", "手壓水泵與流水"],
+      ["03:34–04:13", "打掃、搬動與庭院聲"],
+      ["04:13–04:32", "勘太跑遠、爸爸笑聲"],
+    ],
+  },
+]);
 
 function onOpen() {
   SpreadsheetApp.getUi()
@@ -150,6 +217,8 @@ function route_(payload, event) {
     );
     case "submitAttempt": return submitAttempt_(payload);
     case "submitPracticeAttempt": return submitPracticeAttempt_(payload);
+    case "groupShowcases": return groupShowcases_(payload.token);
+    case "groupShowcaseClip": return groupShowcaseClip_(payload.token, payload.resultKey);
     case "teacherOverview": return teacherOverview_(payload.token);
     case "studentHistory": return studentHistory_(payload.token, payload.studentId);
     case "upsertStudents": return upsertStudents_(payload.token, payload.students, Boolean(payload.resetExisting));
@@ -246,10 +315,12 @@ function studentTasks_(token) {
   const allStudents = readTable_(SHEETS.STUDENTS).records.filter((row) => isTrue_(row.active));
   const allResults = readTable_(SHEETS.RESULTS).records;
   const results = allResults.filter((row) => normalizeStudentId_(row.student_id) === identity.sub);
-  const catalogs = readTable_(SHEETS.WORK_ROLES).records;
+  const catalogs = workRoleCatalogs_();
   const today = formatDate_(new Date(), "yyyy-MM-dd");
   const progress = studentProgress_(student, allResults, catalogs);
   const selfPractice = buildSelfPractice_(student, results, catalogs);
+  const classProgress = buildClassProgress_(allStudents, allResults, catalogs);
+  const ownGroupName = String(student.group_name || "").trim();
 
   const tasks = assignments
     .filter((assignment) => String(assignment.status) === "Active")
@@ -333,7 +404,8 @@ function studentTasks_(token) {
     profile,
     needsSetup: !profile,
     progress,
-    classProgress: buildClassProgress_(allStudents, allResults, catalogs),
+    classProgress: ownGroupName ? classProgress.filter((row) => row.groupName === ownGroupName) : [],
+    groupProgress: buildStudentGroupProgress_(classProgress, student),
     selfPractice,
     tasks,
   };
@@ -347,7 +419,7 @@ function setStudentPreference_(token, workSlugInput, rolesInput) {
   const roles = [...new Set(requestedRoles.map((role) => cleanText_(role, 80)).filter(Boolean))];
   if (!roles.length) fail_("INVALID_PREFERENCE", "請至少選擇一個角色。");
   if (roles.length > 12) fail_("INVALID_PREFERENCE", "一次最多選擇 12 個角色。");
-  const catalogs = readTable_(SHEETS.WORK_ROLES).records.filter(
+  const catalogs = workRoleCatalogs_().filter(
     (row) => String(row.work_slug) === workSlug && roles.includes(String(row.role)),
   );
   if (catalogs.length !== roles.length) fail_("INVALID_PREFERENCE", "找不到其中一個作品或角色，請重新選擇。");
@@ -431,7 +503,7 @@ function submitPracticeAttempt_(payload) {
   if (workSlug !== profile.workSlug || !profile.roles.includes(role)) {
     fail_("PROFILE_MISMATCH", "只能自主練習目前所選作品與角色。");
   }
-  const catalog = readTable_(SHEETS.WORK_ROLES).records.find(
+  const catalog = workRoleCatalogs_().find(
     (row) => String(row.work_slug) === workSlug && String(row.role) === role,
   );
   if (!catalog || !parseLineIndices_(catalog.line_indices).includes(lineIndex)) {
@@ -544,13 +616,135 @@ function saveAttemptRecord_(payload, identity, student, context) {
   return { audioUrl: savedAudio.url };
 }
 
+function groupShowcases_(token) {
+  const identity = verifyAnySession_(token);
+  const isTeacher = identity.type === "teacher";
+  const viewer = isTeacher ? null : activeStudent_(identity.sub, identity.pinTag);
+  const viewerGroupName = String(viewer && viewer.group_name || "").trim();
+  const students = readTable_(SHEETS.STUDENTS).records.filter((row) => isTrue_(row.active));
+  const results = readTable_(SHEETS.RESULTS).records;
+  const catalogs = workRoleCatalogs_();
+  const progressRows = buildClassProgress_(students, results, catalogs);
+  const progressByStudent = {};
+  progressRows.forEach((row) => { progressByStudent[normalizeStudentId_(row.studentId)] = row; });
+
+  const membersById = {};
+  const buckets = {};
+  students.forEach((student) => {
+    const groupName = String(student.group_name || "").trim();
+    const profile = studentProfile_(student);
+    if (!groupName || !profile) return;
+    const studentId = normalizeStudentId_(student.student_id);
+    membersById[studentId] = { student, profile, groupName };
+    const key = `${groupName}|${profile.workSlug}`;
+    if (!buckets[key]) {
+      buckets[key] = {
+        groupName,
+        workSlug: profile.workSlug,
+        workTitle: profile.workTitle,
+        members: [],
+        segmentsByLine: {},
+      };
+    }
+    buckets[key].members.push(studentId);
+  });
+
+  results.forEach((row) => {
+    const studentId = normalizeStudentId_(row.student_id);
+    const member = membersById[studentId];
+    if (!member || !row.audio_file_id) return;
+    if (String(row.work_slug) !== member.profile.workSlug || !member.profile.roles.includes(String(row.role))) return;
+    const key = `${member.groupName}|${member.profile.workSlug}`;
+    const bucket = buckets[key];
+    if (!bucket) return;
+    const lineIndex = Number(row.line_index);
+    const current = bucket.segmentsByLine[lineIndex];
+    if (!current || isoValue_(row.updated_at || row.submitted_at) > isoValue_(current.updated_at || current.submitted_at)) {
+      bucket.segmentsByLine[lineIndex] = row;
+    }
+  });
+
+  const showcases = Object.keys(buckets).map((key) => {
+    const bucket = buckets[key];
+    const lineIndices = [...new Set(catalogs
+      .filter((row) => String(row.work_slug) === bucket.workSlug)
+      .reduce((all, row) => all.concat(parseLineIndices_(row.line_indices)), []))]
+      .sort((left, right) => left - right);
+    const segments = Object.values(bucket.segmentsByLine)
+      .map((row) => ({
+        resultKey: String(row.result_key || ""),
+        lineIndex: Number(row.line_index),
+        role: String(row.role || ""),
+        score: clampScore_(row.overall_score),
+        updatedAt: isoValue_(row.updated_at || row.submitted_at),
+        studentName: isTeacher || bucket.groupName === viewerGroupName ? String(row.student_name || "") : "",
+      }))
+      .filter((segment) => segment.resultKey)
+      .sort((left, right) => left.lineIndex - right.lineIndex);
+    const canSeeMembers = isTeacher || bucket.groupName === viewerGroupName;
+    const memberRows = bucket.members.map((studentId) => progressByStudent[studentId]).filter(Boolean);
+    return {
+      showcaseId: Utilities.base64EncodeWebSafe(key, Utilities.Charset.UTF_8).replace(/=+$/, ""),
+      groupName: bucket.groupName,
+      workSlug: bucket.workSlug,
+      workTitle: bucket.workTitle,
+      memberCount: memberRows.length,
+      recordedSegments: segments.length,
+      totalSegments: lineIndices.length,
+      completionRate: lineIndices.length ? Math.round(segments.length / lineIndices.length * 100) : 0,
+      averageMastery: memberRows.length ? roundOne_(average_(memberRows.map((row) => row.masteryPercent))) : 0,
+      isOwnGroup: Boolean(!isTeacher && bucket.groupName === viewerGroupName),
+      canSeeMembers,
+      members: canSeeMembers ? memberRows.map((row) => ({
+        studentId: row.studentId,
+        name: row.name,
+        masteryPercent: row.masteryPercent,
+        practicedLines: row.practicedLines,
+        totalLines: row.totalLines,
+      })) : [],
+      segments,
+      updatedAt: segments.reduce((latest, segment) => segment.updatedAt > latest ? segment.updatedAt : latest, ""),
+    };
+  }).sort((left, right) => left.groupName.localeCompare(right.groupName) || left.workTitle.localeCompare(right.workTitle));
+  return { showcases };
+}
+
+function groupShowcaseClip_(token, resultKeyInput) {
+  const identity = verifyAnySession_(token);
+  if (identity.type === "student") activeStudent_(identity.sub, identity.pinTag);
+  const resultKey = cleanText_(resultKeyInput, 240);
+  const row = readTable_(SHEETS.RESULTS).records.find((item) => String(item.result_key) === resultKey);
+  if (!row || !row.audio_file_id) fail_("CLIP_NOT_FOUND", "這段錄音目前不存在。");
+  const owner = readTable_(SHEETS.STUDENTS).records.find(
+    (student) => isTrue_(student.active) && normalizeStudentId_(student.student_id) === normalizeStudentId_(row.student_id),
+  );
+  const profile = owner && studentProfile_(owner);
+  if (!owner || !String(owner.group_name || "").trim() || !profile
+      || profile.workSlug !== String(row.work_slug) || !profile.roles.includes(String(row.role))) {
+    fail_("CLIP_NOT_AVAILABLE", "這段錄音已不在目前的小組成果中。");
+  }
+  let blob;
+  try {
+    blob = DriveApp.getFileById(String(row.audio_file_id)).getBlob();
+  } catch (error) {
+    fail_("CLIP_NOT_FOUND", "錄音檔目前無法讀取。");
+  }
+  const bytes = blob.getBytes();
+  if (!bytes.length || bytes.length > MAX_AUDIO_BYTES) fail_("CLIP_NOT_AVAILABLE", "錄音檔大小不正確。");
+  return {
+    resultKey,
+    mimeType: String(blob.getContentType() || "audio/webm"),
+    audioBase64: Utilities.base64Encode(bytes),
+  };
+}
+
 function teacherOverview_(token) {
   verifySession_(token, "teacher");
   const students = readTable_(SHEETS.STUDENTS).records;
   const activeStudents = students.filter((row) => isTrue_(row.active));
   const assignments = readTable_(SHEETS.ASSIGNMENTS).records;
   const results = readTable_(SHEETS.RESULTS).records;
-  const catalogs = readTable_(SHEETS.WORK_ROLES).records;
+  const catalogs = workRoleCatalogs_();
   const history = readTable_(SHEETS.HISTORY).records;
   const today = formatDate_(new Date(), "yyyy-MM-dd");
 
@@ -665,7 +859,7 @@ function studentHistory_(token, studentIdInput) {
 
   const allResults = readTable_(SHEETS.RESULTS).records;
   const results = allResults.filter((row) => normalizeStudentId_(row.student_id) === studentId);
-  const catalogs = readTable_(SHEETS.WORK_ROLES).records;
+  const catalogs = workRoleCatalogs_();
   const profile = studentProfile_(student);
   const history = readTable_(SHEETS.HISTORY).records
     .filter((row) => normalizeStudentId_(row.student_id) === studentId)
@@ -927,7 +1121,7 @@ function createAssignment_(token, input) {
   } else {
     workSlug = cleanText_(input.workSlug, 80);
     role = cleanText_(input.role, 80);
-    const catalog = readTable_(SHEETS.WORK_ROLES).records.find(
+    const catalog = workRoleCatalogs_().find(
       (row) => String(row.work_slug) === workSlug && String(row.role) === role,
     );
     if (!catalog) fail_("INVALID_ROLE", "找不到指定的作品與角色。");
@@ -1127,6 +1321,36 @@ function activeStudent_(studentId, expectedPinTag) {
     fail_("SESSION_EXPIRED", "PIN 已由老師重設，請使用新 PIN 重新登入。");
   }
   return student;
+}
+
+function soundEffectRoleName_(sound, time) {
+  return `音效＿${String(sound || "未命名音效").trim()}＿${String(time || "00:00").trim()}`;
+}
+
+function soundEffectCatalogRows_() {
+  const rows = [];
+  SOUND_EFFECT_WORKS.forEach((work) => {
+    work.cues.forEach((cue, cueIndex) => {
+      rows.push({
+        work_slug: work.workSlug,
+        work_title: work.workTitle,
+        role: soundEffectRoleName_(cue[1], cue[0]),
+        total_lines: 1,
+        line_indices: String(SOUND_EFFECT_LINE_BASE + cueIndex),
+        is_sound_effect: true,
+      });
+    });
+  });
+  return rows;
+}
+
+function workRoleCatalogs_() {
+  const rows = readTable_(SHEETS.WORK_ROLES).records.slice();
+  const existing = new Set(rows.map((row) => `${row.work_slug}|${row.role}`));
+  soundEffectCatalogRows_().forEach((row) => {
+    if (!existing.has(`${row.work_slug}|${row.role}`)) rows.push(row);
+  });
+  return rows;
 }
 
 function studentProfile_(student) {
@@ -1356,6 +1580,32 @@ function buildGroupSummaries_(studentRows) {
   })).sort((left, right) => left.groupName.localeCompare(right.groupName));
 }
 
+function buildStudentGroupProgress_(studentRows, currentStudent) {
+  const ownGroupName = String(currentStudent && currentStudent.group_name || "").trim();
+  return buildGroupSummaries_(studentRows).map((group) => {
+    const isOwnGroup = Boolean(ownGroupName && group.groupName === ownGroupName);
+    const members = isOwnGroup
+      ? studentRows.filter((student) => student.groupName === ownGroupName).map((student) => ({
+        studentId: student.studentId,
+        name: student.name,
+        masteryPercent: student.masteryPercent,
+        practicedLines: student.practicedLines,
+        totalLines: student.totalLines,
+      }))
+      : [];
+    return {
+      groupName: group.groupName,
+      memberCount: group.memberCount,
+      averageMastery: group.averageMastery,
+      practicedLines: group.practicedLines,
+      totalLines: group.totalLines,
+      completionRate: group.totalLines ? roundOne_(group.practicedLines / group.totalLines * 100) : 0,
+      isOwnGroup,
+      members,
+    };
+  });
+}
+
 function average_(values) {
   return values.length ? values.reduce((sum, value) => sum + Number(value || 0), 0) / values.length : 0;
 }
@@ -1402,6 +1652,12 @@ function createSession_(identity) {
     JSON.stringify({ tokenDigest: tokenDigest_(token), payload }),
   );
   return { token, expiresAt };
+}
+
+function verifyAnySession_(tokenInput) {
+  const type = String(tokenInput || "").split(".")[0];
+  if (!["student", "teacher"].includes(type)) fail_("SESSION_INVALID", "登入已失效，請重新登入。");
+  return verifySession_(tokenInput, type);
 }
 
 function verifySession_(tokenInput, expectedType) {

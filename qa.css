@@ -454,6 +454,9 @@ rt { color: #7a4c12; font-size: 0.52em; font-weight: 600; }
   line-height: 1.6;
 }
 .transcription-field span { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; }
+.sound-effect-mode .transcription-field { display: none; }
+.sound-effect-mode .karaoke-japanese { font-family: "Noto Sans TC", "PingFang TC", sans-serif; }
+.sound-effect-mode .selected-line [lang="ja"] { font-family: "Noto Sans TC", "PingFang TC", sans-serif; }
 
 .submit-row { display: flex; gap: 9px; padding: 12px 16px 15px; }
 .reset-button { padding: 0 14px; }

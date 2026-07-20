@@ -6,7 +6,80 @@ const QA_WORKS = Object.freeze([
   { slug: "totoro", title: "龍貓", navTitle: "龍貓", lineCount: 54 },
 ]);
 
+const SOUND_EFFECT_LINE_BASE = 9001;
+
+function parseCueClock(value) {
+  const parts = String(value || "").trim().split(":").map(Number);
+  if (!parts.length || parts.some((part) => !Number.isFinite(part))) return 0;
+  return parts.reduce((total, part) => total * 60 + part, 0);
+}
+
+function soundCueBounds(timeLabel, duration) {
+  const points = String(timeLabel || "").split(/\s*[–—-]\s*/).map(parseCueClock).filter(Number.isFinite);
+  const limit = Math.max(0, Number(duration) || 0);
+  if (points.length > 1) {
+    return {
+      start: Math.max(0, points[0]),
+      end: Math.max(points[0] + 0.5, limit ? Math.min(limit, points[1]) : points[1]),
+    };
+  }
+  const cue = points[0] || 0;
+  return {
+    start: Math.max(0, cue - 1.2),
+    end: limit ? Math.min(limit, cue + 2.2) : cue + 2.2,
+  };
+}
+
+function soundEffectRoleName(cue) {
+  return `音效＿${String(cue?.sound || "未命名音效").trim()}＿${String(cue?.time || "00:00").trim()}`;
+}
+
+function extendWorkDataWithSoundEffects(source) {
+  if (!source || source.soundEffectsReady) return source;
+  const cues = Array.isArray(source.soundCues) ? source.soundCues : [];
+  const effectLines = cues.map((cue, cueIndex) => {
+    const bounds = soundCueBounds(cue.time, source.duration);
+    return {
+      index: SOUND_EFFECT_LINE_BASE + cueIndex,
+      displayIndex: `S${cueIndex + 1}`,
+      start: bounds.start,
+      end: bounds.end,
+      role: soundEffectRoleName(cue),
+      japanese: String(cue.sound || "音效"),
+      japaneseHtml: String(cue.sound || "音效"),
+      translation: String(cue.method || "依時間軸完成音效"),
+      performance: String(cue.method || "依時間軸完成音效"),
+      cueTime: String(cue.time || ""),
+      soundName: String(cue.sound || "音效"),
+      soundMethod: String(cue.method || ""),
+      isSoundEffect: true,
+    };
+  });
+  const effectRoles = effectLines.map((line) => ({
+    role: line.role,
+    lineCount: 1,
+    characterCount: 0,
+    cueTime: line.cueTime,
+    soundName: line.soundName,
+    isSoundEffect: true,
+  }));
+  const roles = [...(source.roles || []), ...effectRoles];
+  const lines = [...(source.lines || []), ...effectLines];
+  return {
+    ...source,
+    roles,
+    lines,
+    lineCount: lines.length,
+    roleCount: roles.length,
+    soundEffectCount: effectLines.length,
+    soundEffectsReady: true,
+  };
+}
+
 window.QA_WORKS = QA_WORKS;
+window.QA_SOUND_EFFECT_LINE_BASE = SOUND_EFFECT_LINE_BASE;
+window.soundEffectRoleName = soundEffectRoleName;
+window.extendWorkDataWithSoundEffects = extendWorkDataWithSoundEffects;
 window.PLATFORM_CONFIG = Object.freeze({
   apiUrl: "https://script.google.com/macros/s/AKfycbwS2kKeZ7iVnlPTVE-dl6mVGTIAxkNpUPZnMOljsphbXsBbSLUdHulV1JDQ8_uS9plQ/exec",
   sessionKey: "dubbingPlatformSessionV1",

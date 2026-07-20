@@ -9,11 +9,11 @@ const { chromium } = require("playwright");
 const baseUrl = process.env.QA_URL || "http://127.0.0.1:4273/";
 const outputDir = resolve(import.meta.dirname, "../test-results/all-works");
 const works = [
-  { slug: "kiki", title: "魔女宅急便", lines: 59, roles: 6 },
-  { slug: "ponyo", title: "崖上的波妞", lines: 77, roles: 8 },
-  { slug: "maruko", title: "櫻桃小丸子：來自義大利的少年", lines: 88, roles: 22 },
-  { slug: "spirited-away", title: "神隱少女", lines: 70, roles: 8 },
-  { slug: "totoro", title: "龍貓", lines: 54, roles: 5 },
+  { slug: "kiki", title: "魔女宅急便", lines: 59, roles: 6, soundEffects: 8 },
+  { slug: "ponyo", title: "崖上的波妞", lines: 77, roles: 8, soundEffects: 7 },
+  { slug: "maruko", title: "櫻桃小丸子：來自義大利的少年", lines: 88, roles: 22, soundEffects: 5 },
+  { slug: "spirited-away", title: "神隱少女", lines: 70, roles: 8, soundEffects: 8 },
+  { slug: "totoro", title: "龍貓", lines: 54, roles: 5, soundEffects: 6 },
 ];
 const errors = [];
 
@@ -46,9 +46,9 @@ function monitor(page, label) {
 
 async function waitForWork(page, work) {
   await page.waitForFunction(
-    ({ title, lines }) => document.getElementById("pageTitle")?.textContent === title
-      && document.querySelectorAll(".script-line").length === lines,
-    { title: work.title, lines: work.lines },
+    ({ title, totalLines }) => document.getElementById("pageTitle")?.textContent === title
+      && document.querySelectorAll(".script-line").length === totalLines,
+    { title: work.title, totalLines: work.lines + work.soundEffects },
   );
   await page.waitForFunction(
     () => document.querySelector("#referenceVideo")?.readyState >= 1,
@@ -77,8 +77,11 @@ try {
     assert(data.lines.length === work.lines, `${work.title} 的資料行數錯誤`);
     assert(await page.locator(".work-switcher__link").count() === 5, "作品切換列應顯示五部");
     assert(await page.locator(".work-switcher__link.is-active").count() === 1, `${work.title} 沒有唯一選取狀態`);
-    assert((await page.locator("#workMeta").textContent()).includes(`${work.roles} 角`), `${work.title} 的角色資訊錯誤`);
-    assert(await page.locator("#roleFilter option").count() === work.roles + 1, `${work.title} 的角色選單錯誤`);
+    assert((await page.locator("#workMeta").textContent()).includes(`${work.roles + work.soundEffects} 角`), `${work.title} 的角色資訊錯誤`);
+    assert(await page.locator("#roleFilter option").count() === work.roles + work.soundEffects + 1, `${work.title} 的角色選單錯誤`);
+    assert(await page.locator('#roleFilter option[value^="音效＿"]').count() === work.soundEffects, `${work.title} 的音效角色數量錯誤`);
+    const soundRoleNames = await page.locator('#roleFilter option[value^="音效＿"]').allTextContents();
+    assert(soundRoleNames.every((name) => /^音效＿.+＿\d{2}:\d{2}/.test(name)), `${work.title} 的音效角色未包含名稱與時間軸`);
     assert((await page.locator("#referenceVideo").getAttribute("src")).endsWith(`/media/${work.slug}.mp4`), `${work.title} 的影片路徑錯誤`);
 
     const firstRole = data.roles[0];
@@ -138,7 +141,7 @@ try {
   await mobile.close();
 
   if (errors.length) throw new Error(errors.join("\n"));
-  process.stdout.write("All five QA works passed data, video, filtering, recording, scoring, URL-state, desktop, and mobile checks.\n");
+  process.stdout.write("All five QA works passed sound-effect roles, data, video, filtering, recording, scoring, URL-state, desktop, and mobile checks.\n");
 } finally {
   await browser.close();
 }

@@ -86,7 +86,7 @@ function renderLineList() {
     button.className = "script-line";
     button.dataset.index = String(index);
     button.innerHTML = `
-      <span class="script-line__number">${String(line.index).padStart(2, "0")}</span>
+      <span class="script-line__number">${escapeHtml(line.displayIndex || String(line.index).padStart(2, "0"))}</span>
       <span class="script-line__time">${formatTime(line.start)}</span>
       <span class="script-line__content"><strong>${escapeHtml(line.role)}</strong><span lang="ja">${line.japaneseHtml}</span></span>
       <span class="script-line__select" aria-hidden="true">›</span>`;
@@ -122,7 +122,10 @@ function selectLine(index, scroll = false) {
   const selected = elements.lineList.querySelector(`[data-index="${index}"]`);
   selected?.classList.add("is-selected");
   selected?.setAttribute("aria-current", "true");
-  elements.linePosition.textContent = `第 ${line.index} / ${state.data.lineCount} 句`;
+  document.body.classList.toggle("sound-effect-mode", Boolean(line.isSoundEffect));
+  elements.linePosition.textContent = line.isSoundEffect
+    ? `${line.displayIndex} · ${line.cueTime}`
+    : `第 ${line.index} / ${state.data.lineCount} 句`;
   elements.selectedRole.textContent = line.role;
   elements.selectedTime.textContent = `${formatTime(line.start)} – ${formatTime(line.end)}`;
   elements.selectedJapanese.innerHTML = line.japaneseHtml;
@@ -130,6 +133,8 @@ function selectLine(index, scroll = false) {
   elements.referenceVideo.pause();
   state.referenceStopAt = null;
   resetRecording();
+  elements.recognitionStatus.textContent = line.isSoundEffect ? "音效模式不需要逐字辨識" : "尚未錄音";
+  elements.recognizedText.placeholder = line.isSoundEffect ? "音效模式不需輸入台詞" : "錄音後顯示辨識結果，也可以手動修正";
   history.replaceState(null, "", `#line-${line.index}`);
   if (scroll && selected) selected.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
@@ -188,7 +193,8 @@ function wait(milliseconds) {
 function renderKaraokeOverlay() {
   const line = currentLine();
   const fragment = document.createDocumentFragment();
-  state.karaokeCharacters = [...line.japanese].map((character) => {
+  const displayText = line.isSoundEffect ? `${line.soundName}｜${line.cueTime}` : line.japanese;
+  state.karaokeCharacters = [...displayText].map((character) => {
     const span = document.createElement("span");
     span.className = "karaoke-character";
     span.textContent = character;
@@ -197,7 +203,7 @@ function renderKaraokeOverlay() {
     return span;
   });
   elements.karaokeJapanese.replaceChildren(fragment);
-  elements.karaokeJapanese.setAttribute("aria-label", line.japanese);
+  elements.karaokeJapanese.setAttribute("aria-label", displayText);
   elements.karaokeTranslation.textContent = line.translation;
   elements.karaokeGuide.dataset.state = "waiting";
   elements.karaokeGuideLabel.textContent = "準備開始";
@@ -232,6 +238,10 @@ function updateKaraokeProgress(videoTime) {
     return;
   }
   if (state.mediaRecorder?.state !== "recording") return;
+  if (line.isSoundEffect) {
+    setKaraokeGuide("on-time", "依時間軸製作音效", expectedProgress, expectedProgress);
+    return;
+  }
   const target = normalizeJapanese(line.japanese);
   const recognized = normalizeJapanese(`${state.finalTranscript}${state.interimTranscript}`);
   if (!state.recognition) {
@@ -426,7 +436,7 @@ async function startRecording() {
 
     state.mediaRecorder.start(200);
 
-    state.recognition = createRecognition();
+    state.recognition = line.isSoundEffect ? null : createRecognition();
     try { state.recognition?.start(); } catch {}
 
     state.isPreparing = false;
@@ -442,7 +452,7 @@ async function startRecording() {
     elements.resetRecording.disabled = true;
     document.body.classList.add("is-recording");
     drawWaveform();
-    setKaraokeGuide("waiting", state.recognition ? "準備開口" : "字幕同步中", 0, 0);
+    setKaraokeGuide("waiting", line.isSoundEffect ? "準備音效" : (state.recognition ? "準備開口" : "字幕同步中"), 0, 0);
     await elements.referenceVideo.play().catch(() => {});
   } catch (error) {
     const message = error.name === "NotAllowedError" ? "未取得麥克風權限" : "無法啟動麥克風";
@@ -502,7 +512,8 @@ function finishRecording() {
   elements.resetRecording.disabled = false;
   const finalProgress = Math.max(0, Math.min(1, (elements.referenceVideo.currentTime - currentLine().start) / Math.max(0.1, currentLine().end - currentLine().start)));
   setKaraokeGuide("complete", "錄音完成", finalProgress, finalProgress);
-  if (!elements.recognizedText.value.trim()) elements.recognitionStatus.textContent = "可手動輸入辨識結果";
+  if (currentLine().isSoundEffect) elements.recognitionStatus.textContent = "音效錄製完成";
+  else if (!elements.recognizedText.value.trim()) elements.recognitionStatus.textContent = "可手動輸入辨識結果";
 }
 
 function resetRecording() {
@@ -694,8 +705,39 @@ async function analyzeRecordingAudio() {
   }
 }
 
+async function localSoundEffectEvaluation() {
+  const line = currentLine();
+  const audioFeatures = await analyzeRecordingAudio();
+  const rms = Math.max(audioFeatures.rms, state.waveformSamples ? Math.sqrt(state.waveformSquares / state.waveformSamples) : 0);
+  const clipping = state.waveformSamples ? state.clippingSamples / state.waveformSamples : 0;
+  const timeline = Math.round(Math.min(100, 50 + Math.min(1, state.recordingEndProgress / 0.85) * 50));
+  const presence = rms < 0.008
+    ? 25
+    : Math.round(Math.min(100, 55 + Math.min(1, audioFeatures.voiceSpanRatio / 0.48) * 45));
+  let volume = rms < 0.008 ? 25 : rms < 0.025 ? 68 : rms <= 0.28 ? 96 : 78;
+  if (clipping > 0.01) volume = Math.max(35, volume - 28);
+  const clarity = Math.round(Math.max(30, Math.min(100, presence * 0.55 + volume * 0.45)));
+  const overall = Math.round(timeline * 0.45 + presence * 0.25 + volume * 0.3);
+  const issues = [];
+  if (timeline >= 92) issues.push("音效錄製已覆蓋指定時間軸。");
+  else issues.push("音效片段提早結束，可搭配影片回看並補足指定區段。");
+  if (rms < 0.008) issues.push("幾乎沒有偵測到音效，請靠近麥克風或提高音效強度。");
+  else if (clipping > 0.01) issues.push("音效有爆音跡象，請降低音量或離麥克風遠一點。");
+  else issues.push("音效音量可供小組合成預覽使用。");
+  issues.push("音效完成度依時間軸與實際聲音區段計算，不使用台詞辨識。");
+  return {
+    overall,
+    aspects: { accent: presence, intonation: clarity, speed: timeline, volume },
+    scores: { "時間軸配合": timeline, "音效存在": presence, "音量": volume },
+    issues,
+    diffHtml: escapeHtml(`${line.soundName}｜${line.soundMethod}`),
+    mode: "音效時間軸檢查",
+  };
+}
+
 async function localEvaluation() {
   const line = currentLine();
+  if (line.isSoundEffect) return localSoundEffectEvaluation();
   const target = normalizeJapanese(line.japanese);
   const actual = normalizeJapanese(elements.recognizedText.value);
   const distance = actual ? levenshtein(target, actual) : target.length;
@@ -818,8 +860,17 @@ async function evaluateRecording() {
 
 function restoreHash() {
   const match = location.hash.match(/^#line-(\d+)$/);
-  const index = match ? Number(match[1]) - 1 : 0;
-  selectLine(state.data.lines[index] ? index : 0);
+  const requested = match ? Number(match[1]) : null;
+  const index = requested === null ? 0 : state.data.lines.findIndex((line) => Number(line.index) === requested);
+  selectLine(index >= 0 ? index : 0);
+}
+
+function handleHashChange() {
+  if (!state.data || state.isPreparing || state.mediaRecorder?.state === "recording") return;
+  const match = location.hash.match(/^#line-(\d+)$/);
+  if (!match) return;
+  const index = state.data.lines.findIndex((line) => Number(line.index) === Number(match[1]));
+  if (index >= 0 && index !== state.selectedIndex) selectLine(index, true);
 }
 
 function bindEvents() {
@@ -838,6 +889,7 @@ function bindEvents() {
   elements.evaluateRecording.addEventListener("click", evaluateRecording);
   elements.searchLines.addEventListener("input", applyFilters);
   elements.roleFilter.addEventListener("change", applyFilters);
+  window.addEventListener("hashchange", handleHashChange);
 }
 
 async function initialize() {
@@ -846,7 +898,8 @@ async function initialize() {
   try {
     const response = await fetch(window.QA_CONFIG.dataFile || "data/kiki.json");
     if (!response.ok) throw new Error(`Data ${response.status}`);
-    state.data = await response.json();
+    const raw = await response.json();
+    state.data = window.extendWorkDataWithSoundEffects?.(raw) || raw;
     renderHeader();
     renderLineList();
     bindEvents();

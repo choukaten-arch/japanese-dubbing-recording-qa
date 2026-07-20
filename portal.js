@@ -11,6 +11,9 @@ const portalState = {
   selectedRoleLines: [],
   selfPractice: [],
   credentials: [],
+  showcases: [],
+  showcasePlayers: new Map(),
+  showcaseAudioCache: new Map(),
   setupRequired: false,
   demo: new URLSearchParams(location.search).get("demo") === "1",
 };
@@ -26,10 +29,11 @@ function cachePortalElements() {
     "studentPerformance", "studentRadar", "studentPracticedLines", "studentTotalAttempts", "studentTotalDuration",
     "preferenceDialog", "preferenceForm", "preferenceClose", "preferenceWork", "preferenceRoles",
     "preferencePoster", "preferenceMessage", "classProgressSection", "classProgressUpdated", "classProgressGroups",
+    "studentShowcaseSection", "studentShowcaseUpdated", "studentShowcaseList",
     "taskList", "studentEmpty", "selfPracticeSection", "selfPracticeCount", "selfPracticeList",
     "teacherView", "sheetLink", "driveLink", "metricStudents",
     "metricAssignments", "metricSubmissions", "metricAverage", "assignPanel", "progressPanel",
-    "groupsPanel", "groupRows", "studentsPanel", "assignmentForm", "assignmentTitle", "targetClass", "assignedDate", "dueDate",
+    "groupsPanel", "groupRows", "showcasePanel", "teacherShowcaseList", "refreshShowcases", "studentsPanel", "assignmentForm", "assignmentTitle", "targetClass", "assignedDate", "dueDate",
     "masteryGoalFields", "lineGoalFields", "targetPercent", "targetScore",
     "assignmentWork", "assignmentRole", "assignmentStart", "assignmentCount", "linePreview",
     "assignmentLineCount", "assignmentMessage", "assignmentRows", "recentResultRows", "refreshTeacher",
@@ -121,6 +125,7 @@ function saveSession(value) {
 }
 
 function clearSession() {
+  clearShowcasePlayers();
   portalState.session = null;
   localStorage.removeItem(platformConfig.sessionKey);
   localStorage.removeItem(platformConfig.taskKey);
@@ -318,6 +323,109 @@ function demoAspectAverages(results) {
   return { accent: average("accent"), intonation: average("intonation"), speed: average("speed"), volume: average("volume") };
 }
 
+function demoGroupProgress() {
+  const students = demoClassProgress();
+  const ownGroupName = demoStore().value.groupName;
+  const groups = new Map();
+  students.forEach((student) => {
+    const groupName = student.groupName || "未分組";
+    if (!groups.has(groupName)) groups.set(groupName, []);
+    groups.get(groupName).push(student);
+  });
+  return [...groups].map(([groupName, members]) => {
+    const practicedLines = members.reduce((sum, member) => sum + Number(member.practicedLines || 0), 0);
+    const totalLines = members.reduce((sum, member) => sum + Number(member.totalLines || 0), 0);
+    const isOwnGroup = groupName === ownGroupName;
+    return {
+      groupName,
+      memberCount: members.length,
+      averageMastery: members.reduce((sum, member) => sum + Number(member.masteryPercent || 0), 0) / members.length,
+      practicedLines,
+      totalLines,
+      completionRate: totalLines ? Math.round(practicedLines / totalLines * 100) : 0,
+      isOwnGroup,
+      members: isOwnGroup ? members.map((member) => ({
+        studentId: member.studentId,
+        name: member.name,
+        masteryPercent: member.masteryPercent,
+        practicedLines: member.practicedLines,
+        totalLines: member.totalLines,
+      })) : [],
+    };
+  });
+}
+
+function demoToneBase64() {
+  const sampleRate = 8000;
+  const sampleCount = 1600;
+  const bytes = new Uint8Array(44 + sampleCount * 2);
+  const view = new DataView(bytes.buffer);
+  const writeText = (offset, text) => [...text].forEach((character, index) => view.setUint8(offset + index, character.charCodeAt(0)));
+  writeText(0, "RIFF");
+  view.setUint32(4, bytes.length - 8, true);
+  writeText(8, "WAVEfmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeText(36, "data");
+  view.setUint32(40, sampleCount * 2, true);
+  for (let index = 0; index < sampleCount; index += 1) {
+    const fade = Math.min(1, index / 120, (sampleCount - index) / 120);
+    view.setInt16(44 + index * 2, Math.sin(index / sampleRate * Math.PI * 2 * 440) * 4200 * fade, true);
+  }
+  let binary = "";
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return btoa(binary);
+}
+
+async function demoGroupShowcases(isTeacher = false) {
+  const profile = demoStore().value.profile || { workSlug: "kiki", workTitle: "魔女宅急便" };
+  const ownData = await fetchWorkData(profile.workSlug);
+  const otherData = await fetchWorkData(profile.workSlug === "ponyo" ? "totoro" : "ponyo");
+  const ownMembers = demoClassProgress().filter((student) => student.groupName === demoStore().value.groupName);
+  const otherMembers = demoClassProgress().filter((student) => student.groupName === "第 2 組");
+  return {
+    showcases: [
+      {
+        showcaseId: "demo-own",
+        groupName: demoStore().value.groupName,
+        workSlug: profile.workSlug,
+        workTitle: profile.workTitle,
+        memberCount: ownMembers.length,
+        recordedSegments: 2,
+        totalSegments: ownData.lines.length,
+        completionRate: Math.round(2 / ownData.lines.length * 100),
+        averageMastery: ownMembers.reduce((sum, member) => sum + member.masteryPercent, 0) / ownMembers.length,
+        isOwnGroup: !isTeacher,
+        canSeeMembers: true,
+        members: ownMembers.map((member) => ({ studentId: member.studentId, name: member.name, masteryPercent: member.masteryPercent, practicedLines: member.practicedLines, totalLines: member.totalLines })),
+        segments: ownData.lines.slice(0, 2).map((line, index) => ({ resultKey: `demo-own-${index}`, lineIndex: line.index, role: line.role, score: 82 - index * 3, studentName: ownMembers[index % ownMembers.length]?.name || "測試學生", updatedAt: new Date().toISOString() })),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        showcaseId: "demo-other",
+        groupName: "第 2 組",
+        workSlug: otherData.slug,
+        workTitle: otherData.title,
+        memberCount: 1,
+        recordedSegments: 1,
+        totalSegments: otherData.lines.length,
+        completionRate: Math.round(1 / otherData.lines.length * 100),
+        averageMastery: 37.5,
+        isOwnGroup: false,
+        canSeeMembers: isTeacher,
+        members: isTeacher ? otherMembers.map((member) => ({ studentId: member.studentId, name: member.name, masteryPercent: member.masteryPercent, practicedLines: member.practicedLines, totalLines: member.totalLines })) : [],
+        segments: [{ resultKey: "demo-other-0", lineIndex: otherData.lines[0].index, role: otherData.lines[0].role, score: 76, studentName: "", updatedAt: new Date().toISOString() }],
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+  };
+}
+
 async function mockRequest(action, payload) {
   await new Promise((resolve) => setTimeout(resolve, 120));
   const session = {
@@ -346,7 +454,8 @@ async function mockRequest(action, payload) {
       profile,
       needsSetup: !profile,
       progress,
-      classProgress: demoClassProgress(),
+      classProgress: demoClassProgress().filter((student) => student.groupName === demoStore().value.groupName),
+      groupProgress: demoGroupProgress(),
       selfPractice: await demoSelfPractice(),
       tasks: demoTasks(),
     };
@@ -372,6 +481,8 @@ async function mockRequest(action, payload) {
     return { ok: true, studentId: payload.studentId, groupName: payload.groupName };
   }
   if (action === "teacherOverview") return mockTeacherOverview();
+  if (action === "groupShowcases") return demoGroupShowcases(portalState.session?.account?.type === "teacher");
+  if (action === "groupShowcaseClip") return { ok: true, resultKey: payload.resultKey, mimeType: "audio/wav", audioBase64: demoToneBase64() };
   if (action === "studentHistory") return mockStudentHistory(payload.studentId);
   if (action === "createAssignment") {
     const store = demoStore();
@@ -570,9 +681,11 @@ async function showStudentDashboard() {
     portalState.selfPractice = response.selfPractice || [];
     renderStudentProfile(profile);
     renderStudentPerformance(response.progress || {});
-    renderClassProgress(response.classProgress || []);
+    renderClassProgress(response.groupProgress || groupProgressFromStudents(response.classProgress || []));
     renderStudentTasks(response.tasks || []);
     renderSelfPractice(portalState.selfPractice);
+    if (profile) await loadGroupShowcases("student");
+    else portalElements.studentShowcaseSection.hidden = true;
     if (response.needsSetup) await openPreferenceDialog(true);
   } catch (error) {
     handleSessionError(error);
@@ -600,31 +713,278 @@ function renderStudentProfile(profile) {
   portalElements.studentPreferenceLabel.textContent = `${group}${profile.workTitle} · ${profileRoleLabel(profile)}`;
 }
 
-function renderClassProgress(students) {
-  portalElements.classProgressSection.hidden = students.length === 0;
-  portalElements.classProgressUpdated.textContent = students.length ? `${students.length} 人` : "";
-  if (!students.length) {
+function groupProgressFromStudents(students) {
+  const ownGroupName = portalState.session?.account?.profile?.groupName || "";
+  const grouped = new Map();
+  students.forEach((student) => {
+    const groupName = student.groupName || "未分組";
+    if (!grouped.has(groupName)) grouped.set(groupName, []);
+    grouped.get(groupName).push(student);
+  });
+  return [...grouped].map(([groupName, members]) => {
+    const practicedLines = members.reduce((sum, member) => sum + Number(member.practicedLines || 0), 0);
+    const totalLines = members.reduce((sum, member) => sum + Number(member.totalLines || 0), 0);
+    const isOwnGroup = Boolean(ownGroupName && groupName === ownGroupName);
+    return {
+      groupName,
+      memberCount: members.length,
+      averageMastery: members.reduce((sum, member) => sum + Number(member.masteryPercent || 0), 0) / members.length,
+      practicedLines,
+      totalLines,
+      completionRate: totalLines ? Math.round(practicedLines / totalLines * 100) : 0,
+      isOwnGroup,
+      members: isOwnGroup ? members : [],
+    };
+  });
+}
+
+function renderClassProgress(groups) {
+  portalElements.classProgressSection.hidden = groups.length === 0;
+  portalElements.classProgressUpdated.textContent = groups.length ? `${groups.length} 組` : "";
+  if (!groups.length) {
     portalElements.classProgressGroups.replaceChildren();
     return;
   }
-  const groups = new Map();
-  students.forEach((student) => {
-    const groupName = student.groupName || "未分組";
-    if (!groups.has(groupName)) groups.set(groupName, []);
-    groups.get(groupName).push(student);
-  });
   const currentId = portalState.session?.account?.studentId;
-  portalElements.classProgressGroups.innerHTML = [...groups].map(([groupName, members]) => {
-    const average = members.reduce((sum, member) => sum + Number(member.masteryPercent || 0), 0) / members.length;
-    return `<section class="group-progress-block" aria-label="${escapePortalHtml(groupName)}">
-      <header class="group-progress-heading"><strong>${escapePortalHtml(groupName)}</strong><span>平均 ${masteryText(average)}</span></header>
-      <ul class="group-member-list">${members.map((member) => `<li class="${member.studentId === currentId ? "is-current" : ""}">
+  portalElements.classProgressGroups.innerHTML = groups.map((group) => {
+    const members = group.isOwnGroup ? group.members || [] : [];
+    return `<section class="group-progress-block${group.isOwnGroup ? " is-own-group" : ""}" aria-label="${escapePortalHtml(group.groupName)}">
+      <header class="group-progress-heading"><strong>${escapePortalHtml(group.groupName)}${group.isOwnGroup ? '<span class="own-group-label">我的組別</span>' : ""}</strong><span>熟練度 ${masteryText(group.averageMastery)}</span></header>
+      <div class="group-completion"><span class="mastery-track" aria-label="小組完成度 ${masteryText(group.completionRate)}"><span style="width:${Math.max(0, Math.min(100, Number(group.completionRate) || 0))}%"></span></span><strong>${masteryText(group.completionRate)}</strong></div>
+      ${group.isOwnGroup ? `<ul class="group-member-list">${members.map((member) => `<li class="${member.studentId === currentId ? "is-current" : ""}">
         <span class="group-member-name">${escapePortalHtml(member.name)}</span>
         <span class="mastery-track" aria-label="熟練度 ${masteryText(member.masteryPercent)}"><span style="width:${Math.max(0, Math.min(100, Number(member.masteryPercent) || 0))}%"></span></span>
         <span class="mastery-value">${masteryText(member.masteryPercent)}</span>
-      </li>`).join("")}</ul>
+      </li>`).join("")}</ul>` : `<div class="group-summary-only"><span>${group.memberCount} 人</span><span>${group.practicedLines} / ${group.totalLines} 段</span></div>`}
     </section>`;
   }).join("");
+}
+
+function audioBlobFromBase64(base64, mimeType) {
+  const binary = atob(String(base64 || ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return new Blob([bytes], { type: mimeType || "audio/webm" });
+}
+
+function stopShowcasePlayer(player) {
+  if (!player) return;
+  cancelAnimationFrame(player.frame);
+  player.frame = 0;
+  player.audioElements.forEach((audio) => audio.pause());
+  player.button.innerHTML = '<span aria-hidden="true">▶</span><span>播放合成</span>';
+}
+
+function clearShowcasePlayers() {
+  portalState.showcasePlayers.forEach((player) => {
+    player.video.pause();
+    stopShowcasePlayer(player);
+  });
+  portalState.showcasePlayers.clear();
+}
+
+async function loadShowcaseAudio(resultKey) {
+  if (portalState.showcaseAudioCache.has(resultKey)) return portalState.showcaseAudioCache.get(resultKey);
+  const request = platformRequest("groupShowcaseClip", {
+    token: portalState.session.session.token,
+    resultKey,
+  }).then((response) => URL.createObjectURL(audioBlobFromBase64(response.audioBase64, response.mimeType)))
+    .catch((error) => {
+      portalState.showcaseAudioCache.delete(resultKey);
+      throw error;
+    });
+  portalState.showcaseAudioCache.set(resultKey, request);
+  return request;
+}
+
+async function ensureShowcaseSegmentAudio(player, segment) {
+  if (player.audioElements.has(segment.resultKey)) return player.audioElements.get(segment.resultKey);
+  if (!player.audioPromises.has(segment.resultKey)) {
+    const request = loadShowcaseAudio(segment.resultKey).then((url) => {
+      const audio = new Audio(url);
+      audio.preload = "auto";
+      player.audioElements.set(segment.resultKey, audio);
+      audio.load();
+      return new Promise((resolve) => {
+        if (audio.readyState >= 2) {
+          resolve(audio);
+          return;
+        }
+        const finish = () => {
+          clearTimeout(timeout);
+          audio.removeEventListener("loadeddata", finish);
+          resolve(audio);
+        };
+        const timeout = setTimeout(finish, 3000);
+        audio.addEventListener("loadeddata", finish, { once: true });
+      });
+    }).then((audio) => {
+      player.audioPromises.delete(segment.resultKey);
+      return audio;
+    }).catch((error) => {
+      player.audioPromises.delete(segment.resultKey);
+      throw error;
+    });
+    player.audioPromises.set(segment.resultKey, request);
+  }
+  return player.audioPromises.get(segment.resultKey);
+}
+
+async function prepareShowcaseWindow(player, currentTime, lookAhead = 18) {
+  const upcoming = player.segments.filter((segment) => segment.end >= currentTime - 0.5 && segment.start <= currentTime + lookAhead);
+  await Promise.allSettled(upcoming.map((segment) => ensureShowcaseSegmentAudio(player, segment)));
+}
+
+function activeShowcaseSegments(player, time) {
+  return player.segments.filter((segment) => time >= segment.start - 0.08 && time < segment.end);
+}
+
+function syncShowcasePlayer(player) {
+  if (player.video.paused || player.video.ended) return;
+  const time = player.video.currentTime;
+  const active = activeShowcaseSegments(player, time);
+  const activeKeys = new Set(active.map((segment) => segment.resultKey));
+  player.audioElements.forEach((audio, resultKey) => {
+    if (!activeKeys.has(resultKey) && !audio.paused) audio.pause();
+  });
+  active.forEach((segment) => {
+    ensureShowcaseSegmentAudio(player, segment).then((audio) => {
+      if (player.video.paused || !activeShowcaseSegments(player, player.video.currentTime).some((item) => item.resultKey === segment.resultKey)) return;
+      const offset = Math.max(0, player.video.currentTime - segment.start);
+      if (Number.isFinite(audio.duration) && offset >= audio.duration) return;
+      if (Math.abs(audio.currentTime - offset) > 0.22) audio.currentTime = offset;
+      if (audio.paused) audio.play().catch(() => {});
+    }).catch(() => {});
+  });
+  if (active.length) {
+    const labels = active.map((segment) => segment.studentName
+      ? `${segment.role}｜${segment.studentName}`
+      : segment.role);
+    player.status.textContent = labels.join("＋");
+  } else {
+    player.status.textContent = "目前區段尚無錄音";
+  }
+  if (!player.prefetchAt || time > player.prefetchAt) {
+    player.prefetchAt = time + 8;
+    prepareShowcaseWindow(player, time).catch(() => {});
+  }
+  player.frame = requestAnimationFrame(() => syncShowcasePlayer(player));
+}
+
+async function toggleShowcasePlayback(showcaseId) {
+  const player = portalState.showcasePlayers.get(showcaseId);
+  if (!player || player.preparing) return;
+  if (!player.video.paused) {
+    player.video.pause();
+    return;
+  }
+  player.preparing = true;
+  player.button.disabled = true;
+  player.status.textContent = "正在載入目前片段";
+  try {
+    await prepareShowcaseWindow(player, player.video.currentTime);
+    player.video.muted = true;
+    await player.video.play();
+  } catch (error) {
+    player.status.textContent = error.message || "目前無法播放合成成果";
+  } finally {
+    player.preparing = false;
+    player.button.disabled = false;
+  }
+}
+
+function showcaseMemberList(showcase) {
+  if (!showcase.canSeeMembers || !showcase.members?.length) return "";
+  return `<ul class="showcase-member-list">${showcase.members.map((member) => `<li>
+    <span>${escapePortalHtml(member.name)}</span>
+    <span class="mastery-track" aria-label="完成度 ${masteryText(member.masteryPercent)}"><span style="width:${Math.max(0, Math.min(100, Number(member.masteryPercent) || 0))}%"></span></span>
+    <strong>${masteryText(member.masteryPercent)}</strong>
+  </li>`).join("")}</ul>`;
+}
+
+async function renderGroupShowcases(showcases, container) {
+  clearShowcasePlayers();
+  container.replaceChildren();
+  if (!showcases.length) {
+    container.innerHTML = '<div class="empty-state"><strong>尚無可驗收的小組成果</strong></div>';
+    return;
+  }
+  for (const showcase of showcases) {
+    const data = await fetchWorkData(showcase.workSlug);
+    const lineMap = new Map(data.lines.map((line) => [Number(line.index), line]));
+    const segments = (showcase.segments || []).map((segment) => {
+      const line = lineMap.get(Number(segment.lineIndex));
+      return line ? { ...segment, start: line.start, end: line.end } : null;
+    }).filter(Boolean).sort((left, right) => left.start - right.start);
+    const article = document.createElement("article");
+    article.className = `showcase-card${showcase.isOwnGroup ? " is-own-group" : ""}`;
+    article.dataset.showcaseId = showcase.showcaseId;
+    article.innerHTML = `
+      <header class="showcase-heading">
+        <div><span>${escapePortalHtml(showcase.groupName)}${showcase.isOwnGroup ? '<b class="own-group-label">我的組別</b>' : ""}</span><h3>${escapePortalHtml(showcase.workTitle)}</h3></div>
+        <strong>${masteryText(showcase.completionRate)}</strong>
+      </header>
+      <div class="showcase-video-shell">
+        <video muted playsinline preload="metadata" poster="${escapePortalHtml(posterUrl(showcase.workSlug))}"></video>
+        <div class="showcase-now" role="status">${segments.length ? "準備播放" : "尚無錄音片段"}</div>
+      </div>
+      <div class="showcase-controls">
+        <button class="primary-button showcase-play-button" type="button" data-showcase-id="${escapePortalHtml(showcase.showcaseId)}" ${segments.length ? "" : "disabled"}><span aria-hidden="true">▶</span><span>播放合成</span></button>
+        <span>${showcase.recordedSegments} / ${showcase.totalSegments} 段</span>
+      </div>
+      <div class="progress-track" aria-label="小組完成度 ${masteryText(showcase.completionRate)}"><span style="width:${Math.max(0, Math.min(100, Number(showcase.completionRate) || 0))}%"></span></div>
+      ${showcaseMemberList(showcase)}`;
+    const video = article.querySelector("video");
+    const button = article.querySelector(".showcase-play-button");
+    const status = article.querySelector(".showcase-now");
+    video.src = new URL(data.video, window.QA_CONFIG.productionSiteBase).href;
+    video.muted = true;
+    video.controls = true;
+    const player = {
+      showcase,
+      segments,
+      video,
+      button,
+      status,
+      frame: 0,
+      preparing: false,
+      prefetchAt: 0,
+      audioElements: new Map(),
+      audioPromises: new Map(),
+    };
+    portalState.showcasePlayers.set(showcase.showcaseId, player);
+    button.addEventListener("click", () => toggleShowcasePlayback(showcase.showcaseId));
+    video.addEventListener("play", () => {
+      video.muted = true;
+      button.innerHTML = '<span aria-hidden="true">Ⅱ</span><span>暫停</span>';
+      cancelAnimationFrame(player.frame);
+      player.frame = requestAnimationFrame(() => syncShowcasePlayer(player));
+    });
+    video.addEventListener("pause", () => stopShowcasePlayer(player));
+    video.addEventListener("seeking", () => player.audioElements.forEach((audio) => audio.pause()));
+    video.addEventListener("seeked", () => prepareShowcaseWindow(player, video.currentTime).catch(() => {}));
+    video.addEventListener("ended", () => { status.textContent = "本次驗收播放完成"; });
+    video.addEventListener("volumechange", () => { video.muted = true; });
+    container.append(article);
+  }
+}
+
+async function loadGroupShowcases(target) {
+  const student = target === "student";
+  const container = student ? portalElements.studentShowcaseList : portalElements.teacherShowcaseList;
+  const section = student ? portalElements.studentShowcaseSection : portalElements.showcasePanel;
+  if (!container || !section) return;
+  if (student) section.hidden = false;
+  container.innerHTML = '<div class="empty-state"><strong>載入小組成果中</strong></div>';
+  try {
+    const response = await platformRequest("groupShowcases", { token: portalState.session.session.token });
+    portalState.showcases = response.showcases || [];
+    if (student) portalElements.studentShowcaseUpdated.textContent = `${portalState.showcases.length} 組成果`;
+    await renderGroupShowcases(portalState.showcases, container);
+  } catch (error) {
+    handleSessionError(error);
+    container.innerHTML = `<div class="empty-state"><strong>成果載入失敗</strong><span>${escapePortalHtml(error.message)}</span></div>`;
+  }
 }
 
 function populatePreferenceWorks() {
@@ -647,7 +1007,7 @@ async function updatePreferenceRoles(preferredRoles = []) {
   const fragment = document.createDocumentFragment();
   data.roles.forEach((role) => {
     const label = document.createElement("label");
-    label.className = "preference-role-option";
+    label.className = `preference-role-option${role.isSoundEffect ? " is-sound-effect" : ""}`;
     const input = document.createElement("input");
     input.type = "checkbox";
     input.name = "preferenceRole";
@@ -656,7 +1016,7 @@ async function updatePreferenceRoles(preferredRoles = []) {
     const name = document.createElement("strong");
     name.textContent = role.role;
     const count = document.createElement("small");
-    count.textContent = `${role.lineCount} 句`;
+    count.textContent = role.isSoundEffect ? role.cueTime : `${role.lineCount} 句`;
     label.append(input, name, count);
     fragment.append(label);
   });
@@ -798,6 +1158,7 @@ async function showTeacherDashboard() {
   populateWorkSelect();
   syncAssignmentGoalMode();
   await refreshTeacherData();
+  await loadGroupShowcases("teacher");
 }
 
 function setTeacherDates() {
@@ -844,7 +1205,8 @@ async function fetchWorkData(slug) {
   if (portalState.workData.has(slug)) return portalState.workData.get(slug);
   const response = await fetch(`data/${encodeURIComponent(slug)}.json`);
   if (!response.ok) throw new Error("作品台詞資料載入失敗。");
-  const data = await response.json();
+  const raw = await response.json();
+  const data = window.extendWorkDataWithSoundEffects?.(raw) || raw;
   portalState.workData.set(slug, data);
   return data;
 }
@@ -856,7 +1218,7 @@ async function updateWorkRoles() {
     data.roles.forEach((role) => {
       const option = document.createElement("option");
       option.value = role.role;
-      option.textContent = `${role.role}（${role.lineCount} 句）`;
+      option.textContent = role.isSoundEffect ? role.role : `${role.role}（${role.lineCount} 句）`;
       portalElements.assignmentRole.append(option);
     });
     portalElements.assignmentStart.innerHTML = '<option value="">請先選角色</option>';
@@ -874,7 +1236,9 @@ async function updateRoleLines() {
   portalState.selectedRoleLines.forEach((line, position) => {
     const option = document.createElement("option");
     option.value = String(position);
-    option.textContent = `角色第 ${position + 1} 句（原片第 ${line.index} 句）`;
+    option.textContent = line.isSoundEffect
+      ? `${line.cueTime}｜${line.soundName}`
+      : `角色第 ${position + 1} 句（原片第 ${line.index} 句）`;
     portalElements.assignmentStart.append(option);
   });
   portalElements.assignmentCount.max = String(Math.min(30, portalState.selectedRoleLines.length));
@@ -905,7 +1269,7 @@ function updateLinePreview() {
     portalElements.linePreview.innerHTML = "選擇角色後顯示台詞範圍。";
     return;
   }
-  portalElements.linePreview.innerHTML = `<ul>${lines.map((line) => `<li><span>第 ${line.index} 句</span><span lang="ja">${escapePortalHtml(line.japanese)}</span></li>`).join("")}</ul>`;
+  portalElements.linePreview.innerHTML = `<ul>${lines.map((line) => `<li><span>${escapePortalHtml(line.isSoundEffect ? line.cueTime : `第 ${line.index} 句`)}</span><span lang="ja">${escapePortalHtml(line.japanese)}</span></li>`).join("")}</ul>`;
 }
 
 async function handleAssignmentSubmit(event) {
@@ -1208,6 +1572,7 @@ function downloadCredentials() {
 }
 
 function switchTeacherTab(tabName) {
+  if (tabName !== "showcase") portalState.showcasePlayers.forEach((player) => player.video.pause());
   document.querySelectorAll(".teacher-tab").forEach((button) => {
     const active = button.dataset.tab === tabName;
     button.classList.toggle("is-active", active);
@@ -1256,6 +1621,7 @@ function bindPortalEvents() {
   portalElements.studentRows.addEventListener("click", handleStudentRowClick);
   portalElements.studentImportForm.addEventListener("submit", handleStudentImport);
   portalElements.refreshTeacher.addEventListener("click", refreshTeacherData);
+  portalElements.refreshShowcases.addEventListener("click", () => loadGroupShowcases(portalState.session?.account?.type === "teacher" ? "teacher" : "student"));
   portalElements.downloadCredentials.addEventListener("click", downloadCredentials);
   portalElements.printCredentials.addEventListener("click", () => window.print());
 }

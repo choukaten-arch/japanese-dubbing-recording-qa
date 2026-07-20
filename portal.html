@@ -98,6 +98,10 @@
         <div class="section-heading"><div><p class="eyebrow">分組協作</p><h2 id="classProgressTitle">全班熟練度</h2></div><span id="classProgressUpdated"></span></div>
         <div class="group-progress-list" id="classProgressGroups"></div>
       </section>
+      <section class="group-showcase-section" id="studentShowcaseSection" hidden aria-labelledby="studentShowcaseTitle">
+        <div class="section-heading"><div><p class="eyebrow">時間軸合成</p><h2 id="studentShowcaseTitle">小組成果驗收</h2></div><span id="studentShowcaseUpdated"></span></div>
+        <div class="showcase-grid" id="studentShowcaseList" aria-live="polite"></div>
+      </section>
       <div class="task-list" id="taskList" aria-live="polite"></div>
       <div class="empty-state" id="studentEmpty" hidden>
         <strong>今天沒有老師指定目標</strong>
@@ -132,6 +136,7 @@
         <button class="teacher-tab is-active" type="button" role="tab" aria-selected="true" data-tab="assign">發派作業</button>
         <button class="teacher-tab" type="button" role="tab" aria-selected="false" data-tab="progress">作業進度</button>
         <button class="teacher-tab" type="button" role="tab" aria-selected="false" data-tab="groups">分組概況</button>
+        <button class="teacher-tab" type="button" role="tab" aria-selected="false" data-tab="showcase">成果驗收</button>
         <button class="teacher-tab" type="button" role="tab" aria-selected="false" data-tab="students">學生與 PIN</button>
       </nav>
 
@@ -175,6 +180,11 @@
       <section class="teacher-panel" id="groupsPanel" data-panel="groups" hidden aria-labelledby="groupsHeading">
         <div class="section-heading"><div><p class="eyebrow">分組協作</p><h2 id="groupsHeading">各組練習情形</h2></div></div>
         <div class="table-shell"><table><thead><tr><th>組別</th><th>人數</th><th>平均熟練度</th><th>已練／總句數</th><th>練習次數</th><th>錄音總時數</th><th>成員</th></tr></thead><tbody id="groupRows"></tbody></table></div>
+      </section>
+
+      <section class="teacher-panel" id="showcasePanel" data-panel="showcase" hidden aria-labelledby="teacherShowcaseHeading">
+        <div class="section-heading"><div><p class="eyebrow">時間軸合成</p><h2 id="teacherShowcaseHeading">小組成果驗收</h2></div><button class="quiet-button" id="refreshShowcases" type="button">重新整理</button></div>
+        <div class="showcase-grid" id="teacherShowcaseList" aria-live="polite"></div>
       </section>
 
       <section class="teacher-panel" id="studentsPanel" data-panel="students" hidden aria-labelledby="studentsHeading">

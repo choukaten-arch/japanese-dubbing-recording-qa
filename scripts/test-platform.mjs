@@ -60,10 +60,11 @@ try {
   assert(await page.locator("#preferenceDialog .group-editor").count() === 0, "學生首次設定不應包含組別欄位");
   await page.locator("#preferenceWork").selectOption("kiki");
   await page.waitForFunction(() => document.querySelectorAll("#preferenceRoles input[type=checkbox]").length > 1);
+  assert(await page.locator('#preferenceRoles input[value^="音效＿"]').count() === 8, "魔女宅急便應提供 8 個具時間軸名稱的音效角色");
   await page.locator('#preferenceRoles input[value="琪琪"]').check();
   await page.locator('#preferenceRoles input[value="老夫人"]').check();
   await page.locator("#preferenceForm button[type=submit]").click();
-  await page.waitForFunction(() => !document.querySelector("#studentView").hidden && document.querySelectorAll(".task-item").length > 0 && document.querySelectorAll(".self-practice-item").length === 2);
+  await page.waitForFunction(() => !document.querySelector("#studentView").hidden && document.querySelectorAll(".task-item").length > 0 && document.querySelectorAll(".self-practice-item").length === 2 && document.querySelectorAll(".showcase-card").length >= 2);
   assert((await page.locator("#taskList").innerText()).includes("琪琪台詞練習"), "學生登入後未顯示指派作業");
   assert((await page.locator("#studentPreferenceLabel").innerText()).includes("魔女宅急便 · 琪琪、老夫人"), "學生複數選角沒有保留在任務頁");
   assert((await page.locator("#selfPracticeList").innerText()).includes("琪琪"), "自主練習未顯示琪琪");
@@ -71,6 +72,19 @@ try {
   assert(await page.locator("#studentRadar").isVisible(), "學生端未顯示四面向雷達圖");
   assert(await page.locator(".group-progress-block").count() >= 2, "學生端未顯示分組熟練度");
   assert(await page.locator(".group-member-list .is-current").count() === 1, "學生本人未在分組進度中標示");
+  assert(await page.locator(".group-progress-block.is-own-group .group-member-list").count() === 1, "同組進度未顯示每位成員");
+  assert(await page.locator(".group-progress-block:not(.is-own-group) .group-member-list").count() === 0, "不同組別不應顯示個別學生進度");
+  assert(await page.locator(".showcase-card.is-own-group .showcase-member-list").count() === 1, "同組成果未顯示成員完成度");
+  assert(await page.locator(".showcase-card:not(.is-own-group) .showcase-member-list").count() === 0, "別組成果不應顯示成員明細");
+  const ownShowcaseButton = page.locator(".showcase-card.is-own-group .showcase-play-button");
+  assert(await ownShowcaseButton.count() === 1, "自己的小組成果缺少合成播放按鈕");
+  await ownShowcaseButton.click();
+  await page.waitForFunction(() => {
+    const player = [...portalState.showcasePlayers.values()].find((item) => item.showcase.isOwnGroup);
+    return player && !player.video.paused && player.audioElements.size > 0;
+  });
+  assert(await page.locator(".showcase-card.is-own-group video").evaluate((video) => video.muted), "小組成果播放時原影片未靜音");
+  await ownShowcaseButton.click();
   await page.locator("#changePreference").click();
   await page.waitForFunction(() => document.querySelector("#preferenceDialog")?.open);
   assert(await page.locator('#preferenceRoles input[value="琪琪"]').isChecked(), "重新開啟選角時未保留琪琪");
@@ -150,6 +164,10 @@ try {
   await page.locator('.teacher-tab[data-tab="groups"]').click();
   assert((await page.locator("#groupRows").innerText()).includes("第 1 組"), "老師後台未顯示各組練習概況");
   await page.screenshot({ path: `${outputDir}/teacher-groups-desktop.png`, fullPage: true });
+  await page.locator('.teacher-tab[data-tab="showcase"]').click();
+  await page.waitForFunction(() => document.querySelectorAll("#teacherShowcaseList .showcase-card").length >= 2);
+  assert(await page.locator("#teacherShowcaseList .showcase-card").count() >= 2, "老師端未顯示小組成果驗收");
+  assert(await page.locator("#teacherShowcaseList .showcase-member-list").count() >= 2, "老師端應能查看各組成員完成度");
   await page.locator('.teacher-tab[data-tab="students"]').click();
   const parsedIdentityStudent = await page.evaluate(() => parseStudentImport("1\t416001\t測試姓名\t416\tA123456789")[0]);
   assert(parsedIdentityStudent.initialPin === "56789", "含身分證字號的匯入資料未取最後五碼作為初始 PIN");
@@ -261,10 +279,24 @@ try {
   await mobilePage.waitForFunction(() => !document.querySelector("#recordingReview").hidden);
   const karaokeOverflow = await mobilePage.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
   assert(!karaokeOverflow, "手機卡啦 OK 錄音頁出現水平溢位");
+
+  await mobilePage.goto(`${baseUrl}index.html?work=kiki#line-9001`, { waitUntil: "domcontentloaded" });
+  await mobilePage.waitForFunction(() => document.body.classList.contains("sound-effect-mode"));
+  assert((await mobilePage.locator("#selectedRole").innerText()).startsWith("音效＿"), "音效時間軸未轉成正式角色名稱");
+  assert(await mobilePage.locator(".transcription-field").isHidden(), "音效錄製不應要求逐字辨識");
+  await mobilePage.locator("#startRecording").click();
+  await mobilePage.waitForFunction(() => document.body.classList.contains("is-recording"));
+  await mobilePage.waitForTimeout(700);
+  await mobilePage.locator("#stopRecording").click();
+  await mobilePage.waitForFunction(() => !document.querySelector("#recordingReview").hidden);
+  await mobilePage.locator("#evaluateRecording").click();
+  await mobilePage.waitForFunction(() => document.querySelector("#resultMode")?.textContent.includes("音效時間軸"));
+  assert((await mobilePage.locator("#scoreRows").innerText()).includes("時間軸配合"), "音效評分缺少時間軸配合指標");
+  await mobilePage.screenshot({ path: `${outputDir}/sound-effect-recording-mobile.png`, fullPage: true });
   await mobile.close();
 
   if (errors.length) throw new Error(errors.join("\n"));
-  process.stdout.write("Platform passed karaoke recording and review, delay-free speed scoring, multi-role changes, self-practice, goal modes, radar scoring, history, desktop, and mobile checks.\n");
+  process.stdout.write("Platform passed group showcase privacy and playback, sound-effect roles, karaoke recording, delay-free scoring, assignments, history, desktop, and mobile checks.\n");
 } finally {
   await browser.close();
 }
