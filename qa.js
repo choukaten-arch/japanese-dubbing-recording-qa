@@ -9,6 +9,7 @@ const state = {
   recordingUrl: "",
   recordingStartedAt: 0,
   recordingDuration: 0,
+  recordingEndProgress: 0,
   timerId: null,
   audioContext: null,
   analyser: null,
@@ -20,6 +21,10 @@ const state = {
   finalTranscript: "",
   interimTranscript: "",
   referenceStopAt: null,
+  isPreparing: false,
+  isReviewing: false,
+  karaokeCharacters: [],
+  karaokeSyncSamples: [],
 };
 
 const elements = {};
@@ -29,7 +34,8 @@ function cacheElements() {
     "workMeta", "evaluationMode", "linePosition", "referenceVideo", "videoLoading",
     "previousLine", "playReference", "nextLine", "selectedRole", "selectedTime",
     "selectedJapanese", "selectedTranslation", "recordState", "recordTimer", "waveform",
-    "startRecording", "stopRecording", "recordingPlayback", "recognizedText",
+    "karaokeOverlay", "karaokeJapanese", "karaokeTranslation", "karaokeGuide", "karaokeGuideLabel", "karaokeGuideBar",
+    "startRecording", "stopRecording", "recordingReview", "recordingPlayback", "playSyncedReview", "recognizedText",
     "recognitionStatus", "evaluateRecording", "resetRecording", "resultPanel", "overallScore",
     "resultMode", "performanceRadar", "scoreRows", "textDiff", "issueList", "searchLines", "roleFilter",
     "visibleCount", "lineList", "fatalState",
@@ -106,7 +112,7 @@ function applyFilters() {
 }
 
 function selectLine(index, scroll = false) {
-  if (!state.data.lines[index] || state.mediaRecorder?.state === "recording") return;
+  if (!state.data.lines[index] || state.isPreparing || state.mediaRecorder?.state === "recording") return;
   const previous = elements.lineList.querySelector(".script-line.is-selected");
   previous?.classList.remove("is-selected");
   previous?.removeAttribute("aria-current");
@@ -149,20 +155,158 @@ function seekVideo(time) {
 }
 
 async function playReference() {
+  if (state.isPreparing || state.mediaRecorder?.state === "recording") return;
   const line = currentLine();
+  stopSyncedReview();
+  hideKaraokeOverlay();
   elements.referenceVideo.pause();
+  elements.referenceVideo.muted = false;
+  elements.referenceVideo.controls = true;
   await seekVideo(line.start);
   state.referenceStopAt = line.end;
   await elements.referenceVideo.play().catch(() => {});
 }
 
 function handleReferenceTime() {
+  if (!elements.karaokeOverlay.hidden) updateKaraokeProgress(elements.referenceVideo.currentTime);
   if (state.referenceStopAt === null) return;
   if (elements.referenceVideo.currentTime >= state.referenceStopAt - 0.04) {
+    const shouldStopRecording = state.mediaRecorder?.state === "recording";
+    const shouldStopReview = state.isReviewing;
     elements.referenceVideo.pause();
     elements.referenceVideo.currentTime = state.referenceStopAt;
     state.referenceStopAt = null;
+    if (shouldStopRecording) stopRecording();
+    if (shouldStopReview) stopSyncedReview(false);
   }
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function renderKaraokeOverlay() {
+  const line = currentLine();
+  const fragment = document.createDocumentFragment();
+  state.karaokeCharacters = [...line.japanese].map((character) => {
+    const span = document.createElement("span");
+    span.className = "karaoke-character";
+    span.textContent = character;
+    span.setAttribute("aria-hidden", "true");
+    fragment.append(span);
+    return span;
+  });
+  elements.karaokeJapanese.replaceChildren(fragment);
+  elements.karaokeJapanese.setAttribute("aria-label", line.japanese);
+  elements.karaokeTranslation.textContent = line.translation;
+  elements.karaokeGuide.dataset.state = "waiting";
+  elements.karaokeGuideLabel.textContent = "準備開始";
+  elements.karaokeGuideBar.style.width = "0%";
+  elements.karaokeGuide.style.setProperty("--expected-progress", "0%");
+  elements.karaokeOverlay.hidden = false;
+}
+
+function hideKaraokeOverlay() {
+  elements.karaokeOverlay.hidden = true;
+  elements.karaokeJapanese.replaceChildren();
+  elements.karaokeTranslation.textContent = "";
+  state.karaokeCharacters = [];
+}
+
+function setKaraokeGuide(status, label, spokenProgress, expectedProgress) {
+  elements.karaokeGuide.dataset.state = status;
+  elements.karaokeGuideLabel.textContent = label;
+  elements.karaokeGuideBar.style.width = `${Math.round(Math.max(0, Math.min(1, spokenProgress)) * 100)}%`;
+  elements.karaokeGuide.style.setProperty("--expected-progress", `${Math.round(Math.max(0, Math.min(1, expectedProgress)) * 100)}%`);
+}
+
+function updateKaraokeProgress(videoTime) {
+  const line = currentLine();
+  const duration = Math.max(0.1, line.end - line.start);
+  const expectedProgress = Math.max(0, Math.min(1, (Number(videoTime) - line.start) / duration));
+  const coloredCount = Math.floor(expectedProgress * state.karaokeCharacters.length);
+  state.karaokeCharacters.forEach((character, index) => character.classList.toggle("is-sung", index < coloredCount));
+
+  if (state.isReviewing) {
+    setKaraokeGuide("review", "同步回看中", expectedProgress, expectedProgress);
+    return;
+  }
+  if (state.mediaRecorder?.state !== "recording") return;
+  const target = normalizeJapanese(line.japanese);
+  const recognized = normalizeJapanese(`${state.finalTranscript}${state.interimTranscript}`);
+  if (!state.recognition) {
+    setKaraokeGuide("waiting", "字幕同步中", expectedProgress, expectedProgress);
+    return;
+  }
+  const spokenProgress = Math.min(1, recognized.length / Math.max(1, target.length));
+  if (!recognized) {
+    setKaraokeGuide("waiting", expectedProgress < 0.18 ? "準備開口" : "等待辨識", 0, expectedProgress);
+    return;
+  }
+  const difference = spokenProgress - expectedProgress;
+  if (Math.abs(difference) <= 0.14) setKaraokeGuide("on-time", "跟上節奏", spokenProgress, expectedProgress);
+  else if (difference < 0) setKaraokeGuide("behind", "稍慢一點", spokenProgress, expectedProgress);
+  else setKaraokeGuide("ahead", "稍快一點", spokenProgress, expectedProgress);
+}
+
+function captureKaraokeSyncSample() {
+  if (state.mediaRecorder?.state !== "recording") return;
+  const line = currentLine();
+  const target = normalizeJapanese(line.japanese);
+  const recognized = normalizeJapanese(`${state.finalTranscript}${state.interimTranscript}`);
+  if (!target || !recognized) return;
+  const expectedProgress = Math.max(0, Math.min(1, (elements.referenceVideo.currentTime - line.start) / Math.max(0.1, line.end - line.start)));
+  const spokenProgress = Math.min(1, recognized.length / target.length);
+  const previous = state.karaokeSyncSamples.at(-1);
+  if (previous && Math.abs(previous.expectedProgress - expectedProgress) < 0.035) return;
+  state.karaokeSyncSamples.push({ expectedProgress, spokenProgress });
+}
+
+function karaokeFollowScore() {
+  const samples = state.karaokeSyncSamples.filter((sample) => sample.expectedProgress >= 0.08);
+  if (!samples.length) return null;
+  const scores = samples.map((sample) => {
+    const difference = Math.abs(sample.spokenProgress - sample.expectedProgress);
+    return difference <= 0.22 ? 100 : Math.max(55, 100 - (difference - 0.22) * 115);
+  });
+  return Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
+}
+
+function stopSyncedReview(pauseVideo = true) {
+  if (!state.isReviewing) return;
+  state.isReviewing = false;
+  document.body.classList.remove("is-reviewing");
+  elements.recordingPlayback.pause();
+  if (pauseVideo) elements.referenceVideo.pause();
+  elements.referenceVideo.controls = true;
+  state.referenceStopAt = null;
+  elements.playSyncedReview.innerHTML = '<span aria-hidden="true">▶</span>搭配影片回看';
+  setKaraokeGuide("complete", "回看完成", 1, 1);
+}
+
+async function toggleSyncedReview() {
+  if (!state.recordingBlob || state.isPreparing || state.mediaRecorder?.state === "recording") return;
+  if (state.isReviewing) {
+    stopSyncedReview();
+    return;
+  }
+  const line = currentLine();
+  elements.referenceVideo.pause();
+  elements.recordingPlayback.pause();
+  await seekVideo(line.start);
+  elements.referenceVideo.muted = true;
+  elements.referenceVideo.controls = false;
+  elements.recordingPlayback.currentTime = 0;
+  renderKaraokeOverlay();
+  state.isReviewing = true;
+  state.referenceStopAt = line.end;
+  document.body.classList.add("is-reviewing");
+  elements.playSyncedReview.innerHTML = '<span aria-hidden="true">■</span>停止同步回看';
+  setKaraokeGuide("review", "同步回看中", 0, 0);
+  await Promise.allSettled([
+    elements.referenceVideo.play(),
+    elements.recordingPlayback.play(),
+  ]);
 }
 
 function chooseMimeType() {
@@ -226,6 +370,8 @@ function createRecognition() {
     state.interimTranscript = interim;
     elements.recognizedText.value = `${state.finalTranscript}${state.interimTranscript}`.trim();
     elements.recognitionStatus.textContent = interim ? "辨識中" : "已取得辨識結果";
+    captureKaraokeSyncSample();
+    updateKaraokeProgress(elements.referenceVideo.currentTime);
   };
   recognition.onerror = () => {
     elements.recognitionStatus.textContent = "自動辨識未完成，可手動輸入";
@@ -234,11 +380,17 @@ function createRecognition() {
 }
 
 async function startRecording() {
+  if (state.isPreparing || state.mediaRecorder?.state === "recording") return;
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
     elements.recordState.textContent = "此瀏覽器不支援錄音";
     return;
   }
   resetRecording();
+  state.isPreparing = true;
+  elements.startRecording.disabled = true;
+  elements.evaluateRecording.disabled = true;
+  elements.resetRecording.disabled = true;
+  document.body.classList.add("is-preparing");
   try {
     state.mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
@@ -258,22 +410,54 @@ async function startRecording() {
       if (event.data.size) state.chunks.push(event.data);
     };
     state.mediaRecorder.onstop = finishRecording;
+
+    const line = currentLine();
+    renderKaraokeOverlay();
+    elements.referenceVideo.pause();
+    elements.referenceVideo.muted = true;
+    elements.referenceVideo.controls = false;
+    await seekVideo(line.start);
+    for (let count = 3; count >= 1; count -= 1) {
+      elements.recordState.textContent = `倒數 ${count}`;
+      elements.recordTimer.textContent = String(count);
+      setKaraokeGuide("waiting", `倒數 ${count}`, 0, 0);
+      await wait(700);
+    }
+
     state.mediaRecorder.start(200);
 
     state.recognition = createRecognition();
     try { state.recognition?.start(); } catch {}
 
+    state.isPreparing = false;
+    document.body.classList.remove("is-preparing");
     state.recordingStartedAt = performance.now();
     state.timerId = setInterval(updateRecordingTimer, 100);
+    state.referenceStopAt = line.end;
     elements.recordState.textContent = "錄音中";
+    elements.recordTimer.textContent = "00:00.0";
     elements.startRecording.disabled = true;
     elements.stopRecording.disabled = false;
     elements.evaluateRecording.disabled = true;
     elements.resetRecording.disabled = true;
     document.body.classList.add("is-recording");
     drawWaveform();
+    setKaraokeGuide("waiting", state.recognition ? "準備開口" : "字幕同步中", 0, 0);
+    await elements.referenceVideo.play().catch(() => {});
   } catch (error) {
-    elements.recordState.textContent = error.name === "NotAllowedError" ? "未取得麥克風權限" : "無法啟動麥克風";
+    const message = error.name === "NotAllowedError" ? "未取得麥克風權限" : "無法啟動麥克風";
+    state.isPreparing = false;
+    document.body.classList.remove("is-preparing");
+    state.mediaStream?.getTracks().forEach((track) => track.stop());
+    state.audioContext?.close();
+    elements.referenceVideo.pause();
+    elements.referenceVideo.muted = false;
+    elements.referenceVideo.controls = true;
+    hideKaraokeOverlay();
+    elements.startRecording.disabled = false;
+    elements.stopRecording.disabled = true;
+    elements.recordState.textContent = message;
+    elements.recordTimer.textContent = "00:00.0";
     elements.recognitionStatus.textContent = "請檢查瀏覽器麥克風設定";
   }
 }
@@ -281,11 +465,16 @@ async function startRecording() {
 function updateRecordingTimer() {
   state.recordingDuration = (performance.now() - state.recordingStartedAt) / 1000;
   elements.recordTimer.textContent = `${formatTime(state.recordingDuration, false)}.${Math.floor((state.recordingDuration % 1) * 10)}`;
+  updateKaraokeProgress(elements.referenceVideo.currentTime);
 }
 
 function stopRecording() {
   if (state.mediaRecorder?.state !== "recording") return;
   state.recordingDuration = (performance.now() - state.recordingStartedAt) / 1000;
+  state.recordingEndProgress = Math.max(0, Math.min(1, (elements.referenceVideo.currentTime - currentLine().start) / Math.max(0.1, currentLine().end - currentLine().start)));
+  elements.referenceVideo.pause();
+  elements.referenceVideo.controls = true;
+  state.referenceStopAt = null;
   state.mediaRecorder.stop();
   try { state.recognition?.stop(); } catch {}
   state.mediaStream?.getTracks().forEach((track) => track.stop());
@@ -304,30 +493,47 @@ function finishRecording() {
   state.recordingUrl = URL.createObjectURL(state.recordingBlob);
   elements.recordingPlayback.src = state.recordingUrl;
   elements.recordingPlayback.hidden = false;
+  elements.recordingReview.hidden = false;
+  elements.playSyncedReview.disabled = false;
   elements.recordState.textContent = "錄音完成";
   elements.recordTimer.textContent = `${state.recordingDuration.toFixed(1)} 秒`;
   elements.startRecording.disabled = false;
   elements.evaluateRecording.disabled = false;
   elements.resetRecording.disabled = false;
+  const finalProgress = Math.max(0, Math.min(1, (elements.referenceVideo.currentTime - currentLine().start) / Math.max(0.1, currentLine().end - currentLine().start)));
+  setKaraokeGuide("complete", "錄音完成", finalProgress, finalProgress);
   if (!elements.recognizedText.value.trim()) elements.recognitionStatus.textContent = "可手動輸入辨識結果";
 }
 
 function resetRecording() {
   if (state.mediaRecorder?.state === "recording") return;
+  stopSyncedReview();
+  state.isPreparing = false;
+  document.body.classList.remove("is-preparing", "is-reviewing");
   clearInterval(state.timerId);
   cancelAnimationFrame(state.waveformFrame);
   state.mediaStream?.getTracks().forEach((track) => track.stop());
+  elements.referenceVideo.pause();
+  elements.referenceVideo.muted = false;
+  elements.referenceVideo.controls = true;
+  state.referenceStopAt = null;
   if (state.recordingUrl) URL.revokeObjectURL(state.recordingUrl);
   state.recordingBlob = null;
   state.recordingUrl = "";
   state.recordingDuration = 0;
+  state.recordingEndProgress = 0;
   state.waveformSamples = 0;
   state.waveformSquares = 0;
   state.clippingSamples = 0;
   state.finalTranscript = "";
   state.interimTranscript = "";
+  state.karaokeSyncSamples = [];
+  elements.recordingPlayback.pause();
   elements.recordingPlayback.removeAttribute("src");
   elements.recordingPlayback.hidden = true;
+  elements.recordingReview.hidden = true;
+  elements.playSyncedReview.disabled = true;
+  elements.playSyncedReview.innerHTML = '<span aria-hidden="true">▶</span>搭配影片回看';
   elements.recognizedText.value = "";
   elements.recognitionStatus.textContent = "尚未錄音";
   elements.recordState.textContent = "準備錄音";
@@ -337,6 +543,7 @@ function resetRecording() {
   elements.evaluateRecording.disabled = true;
   elements.resetRecording.disabled = true;
   elements.resultPanel.hidden = true;
+  hideKaraokeOverlay();
   drawIdleWaveform();
 }
 
@@ -441,7 +648,7 @@ function estimatePitch(samples, sampleRate) {
 
 async function analyzeRecordingAudio() {
   const fallbackRms = state.waveformSamples ? Math.sqrt(state.waveformSquares / state.waveformSamples) : 0;
-  const fallback = { rms: fallbackRms, voicedRatio: 0, pitchRange: 0, pitchMovement: 0 };
+  const fallback = { rms: fallbackRms, voicedRatio: 0, voiceSpanRatio: 0, pitchRange: 0, pitchMovement: 0 };
   if (!state.recordingBlob || !window.AudioContext) return fallback;
   let context;
   try {
@@ -463,6 +670,10 @@ async function analyzeRecordingAudio() {
     const rmsValues = frames.map((item) => item.rms);
     const peakRms = Math.max(...rmsValues, fallbackRms);
     const threshold = Math.max(0.006, peakRms * 0.16);
+    const activeFrameIndexes = frames.map((item, index) => item.rms >= threshold ? index : -1).filter((index) => index >= 0);
+    const voiceSpanRatio = activeFrameIndexes.length
+      ? (activeFrameIndexes.at(-1) - activeFrameIndexes[0] + 1) / frames.length
+      : 0;
     const pitches = frames
       .filter((item) => item.rms >= threshold)
       .map((item) => estimatePitch(item.frame, buffer.sampleRate))
@@ -472,6 +683,7 @@ async function analyzeRecordingAudio() {
     return {
       rms: rmsValues.length ? Math.sqrt(rmsValues.reduce((sum, value) => sum + value * value, 0) / rmsValues.length) : fallbackRms,
       voicedRatio: frames.length ? pitches.length / frames.length : 0,
+      voiceSpanRatio,
       pitchRange: semitones.length > 2 ? percentile(semitones, 0.9) - percentile(semitones, 0.1) : 0,
       pitchMovement: movements.length ? movements.reduce((sum, value) => sum + value, 0) / movements.length : 0,
     };
@@ -488,11 +700,16 @@ async function localEvaluation() {
   const actual = normalizeJapanese(elements.recognizedText.value);
   const distance = actual ? levenshtein(target, actual) : target.length;
   const accuracy = Math.round(Math.max(0, 1 - distance / Math.max(target.length, actual.length, 1)) * 100);
-  const targetDuration = line.end - line.start;
-  const ratio = state.recordingDuration / Math.max(targetDuration, 0.1);
-  const timing = Math.round(Math.max(0, 100 - Math.abs(Math.log(Math.max(ratio, 0.05))) * 105));
   const audioFeatures = await analyzeRecordingAudio();
   const rms = Math.max(audioFeatures.rms, state.waveformSamples ? Math.sqrt(state.waveformSquares / state.waveformSamples) : 0);
+  const followScore = karaokeFollowScore();
+  const voiceSpanScore = rms < 0.008
+    ? 55
+    : Math.round(Math.min(100, 58 + Math.min(1, audioFeatures.voiceSpanRatio / 0.62) * 42));
+  const timelineCoverageScore = Math.round(Math.min(100, 55 + Math.min(1, state.recordingEndProgress / 0.85) * 45));
+  const timing = followScore === null
+    ? Math.round(voiceSpanScore * 0.55 + timelineCoverageScore * 0.45)
+    : Math.round(followScore * 0.8 + voiceSpanScore * 0.2);
   const clipping = state.waveformSamples ? state.clippingSamples / state.waveformSamples : 0;
   let audio = rms < 0.008 ? 30 : rms < 0.025 ? 65 : rms <= 0.22 ? 95 : 78;
   if (clipping > 0.01) audio = Math.max(35, audio - 30);
@@ -509,9 +726,12 @@ async function localEvaluation() {
   else if (accuracy >= 96) issues.push("辨識台詞與標準台詞高度一致。");
   else if (accuracy >= 80) issues.push("有少量漏字、增字或辨識差異，請查看台詞比對標色。");
   else issues.push("台詞差異較多，建議逐段重聽示範後再錄一次。");
-  if (ratio < 0.78) issues.push(`錄音比示範短 ${Math.abs(state.recordingDuration - targetDuration).toFixed(1)} 秒，可能太快或句尾提前停止。`);
-  else if (ratio > 1.3) issues.push(`錄音比示範長 ${(state.recordingDuration - targetDuration).toFixed(1)} 秒，請檢查停頓與拖音。`);
-  else issues.push("錄音長度落在示範台詞的合理範圍。");
+  if (followScore !== null && timing >= 88) issues.push("配音進度大致跟上變色字幕，語速穩定。");
+  else if (followScore !== null && timing >= 72) issues.push("大部分台詞能跟上字幕，少數位置略有提前或落後。");
+  else if (followScore !== null) issues.push("部分台詞沒有跟上變色字幕，可用同步回看確認停頓位置。");
+  else if (audioFeatures.voiceSpanRatio >= 0.55) issues.push("未取得即時辨識進度，已依實際發聲區段估算語速。");
+  else issues.push("可分析的發聲區段較短，語速分數暫以較寬鬆標準估算。");
+  issues.push("語速計分不包含倒數時間與開始、停止按鍵延遲。");
   if (rms < 0.008) issues.push("麥克風音量很小或接近靜音，請靠近麥克風再試一次。");
   else if (clipping > 0.01) issues.push("錄音有爆音跡象，請稍微遠離麥克風。");
   else issues.push("錄音音量可供分析。");
@@ -538,6 +758,7 @@ async function apiEvaluation() {
   form.append("start", String(line.start));
   form.append("end", String(line.end));
   form.append("recordingDuration", String(state.recordingDuration));
+  form.append("karaokeFollowScore", String(karaokeFollowScore() ?? ""));
   const response = await fetch(window.QA_CONFIG.evaluationApiUrl, { method: "POST", body: form });
   if (!response.ok) throw new Error(`API ${response.status}`);
   return response.json();
@@ -576,6 +797,7 @@ function renderResult(result) {
 
 async function evaluateRecording() {
   if (!state.recordingBlob) return;
+  stopSyncedReview();
   elements.evaluateRecording.disabled = true;
   elements.evaluateRecording.textContent = "評分中";
   let result;
@@ -608,6 +830,10 @@ function bindEvents() {
   elements.referenceVideo.addEventListener("loadedmetadata", () => { elements.videoLoading.hidden = true; });
   elements.startRecording.addEventListener("click", startRecording);
   elements.stopRecording.addEventListener("click", stopRecording);
+  elements.playSyncedReview.addEventListener("click", toggleSyncedReview);
+  elements.recordingPlayback.addEventListener("ended", () => {
+    if (state.isReviewing) elements.karaokeGuideLabel.textContent = "錄音已播完";
+  });
   elements.resetRecording.addEventListener("click", resetRecording);
   elements.evaluateRecording.addEventListener("click", evaluateRecording);
   elements.searchLines.addEventListener("input", applyFilters);

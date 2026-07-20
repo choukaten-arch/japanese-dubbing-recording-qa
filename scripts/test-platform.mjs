@@ -84,9 +84,20 @@ try {
 
   await page.locator("#startRecording").click();
   await page.waitForFunction(() => document.body.classList.contains("is-recording"));
+  assert(await page.locator("#referenceVideo").evaluate((video) => video.muted), "卡啦 OK 錄音時影片未靜音");
+  assert(await page.locator("#karaokeOverlay").isVisible(), "錄音時未顯示卡啦 OK 字幕");
   await page.waitForTimeout(800);
+  assert(await page.locator(".karaoke-character.is-sung").count() > 0, "字幕沒有隨影片時間變色");
   await page.locator("#stopRecording").click();
   await page.waitForFunction(() => !document.querySelector("#recordingPlayback").hidden);
+  assert(await page.locator("#recordingReview").isVisible(), "錄音完成後未顯示我的錄音播放器");
+  assert(!(await page.locator("#playSyncedReview").isDisabled()), "錄音完成後無法啟用同步回看");
+  await page.locator("#playSyncedReview").click();
+  await page.waitForFunction(() => document.body.classList.contains("is-reviewing"));
+  assert(await page.locator("#referenceVideo").evaluate((video) => video.muted), "同步回看時影片未靜音");
+  assert(!(await page.locator("#recordingPlayback").evaluate((audio) => audio.paused)), "同步回看沒有播放學生錄音");
+  await page.locator("#playSyncedReview").click();
+  await page.waitForFunction(() => !document.body.classList.contains("is-reviewing"));
   const target = await page.locator("#selectedJapanese").innerText();
   await page.locator("#recognizedText").fill(target);
   await page.locator("#evaluateRecording").click();
@@ -95,6 +106,9 @@ try {
   assert((await page.locator("#bridgeProgressValue").innerText()).startsWith("1 / 5"), "作業完成進度未更新");
   assert((await page.locator("#scoreRows").innerText()).includes("重音"), "評分明細缺少重音分數");
   assert((await page.locator("#scoreRows").innerText()).includes("語調"), "評分明細缺少語調分數");
+  const speedScore = Number(await page.locator(".score-row").filter({ hasText: "語速" }).locator("strong").innerText());
+  assert(speedScore >= 50, "語速仍被錄音按鍵延遲過度扣分");
+  assert((await page.locator("#issueList").innerText()).includes("不包含倒數時間"), "語速說明未排除開始與停止按鍵延遲");
   const radarPixels = await page.locator("#performanceRadar").evaluate((canvas) => {
     const pixels = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
     let colored = 0;
@@ -184,6 +198,7 @@ try {
   await context.close();
 
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await mobile.grantPermissions(["microphone"], { origin: new URL(baseUrl).origin });
   const mobilePage = await mobile.newPage();
   monitor(mobilePage, "mobile platform");
   await mobilePage.goto(`${baseUrl}portal.html?demo=1`, { waitUntil: "domcontentloaded" });
@@ -227,10 +242,29 @@ try {
   const teacherOverflow = await mobilePage.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
   assert(!teacherOverflow, "老師後台手機版出現水平溢位");
   await mobilePage.screenshot({ path: `${outputDir}/teacher-dashboard-mobile.png`, fullPage: true });
+
+  await mobilePage.goto(`${baseUrl}index.html?work=kiki`, { waitUntil: "domcontentloaded" });
+  await mobilePage.waitForFunction(() => document.querySelectorAll(".script-line").length > 0);
+  await mobilePage.locator("#startRecording").click();
+  await mobilePage.waitForFunction(() => document.body.classList.contains("is-recording"));
+  assert(await mobilePage.locator("#karaokeOverlay").isVisible(), "手機錄音頁未顯示卡啦 OK 字幕");
+  await mobilePage.waitForTimeout(700);
+  assert(await mobilePage.locator(".karaoke-character.is-sung").count() > 0, "手機版字幕沒有隨影片時間變色");
+  const karaokeFitsVideo = await mobilePage.locator("#karaokeOverlay").evaluate((overlay) => {
+    const shell = overlay.parentElement.getBoundingClientRect();
+    const bounds = overlay.getBoundingClientRect();
+    return bounds.left >= shell.left - 1 && bounds.right <= shell.right + 1 && bounds.top >= shell.top - 1 && bounds.bottom <= shell.bottom + 1;
+  });
+  assert(karaokeFitsVideo, "手機卡啦 OK 字幕超出影片範圍");
+  await mobilePage.screenshot({ path: `${outputDir}/karaoke-recording-mobile.png`, fullPage: true });
+  await mobilePage.locator("#stopRecording").click();
+  await mobilePage.waitForFunction(() => !document.querySelector("#recordingReview").hidden);
+  const karaokeOverflow = await mobilePage.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+  assert(!karaokeOverflow, "手機卡啦 OK 錄音頁出現水平溢位");
   await mobile.close();
 
   if (errors.length) throw new Error(errors.join("\n"));
-  process.stdout.write("Platform passed multi-role changes, self-practice, two goal modes, four-aspect radar scoring, grouped mastery, history, desktop, and mobile checks.\n");
+  process.stdout.write("Platform passed karaoke recording and review, delay-free speed scoring, multi-role changes, self-practice, goal modes, radar scoring, history, desktop, and mobile checks.\n");
 } finally {
   await browser.close();
 }

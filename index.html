@@ -41,6 +41,16 @@
         <div class="video-shell">
           <video id="referenceVideo" controls playsinline preload="metadata"></video>
           <div class="video-loading" id="videoLoading">載入示範影片</div>
+          <div class="karaoke-overlay" id="karaokeOverlay" hidden>
+            <div class="karaoke-caption">
+              <p class="karaoke-japanese" id="karaokeJapanese" lang="ja"></p>
+              <p class="karaoke-translation" id="karaokeTranslation" lang="zh-Hant"></p>
+            </div>
+            <div class="karaoke-guide" id="karaokeGuide" data-state="waiting">
+              <span id="karaokeGuideLabel">準備開始</span>
+              <span class="karaoke-guide-track" aria-hidden="true"><i id="karaokeGuideBar"></i></span>
+            </div>
+          </div>
         </div>
         <div class="reference-controls">
           <button class="icon-button" id="previousLine" type="button" title="上一句" aria-label="上一句">⏮</button>
@@ -57,16 +67,22 @@
       <section class="record-panel" aria-labelledby="recordHeading">
         <div class="panel-heading">
           <h2 id="recordHeading">本句錄音</h2>
-          <span class="privacy-note">錄音檔不儲存</span>
+          <span class="privacy-note">本次錄音可回放</span>
         </div>
         <div class="recorder-stage">
           <div class="record-status"><span id="recordState">準備錄音</span><strong id="recordTimer">00:00.0</strong></div>
           <canvas id="waveform" width="800" height="160" aria-label="麥克風音量波形"></canvas>
           <div class="record-actions">
-            <button class="record-button" id="startRecording" type="button"><span class="record-symbol" aria-hidden="true">●</span>開始錄音</button>
+            <button class="record-button" id="startRecording" type="button"><span class="record-symbol" aria-hidden="true">●</span>開始配音</button>
             <button class="stop-button" id="stopRecording" type="button" disabled><span aria-hidden="true">■</span>停止</button>
           </div>
-          <audio id="recordingPlayback" controls hidden></audio>
+          <div class="recording-review" id="recordingReview" hidden>
+            <div class="recording-review-heading">
+              <strong>我的錄音</strong>
+              <button class="command-button" id="playSyncedReview" type="button" disabled><span aria-hidden="true">▶</span>搭配影片回看</button>
+            </div>
+            <audio id="recordingPlayback" controls preload="metadata" aria-label="播放我的錄音" hidden></audio>
+          </div>
         </div>
 
         <div class="transcription-field">
