@@ -681,7 +681,7 @@ function groupShowcases_(token) {
       }))
       .filter((segment) => segment.resultKey)
       .sort((left, right) => left.lineIndex - right.lineIndex);
-    const canSeeMembers = isTeacher || bucket.groupName === viewerGroupName;
+    const canSeeMemberScores = isTeacher || bucket.groupName === viewerGroupName;
     const memberRows = bucket.members.map((studentId) => progressByStudent[studentId]).filter(Boolean);
     return {
       showcaseId: Utilities.base64EncodeWebSafe(key, Utilities.Charset.UTF_8).replace(/=+$/, ""),
@@ -694,14 +694,9 @@ function groupShowcases_(token) {
       completionRate: lineIndices.length ? Math.round(segments.length / lineIndices.length * 100) : 0,
       averageMastery: memberRows.length ? roundOne_(average_(memberRows.map((row) => row.masteryPercent))) : 0,
       isOwnGroup: Boolean(!isTeacher && bucket.groupName === viewerGroupName),
-      canSeeMembers,
-      members: canSeeMembers ? memberRows.map((row) => ({
-        studentId: row.studentId,
-        name: row.name,
-        masteryPercent: row.masteryPercent,
-        practicedLines: row.practicedLines,
-        totalLines: row.totalLines,
-      })) : [],
+      canSeeMembers: true,
+      canSeeMemberScores,
+      members: rankedMemberRows_(memberRows, canSeeMemberScores),
       segments,
       updatedAt: segments.reduce((latest, segment) => segment.updatedAt > latest ? segment.updatedAt : latest, ""),
     };
@@ -1561,7 +1556,13 @@ function buildGroupSummaries_(studentRows) {
     const name = student.groupName || "未分組";
     if (!groups[name]) groups[name] = { groupName: name, students: [], masteryTotal: 0, practicedLines: 0, totalLines: 0, totalAttempts: 0, totalDurationSec: 0 };
     const group = groups[name];
-    group.students.push({ studentId: student.studentId, name: student.name, masteryPercent: student.masteryPercent });
+    group.students.push({
+      studentId: student.studentId,
+      name: student.name,
+      masteryPercent: student.masteryPercent,
+      practicedLines: student.practicedLines,
+      totalLines: student.totalLines,
+    });
     group.masteryTotal += student.masteryPercent;
     group.practicedLines += student.practicedLines;
     group.totalLines += student.totalLines;
@@ -1584,15 +1585,6 @@ function buildStudentGroupProgress_(studentRows, currentStudent) {
   const ownGroupName = String(currentStudent && currentStudent.group_name || "").trim();
   return buildGroupSummaries_(studentRows).map((group) => {
     const isOwnGroup = Boolean(ownGroupName && group.groupName === ownGroupName);
-    const members = isOwnGroup
-      ? studentRows.filter((student) => student.groupName === ownGroupName).map((student) => ({
-        studentId: student.studentId,
-        name: student.name,
-        masteryPercent: student.masteryPercent,
-        practicedLines: student.practicedLines,
-        totalLines: student.totalLines,
-      }))
-      : [];
     return {
       groupName: group.groupName,
       memberCount: group.memberCount,
@@ -1601,9 +1593,38 @@ function buildStudentGroupProgress_(studentRows, currentStudent) {
       totalLines: group.totalLines,
       completionRate: group.totalLines ? roundOne_(group.practicedLines / group.totalLines * 100) : 0,
       isOwnGroup,
-      members,
+      canSeeMemberScores: isOwnGroup,
+      members: rankedMemberRows_(group.students, isOwnGroup),
     };
   });
+}
+
+function masteryTierKey_(value) {
+  const score = clampScore_(value);
+  if (score >= 90) return "gold";
+  if (score >= 80) return "silver";
+  if (score >= 70) return "bronze";
+  if (score >= 60) return "iron";
+  return "rust";
+}
+
+function rankedMemberRows_(rows, canSeeScores) {
+  return (rows || []).slice().sort((left, right) => clampScore_(right.masteryPercent) - clampScore_(left.masteryPercent)
+    || String(left.name || "").localeCompare(String(right.name || "")))
+    .map((row, index) => {
+      const member = {
+        studentId: String(row.studentId || ""),
+        name: String(row.name || ""),
+        masteryTier: masteryTierKey_(row.masteryPercent),
+        completionOrder: index + 1,
+      };
+      if (canSeeScores) {
+        member.masteryPercent = clampScore_(row.masteryPercent);
+        member.practicedLines = Math.max(0, Number(row.practicedLines) || 0);
+        member.totalLines = Math.max(0, Number(row.totalLines) || 0);
+      }
+      return member;
+    });
 }
 
 function average_(values) {

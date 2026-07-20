@@ -95,6 +95,67 @@ function masteryText(value) {
   return `${Math.max(0, Math.min(100, Number(value) || 0)).toFixed(1).replace(/\.0$/, "")}%`;
 }
 
+const MASTERY_TIERS = {
+  gold: { label: "金色", order: 5 },
+  silver: { label: "銀色", order: 4 },
+  bronze: { label: "銅色", order: 3 },
+  iron: { label: "鐵色", order: 2 },
+  rust: { label: "生鏽色", order: 1 },
+};
+
+function masteryTierKey(value) {
+  const score = Math.max(0, Math.min(100, Number(value) || 0));
+  if (score >= 90) return "gold";
+  if (score >= 80) return "silver";
+  if (score >= 70) return "bronze";
+  if (score >= 60) return "iron";
+  return "rust";
+}
+
+function memberMasteryTier(member) {
+  return Object.hasOwn(MASTERY_TIERS, member?.masteryTier)
+    ? member.masteryTier
+    : masteryTierKey(member?.masteryPercent);
+}
+
+function sortedMembersByMastery(members) {
+  return (members || []).map((member, sourceIndex) => ({ member, sourceIndex })).sort((left, right) => {
+    const leftHasScore = left.member.masteryPercent !== null && left.member.masteryPercent !== undefined
+      && Number.isFinite(Number(left.member.masteryPercent));
+    const rightHasScore = right.member.masteryPercent !== null && right.member.masteryPercent !== undefined
+      && Number.isFinite(Number(right.member.masteryPercent));
+    if (leftHasScore && rightHasScore && Number(left.member.masteryPercent) !== Number(right.member.masteryPercent)) {
+      return Number(right.member.masteryPercent) - Number(left.member.masteryPercent);
+    }
+    const leftOrder = Number(left.member.completionOrder);
+    const rightOrder = Number(right.member.completionOrder);
+    if (Number.isFinite(leftOrder) && Number.isFinite(rightOrder) && leftOrder !== rightOrder) return leftOrder - rightOrder;
+    const tierDifference = MASTERY_TIERS[memberMasteryTier(right.member)].order - MASTERY_TIERS[memberMasteryTier(left.member)].order;
+    if (tierDifference) return tierDifference;
+    return String(left.member.name || "").localeCompare(String(right.member.name || ""), "zh-Hant")
+      || left.sourceIndex - right.sourceIndex;
+  }).map(({ member }) => member);
+}
+
+function renderMemberRanking(members, { showScores = false, currentId = "", listClass = "" } = {}) {
+  const orderedMembers = sortedMembersByMastery(members);
+  if (!orderedMembers.length) return "";
+  const classes = ["member-rank-list", listClass].filter(Boolean).join(" ");
+  return `<ol class="${classes}">${orderedMembers.map((member, index) => {
+    const tier = memberMasteryTier(member);
+    const tierLabel = MASTERY_TIERS[tier].label;
+    const hasScore = showScores && member.masteryPercent !== null && member.masteryPercent !== undefined
+      && Number.isFinite(Number(member.masteryPercent));
+    const score = hasScore ? masteryText(member.masteryPercent) : "";
+    const accessibleLabel = `${member.name}，${tierLabel}${hasScore ? `，完成度 ${score}` : ""}`;
+    return `<li class="member-rank-item is-tier-${tier}${member.studentId === currentId ? " is-current" : ""}" aria-label="${escapePortalHtml(accessibleLabel)}" title="${escapePortalHtml(accessibleLabel)}">
+      <span class="member-rank-position" aria-hidden="true">${index + 1}</span>
+      <span class="member-rank-name">${escapePortalHtml(member.name)}</span>
+      ${hasScore ? `<span class="member-rank-score">${score}</span>` : ""}
+    </li>`;
+  }).join("")}</ol>`;
+}
+
 function profileRoles(profile) {
   const values = Array.isArray(profile?.roles) && profile.roles.length ? profile.roles : [profile?.role];
   return [...new Set(values.map((role) => String(role || "").trim()).filter(Boolean))];
@@ -336,6 +397,7 @@ function demoGroupProgress() {
     const practicedLines = members.reduce((sum, member) => sum + Number(member.practicedLines || 0), 0);
     const totalLines = members.reduce((sum, member) => sum + Number(member.totalLines || 0), 0);
     const isOwnGroup = groupName === ownGroupName;
+    const orderedMembers = sortedMembersByMastery(members);
     return {
       groupName,
       memberCount: members.length,
@@ -344,13 +406,16 @@ function demoGroupProgress() {
       totalLines,
       completionRate: totalLines ? Math.round(practicedLines / totalLines * 100) : 0,
       isOwnGroup,
-      members: isOwnGroup ? members.map((member) => ({
+      canSeeMemberScores: isOwnGroup,
+      members: orderedMembers.map((member, index) => ({
         studentId: member.studentId,
         name: member.name,
-        masteryPercent: member.masteryPercent,
-        practicedLines: member.practicedLines,
-        totalLines: member.totalLines,
-      })) : [],
+        masteryTier: masteryTierKey(member.masteryPercent),
+        completionOrder: index + 1,
+        masteryPercent: isOwnGroup ? member.masteryPercent : null,
+        practicedLines: isOwnGroup ? member.practicedLines : null,
+        totalLines: isOwnGroup ? member.totalLines : null,
+      })),
     };
   });
 }
@@ -388,6 +453,15 @@ async function demoGroupShowcases(isTeacher = false) {
   const otherData = await fetchWorkData(profile.workSlug === "ponyo" ? "totoro" : "ponyo");
   const ownMembers = demoClassProgress().filter((student) => student.groupName === demoStore().value.groupName);
   const otherMembers = demoClassProgress().filter((student) => student.groupName === "第 2 組");
+  const demoMembers = (members, canSeeScores) => sortedMembersByMastery(members).map((member, index) => ({
+    studentId: member.studentId,
+    name: member.name,
+    masteryTier: masteryTierKey(member.masteryPercent),
+    completionOrder: index + 1,
+    masteryPercent: canSeeScores ? member.masteryPercent : null,
+    practicedLines: canSeeScores ? member.practicedLines : null,
+    totalLines: canSeeScores ? member.totalLines : null,
+  }));
   return {
     showcases: [
       {
@@ -402,7 +476,8 @@ async function demoGroupShowcases(isTeacher = false) {
         averageMastery: ownMembers.reduce((sum, member) => sum + member.masteryPercent, 0) / ownMembers.length,
         isOwnGroup: !isTeacher,
         canSeeMembers: true,
-        members: ownMembers.map((member) => ({ studentId: member.studentId, name: member.name, masteryPercent: member.masteryPercent, practicedLines: member.practicedLines, totalLines: member.totalLines })),
+        canSeeMemberScores: true,
+        members: demoMembers(ownMembers, true),
         segments: ownData.lines.slice(0, 2).map((line, index) => ({ resultKey: `demo-own-${index}`, lineIndex: line.index, role: line.role, score: 82 - index * 3, studentName: ownMembers[index % ownMembers.length]?.name || "測試學生", updatedAt: new Date().toISOString() })),
         updatedAt: new Date().toISOString(),
       },
@@ -417,8 +492,9 @@ async function demoGroupShowcases(isTeacher = false) {
         completionRate: Math.round(1 / otherData.lines.length * 100),
         averageMastery: 37.5,
         isOwnGroup: false,
-        canSeeMembers: isTeacher,
-        members: isTeacher ? otherMembers.map((member) => ({ studentId: member.studentId, name: member.name, masteryPercent: member.masteryPercent, practicedLines: member.practicedLines, totalLines: member.totalLines })) : [],
+        canSeeMembers: true,
+        canSeeMemberScores: isTeacher,
+        members: demoMembers(otherMembers, isTeacher),
         segments: [{ resultKey: "demo-other-0", lineIndex: otherData.lines[0].index, role: otherData.lines[0].role, score: 76, studentName: "", updatedAt: new Date().toISOString() }],
         updatedAt: new Date().toISOString(),
       },
@@ -725,6 +801,7 @@ function groupProgressFromStudents(students) {
     const practicedLines = members.reduce((sum, member) => sum + Number(member.practicedLines || 0), 0);
     const totalLines = members.reduce((sum, member) => sum + Number(member.totalLines || 0), 0);
     const isOwnGroup = Boolean(ownGroupName && groupName === ownGroupName);
+    const orderedMembers = sortedMembersByMastery(members);
     return {
       groupName,
       memberCount: members.length,
@@ -733,7 +810,14 @@ function groupProgressFromStudents(students) {
       totalLines,
       completionRate: totalLines ? Math.round(practicedLines / totalLines * 100) : 0,
       isOwnGroup,
-      members: isOwnGroup ? members : [],
+      canSeeMemberScores: isOwnGroup,
+      members: orderedMembers.map((member, index) => ({
+        studentId: member.studentId,
+        name: member.name,
+        masteryTier: masteryTierKey(member.masteryPercent),
+        completionOrder: index + 1,
+        masteryPercent: isOwnGroup ? member.masteryPercent : null,
+      })),
     };
   });
 }
@@ -747,15 +831,15 @@ function renderClassProgress(groups) {
   }
   const currentId = portalState.session?.account?.studentId;
   portalElements.classProgressGroups.innerHTML = groups.map((group) => {
-    const members = group.isOwnGroup ? group.members || [] : [];
+    const members = group.members || [];
+    const showScores = group.canSeeMemberScores ?? group.isOwnGroup;
     return `<section class="group-progress-block${group.isOwnGroup ? " is-own-group" : ""}" aria-label="${escapePortalHtml(group.groupName)}">
       <header class="group-progress-heading"><strong>${escapePortalHtml(group.groupName)}${group.isOwnGroup ? '<span class="own-group-label">我的組別</span>' : ""}</strong><span>熟練度 ${masteryText(group.averageMastery)}</span></header>
       <div class="group-completion"><span class="mastery-track" aria-label="小組完成度 ${masteryText(group.completionRate)}"><span style="width:${Math.max(0, Math.min(100, Number(group.completionRate) || 0))}%"></span></span><strong>${masteryText(group.completionRate)}</strong></div>
-      ${group.isOwnGroup ? `<ul class="group-member-list">${members.map((member) => `<li class="${member.studentId === currentId ? "is-current" : ""}">
-        <span class="group-member-name">${escapePortalHtml(member.name)}</span>
-        <span class="mastery-track" aria-label="熟練度 ${masteryText(member.masteryPercent)}"><span style="width:${Math.max(0, Math.min(100, Number(member.masteryPercent) || 0))}%"></span></span>
-        <span class="mastery-value">${masteryText(member.masteryPercent)}</span>
-      </li>`).join("")}</ul>` : `<div class="group-summary-only"><span>${group.memberCount} 人</span><span>${group.practicedLines} / ${group.totalLines} 段</span></div>`}
+      <div class="group-member-area">
+        <div class="group-summary-meta"><span>${group.memberCount} 人</span><span>${group.practicedLines} / ${group.totalLines} 段</span></div>
+        ${renderMemberRanking(members, { showScores, currentId, listClass: "group-member-list" })}
+      </div>
     </section>`;
   }).join("");
 }
@@ -894,12 +978,10 @@ async function toggleShowcasePlayback(showcaseId) {
 }
 
 function showcaseMemberList(showcase) {
-  if (!showcase.canSeeMembers || !showcase.members?.length) return "";
-  return `<ul class="showcase-member-list">${showcase.members.map((member) => `<li>
-    <span>${escapePortalHtml(member.name)}</span>
-    <span class="mastery-track" aria-label="完成度 ${masteryText(member.masteryPercent)}"><span style="width:${Math.max(0, Math.min(100, Number(member.masteryPercent) || 0))}%"></span></span>
-    <strong>${masteryText(member.masteryPercent)}</strong>
-  </li>`).join("")}</ul>`;
+  if (!showcase.members?.length) return "";
+  const showScores = showcase.canSeeMemberScores
+    ?? (showcase.isOwnGroup || portalState.session?.account?.type === "teacher");
+  return renderMemberRanking(showcase.members, { showScores, listClass: "showcase-member-list" });
 }
 
 async function renderGroupShowcases(showcases, container) {
@@ -1342,7 +1424,7 @@ function renderGroupRows(groups) {
     <td>${group.practicedLines} / ${group.totalLines}</td>
     <td>${group.totalAttempts}</td>
     <td>${escapePortalHtml(displayDuration(group.totalDurationSec))}</td>
-    <td class="group-members">${escapePortalHtml((group.students || []).map((student) => student.name).join("、"))}</td>
+    <td class="group-members">${renderMemberRanking(group.students || [], { showScores: true, listClass: "teacher-member-list" })}</td>
   </tr>`).join("") : '<tr><td colspan="7">尚未設定學生組別。</td></tr>';
 }
 

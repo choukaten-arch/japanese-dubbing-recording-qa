@@ -73,9 +73,17 @@ try {
   assert(await page.locator(".group-progress-block").count() >= 2, "學生端未顯示分組熟練度");
   assert(await page.locator(".group-member-list .is-current").count() === 1, "學生本人未在分組進度中標示");
   assert(await page.locator(".group-progress-block.is-own-group .group-member-list").count() === 1, "同組進度未顯示每位成員");
-  assert(await page.locator(".group-progress-block:not(.is-own-group) .group-member-list").count() === 0, "不同組別不應顯示個別學生進度");
+  assert(await page.locator(".group-progress-block:not(.is-own-group) .group-member-list").count() >= 1, "不同組別未顯示成員姓名");
+  assert(await page.locator(".group-progress-block:not(.is-own-group) .member-rank-score").count() === 0, "不同組別不應顯示個別學生精確分數");
+  const allGroupsHaveNames = await page.locator(".group-progress-block").evaluateAll((groups) => groups.every((group) => group.querySelectorAll(".member-rank-name").length > 0));
+  assert(allGroupsHaveNames, "每一組都應顯示成員姓名");
+  const ownGroupNames = await page.locator(".group-progress-block.is-own-group .member-rank-name").allTextContents();
+  assert(ownGroupNames.join("|") === "示範組員乙|示範組員甲|測試學生", "組員姓名未依完成度由高至低、由左至右排列");
+  const tierKeys = await page.evaluate(() => [90, 80, 70, 60, 59.9].map((score) => masteryTierKey(score)));
+  assert(tierKeys.join("|") === "gold|silver|bronze|iron|rust", "姓名完成度顏色級距不正確");
   assert(await page.locator(".showcase-card.is-own-group .showcase-member-list").count() === 1, "同組成果未顯示成員完成度");
-  assert(await page.locator(".showcase-card:not(.is-own-group) .showcase-member-list").count() === 0, "別組成果不應顯示成員明細");
+  assert(await page.locator(".showcase-card:not(.is-own-group) .showcase-member-list").count() >= 1, "別組成果未顯示成員姓名");
+  assert(await page.locator(".showcase-card:not(.is-own-group) .member-rank-score").count() === 0, "別組成果不應顯示個別學生精確分數");
   const ownShowcaseButton = page.locator(".showcase-card.is-own-group .showcase-play-button");
   assert(await ownShowcaseButton.count() === 1, "自己的小組成果缺少合成播放按鈕");
   await ownShowcaseButton.click();
@@ -163,6 +171,8 @@ try {
   assert((await page.locator("#recentResultRows").innerText()).includes("測試學生"), "老師後台未顯示最近逐句結果");
   await page.locator('.teacher-tab[data-tab="groups"]').click();
   assert((await page.locator("#groupRows").innerText()).includes("第 1 組"), "老師後台未顯示各組練習概況");
+  assert(await page.locator("#groupRows .teacher-member-list").count() >= 2, "老師端未顯示各組成員排名");
+  assert(await page.locator("#groupRows .member-rank-score").count() >= 4, "老師端成員排名未顯示精確完成度");
   await page.screenshot({ path: `${outputDir}/teacher-groups-desktop.png`, fullPage: true });
   await page.locator('.teacher-tab[data-tab="showcase"]').click();
   await page.waitForFunction(() => document.querySelectorAll("#teacherShowcaseList .showcase-card").length >= 2);

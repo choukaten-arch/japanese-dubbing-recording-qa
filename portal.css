@@ -312,14 +312,25 @@ input:focus, select:focus, textarea:focus { border-color: var(--green-700); box-
 .own-group-label { padding: 2px 6px; border-radius: 4px; background: var(--gold-soft); color: #75531b !important; font-size: 10px !important; font-weight: 900; }
 .group-completion { padding: 10px 13px; display: grid; grid-template-columns: minmax(0, 1fr) 48px; align-items: center; gap: 10px; border-top: 1px solid #e3e9e6; }
 .group-completion strong { color: var(--green-900); font-size: 12px; text-align: right; }
-.group-summary-only { min-height: 42px; padding: 8px 13px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #e3e9e6; color: var(--muted); font-size: 12px; }
-.group-member-list { margin: 0; padding: 0; list-style: none; }
-.group-member-list li { min-height: 46px; padding: 8px 13px; display: grid; grid-template-columns: minmax(90px, 1fr) minmax(110px, 1.4fr) 52px; align-items: center; gap: 10px; border-top: 1px solid #e3e9e6; }
-.group-member-list li.is-current { box-shadow: inset 4px 0 var(--gold); }
-.group-member-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 700; }
+.group-member-area { border-top: 1px solid #e3e9e6; }
+.group-summary-meta { min-height: 34px; padding: 7px 13px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 11px; }
 .mastery-track { height: 8px; overflow: hidden; border-radius: 4px; background: #e3e9ed; }
 .mastery-track span { height: 100%; display: block; background: var(--action-gradient); }
-.mastery-value { color: var(--green-900); font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 900; text-align: right; }
+
+.mastery-tier-legend { margin: -4px 0 12px; display: flex; flex-wrap: wrap; gap: 5px 13px; color: var(--muted); font-size: 11px; font-weight: 800; }
+.mastery-tier-legend span { display: inline-flex; align-items: center; gap: 5px; color: var(--tier-color); }
+.mastery-tier-legend span::before { width: 8px; height: 8px; border: 1px solid var(--tier-border); border-radius: 2px; background: var(--tier-soft); content: ""; }
+.is-tier-gold { --tier-color: #795900; --tier-border: #d3a523; --tier-soft: #fff2b8; }
+.is-tier-silver { --tier-color: #56636f; --tier-border: #a4afb8; --tier-soft: #edf1f4; }
+.is-tier-bronze { --tier-color: #87491f; --tier-border: #b96f38; --tier-soft: #f8dfca; }
+.is-tier-iron { --tier-color: #405657; --tier-border: #748b8b; --tier-soft: #e3ecea; }
+.is-tier-rust { --tier-color: #934831; --tier-border: #bc6c53; --tier-soft: #f8e0d8; }
+.member-rank-list { margin: 0; padding: 9px 13px 13px; display: flex; flex-flow: row wrap; align-items: center; gap: 7px 8px; list-style: none; }
+.member-rank-item { min-width: 0; min-height: 34px; padding: 5px 8px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--tier-border); border-radius: 6px; background: var(--tier-soft); }
+.member-rank-item.is-current { box-shadow: 0 0 0 2px rgba(240,184,79,0.45); }
+.member-rank-position { width: 18px; height: 18px; flex: 0 0 18px; display: grid; place-items: center; border-radius: 4px; background: rgba(255,255,255,0.72); color: var(--tier-color); font-size: 10px; font-weight: 900; }
+.member-rank-name { min-width: 0; overflow: hidden; color: var(--tier-color); font-size: 13px; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+.member-rank-score { padding-left: 6px; border-left: 1px solid var(--tier-border); color: var(--tier-color); font-size: 11px; font-variant-numeric: tabular-nums; font-weight: 900; }
 
 .group-showcase-section { margin: 0 0 30px; }
 .showcase-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
@@ -338,11 +349,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--green-700); box-
 .showcase-controls .primary-button { min-height: 38px; padding: 0 14px; display: inline-flex; align-items: center; gap: 7px; }
 .showcase-controls > span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .showcase-card > .progress-track { width: calc(100% - 26px); margin: 0 13px 13px; }
-.showcase-member-list { margin: 0; padding: 0; border-top: 1px solid var(--line); list-style: none; }
-.showcase-member-list li { min-height: 42px; padding: 7px 13px; display: grid; grid-template-columns: minmax(80px, 1fr) minmax(90px, 1.4fr) 48px; align-items: center; gap: 9px; }
-.showcase-member-list li + li { border-top: 1px solid #edf1ef; }
-.showcase-member-list li > span:first-child { overflow: hidden; color: #394943; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.showcase-member-list li > strong { color: var(--green-900); font-size: 11px; text-align: right; }
+.showcase-member-list { border-top: 1px solid var(--line); }
 
 .notice-bar {
   margin: 0 0 20px;
@@ -487,7 +494,8 @@ td a { color: var(--blue); font-weight: 700; }
 .group-editor input { min-height: 32px; padding: 0 8px; font-size: 12px; }
 .mastery-cell { min-width: 120px; }
 .mastery-cell .mastery-track { margin-top: 5px; }
-.group-members { min-width: 220px; white-space: normal; line-height: 1.7; }
+.group-members { min-width: 320px; white-space: normal; }
+.group-members .teacher-member-list { min-width: 290px; padding: 0; }
 
 .student-import { margin-bottom: 20px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; box-shadow: var(--shadow-soft); }
 .student-import summary { padding: 13px 16px; cursor: pointer; color: var(--green-900); font-weight: 800; }
@@ -631,13 +639,17 @@ td a { color: var(--blue); font-weight: 700; }
   .preference-content { grid-template-columns: 92px minmax(0, 1fr); gap: 15px; padding: 16px; }
   .preference-content > img { width: 92px; }
   .preference-role-options { grid-template-columns: 1fr; }
-  .group-member-list li { grid-template-columns: minmax(80px, 1fr) 90px 46px; gap: 7px; }
+  .mastery-tier-legend { gap: 5px 10px; }
+  .member-rank-list { padding: 8px 10px 11px; gap: 6px; }
+  .member-rank-item { max-width: 100%; padding: 5px 7px; gap: 5px; }
+  .member-rank-position { display: none; }
+  .member-rank-name { font-size: 12px; }
+  .member-rank-score { padding-left: 5px; font-size: 10px; }
   .showcase-heading { min-height: 60px; padding: 9px 11px; }
   .showcase-heading h3 { font-size: 15px; }
   .showcase-heading > strong { font-size: 19px; }
   .showcase-now { bottom: 38px; }
   .showcase-controls { padding: 8px 10px; }
-  .showcase-member-list li { grid-template-columns: minmax(72px, 1fr) 82px 43px; gap: 6px; padding: 7px 10px; }
   .history-content { padding: 14px; }
   .history-metrics { grid-template-columns: 1fr 1fr; }
   .history-metrics div { min-height: 72px; padding: 10px; }
