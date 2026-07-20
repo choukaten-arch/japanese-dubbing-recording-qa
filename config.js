@@ -6,6 +6,7 @@ const QA_WORKS = Object.freeze([
   { slug: "totoro", title: "龍貓", navTitle: "龍貓", lineCount: 54 },
 ]);
 
+const QA_RELEASE = "20260721.1";
 const SOUND_EFFECT_LINE_BASE = 9001;
 
 function parseCueClock(value) {
@@ -77,6 +78,7 @@ function extendWorkDataWithSoundEffects(source) {
 }
 
 window.QA_WORKS = QA_WORKS;
+window.QA_RELEASE = QA_RELEASE;
 window.QA_SOUND_EFFECT_LINE_BASE = SOUND_EFFECT_LINE_BASE;
 window.soundEffectRoleName = soundEffectRoleName;
 window.extendWorkDataWithSoundEffects = extendWorkDataWithSoundEffects;
@@ -109,7 +111,7 @@ const nativeReplaceState = history.replaceState.bind(history);
 window.QA_CONFIG = Object.freeze({
   evaluationApiUrl: "",
   productionSiteBase: "https://choukaten-arch.github.io/japanese-dubbing-practice/",
-  dataFile: `data/${activeWork.slug}.json`,
+  dataFile: `data/${activeWork.slug}.json?v=${QA_RELEASE}`,
   activeWork,
   works: QA_WORKS,
 });

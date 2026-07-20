@@ -896,9 +896,23 @@ async function initialize() {
   cacheElements();
   drawIdleWaveform();
   try {
-    const response = await fetch(window.QA_CONFIG.dataFile || "data/kiki.json");
-    if (!response.ok) throw new Error(`Data ${response.status}`);
-    const raw = await response.json();
+    const dataUrl = window.QA_CONFIG.dataFile || "data/kiki.json";
+    let raw;
+    let lastError;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const retryUrl = new URL(dataUrl, location.href);
+        if (attempt) retryUrl.searchParams.set("retry", String(Date.now()));
+        const response = await fetch(retryUrl, { cache: "no-store" });
+        if (!response.ok) throw new Error(`Data ${response.status}`);
+        raw = await response.json();
+        break;
+      } catch (error) {
+        lastError = error;
+        if (!attempt) await wait(300);
+      }
+    }
+    if (!raw) throw lastError || new Error("QA data unavailable");
     state.data = window.extendWorkDataWithSoundEffects?.(raw) || raw;
     renderHeader();
     renderLineList();

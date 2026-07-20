@@ -1285,7 +1285,8 @@ function populateWorkSelect() {
 
 async function fetchWorkData(slug) {
   if (portalState.workData.has(slug)) return portalState.workData.get(slug);
-  const response = await fetch(`data/${encodeURIComponent(slug)}.json`);
+  const release = encodeURIComponent(window.QA_RELEASE || "latest");
+  const response = await fetch(`data/${encodeURIComponent(slug)}.json?v=${release}`, { cache: "no-store" });
   if (!response.ok) throw new Error("作品台詞資料載入失敗。");
   const raw = await response.json();
   const data = window.extendWorkDataWithSoundEffects?.(raw) || raw;

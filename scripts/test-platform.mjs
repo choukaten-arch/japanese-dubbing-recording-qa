@@ -50,6 +50,12 @@ try {
   });
   await page.reload({ waitUntil: "domcontentloaded" });
 
+  const portalRelease = await page.evaluate(() => window.QA_RELEASE);
+  assert(/^\d{8}\.\d+$/.test(portalRelease), "入口頁缺少靜態資源版號");
+  const portalAssetVersions = await page.locator('link[rel="stylesheet"], script[src]').evaluateAll((elements) => (
+    elements.map((element) => new URL(element.href || element.src).searchParams.get("v"))
+  ));
+  assert(portalAssetVersions.every((version) => version === portalRelease), "入口頁載入了不同版本的 CSS 或 JavaScript");
   assert(await page.locator(".poster-board figure").count() === 5, "登入頁應顯示五部作品");
   assert(await page.locator("#studentPin").getAttribute("minlength") === "5", "學生 PIN 欄位應接受 5 碼");
   await page.locator("#studentId").fill("demo");
@@ -101,6 +107,11 @@ try {
 
   await page.locator(".task-action a").click();
   await page.waitForFunction(() => [...document.querySelectorAll(".script-line")].filter((element) => !element.hidden).length === 5);
+  assert(await page.evaluate(() => new URL(window.QA_CONFIG.dataFile, location.href).searchParams.get("v") === window.QA_RELEASE), "逐句頁作品資料未使用目前版號");
+  const qaAssetVersions = await page.locator('link[rel="stylesheet"], script[src]').evaluateAll((elements) => (
+    elements.map((element) => new URL(element.href || element.src).searchParams.get("v"))
+  ));
+  assert(qaAssetVersions.every((version) => version === portalRelease), "逐句頁載入了不同版本的 CSS 或 JavaScript");
   assert((await page.locator(".assignment-context").innerText()).includes("琪琪"), "逐句頁缺少作業資訊");
   assert(await page.locator(".work-switcher:visible").count() === 0, "作業模式不應顯示作品切換列");
 
