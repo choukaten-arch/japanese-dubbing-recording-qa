@@ -7,12 +7,13 @@
   <meta name="description" content="日語配音逐句錄音與評分 QA 測試站">
   <title>錄音評分 QA｜日語配音練習站</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="qa.css?v=20260721.5">
-  <link rel="stylesheet" href="platform-bridge.css?v=20260721.5">
-  <script src="config.js?v=20260721.5"></script>
-  <script src="radar-chart.js?v=20260721.5"></script>
-  <script src="qa.js?v=20260721.5" defer></script>
-  <script src="platform-bridge.js?v=20260721.5" defer></script>
+  <link rel="stylesheet" href="qa.css?v=20260721.6">
+  <link rel="stylesheet" href="platform-bridge.css?v=20260721.6">
+  <script src="config.js?v=20260721.6"></script>
+  <script src="radar-chart.js?v=20260721.6"></script>
+  <script src="sound-demo.js?v=20260721.6" defer></script>
+  <script src="qa.js?v=20260721.6" defer></script>
+  <script src="platform-bridge.js?v=20260721.6" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -43,7 +44,7 @@
           <div class="video-loading" id="videoLoading">載入示範影片</div>
           <div class="karaoke-overlay" id="karaokeOverlay" hidden>
             <div class="karaoke-caption">
-              <p class="karaoke-japanese" id="karaokeJapanese" lang="ja"></p>
+              <div class="karaoke-japanese" id="karaokeJapanese" lang="ja"></div>
               <p class="karaoke-translation" id="karaokeTranslation" lang="zh-Hant"></p>
             </div>
             <div class="karaoke-guide" id="karaokeGuide" data-state="waiting">

@@ -332,6 +332,16 @@ try {
   await mobilePage.waitForFunction(() => document.body.classList.contains("sound-effect-mode"));
   assert((await mobilePage.locator("#selectedRole").innerText()).startsWith("音效＿"), "音效時間軸未轉成正式角色名稱");
   assert(await mobilePage.locator(".transcription-field").isHidden(), "音效錄製不應要求逐字辨識");
+  assert(await mobilePage.locator("#karaokeOverlay").isVisible(), "音效示範按鈕沒有在錄音前顯示於影片上");
+  assert(await mobilePage.locator(".sound-demo-button").count() >= 5, "音效擬聲語沒有全部做成試聽按鈕");
+  const demoKinds = await mobilePage.evaluate(() => ["コツコツ", "ザーザー", "カーン"].map((word) => QASoundDemo.profileFor(word).kind));
+  assert(new Set(demoKinds).size === 3, "木頭、雨聲與鐘聲仍共用同一種示範音");
+  await mobilePage.locator(".sound-beat.is-target").first().click();
+  await mobilePage.waitForFunction(() => document.querySelector(".sound-demo-button.is-playing"));
+  assert((await mobilePage.locator("#karaokeGuideLabel").innerText()) === "示範音播放中", "點擊擬聲語後沒有進入示範音狀態");
+  await mobilePage.screenshot({ path: `${outputDir}/sound-effect-demo-mobile.png`, fullPage: true });
+  await mobilePage.evaluate(() => stopSoundDemo(true));
+  assert(await mobilePage.locator(".sound-demo-button.is-playing").count() === 0, "停止示範音後按鈕仍維持播放狀態");
   const soundTimingChecks = await mobilePage.evaluate(() => {
     const activity = (onset, duration = 0.3) => Array.from({ length: 60 }, (_, index) => {
       const start = index * 0.05;
@@ -356,6 +366,7 @@ try {
   assert(soundTimingChecks.silent.onsetScore === 0, "未錄到音效時不應取得出聲時機分數");
   await mobilePage.locator("#startRecording").click();
   await mobilePage.waitForFunction(() => document.body.classList.contains("is-recording"));
+  assert(await mobilePage.locator(".sound-demo-button").first().evaluate((button) => getComputedStyle(button).pointerEvents === "none"), "錄音期間仍可播放示範音，可能被收進錄音");
   assert(await mobilePage.locator(".sound-beat").count() >= 4, "音效模式沒有顯示時間節拍");
   assert((await mobilePage.locator(".sound-cue-time").innerText()).includes("効果音"), "音效模式沒有以日文標示提示時間");
   assert(/[ぁ-ヿ]/.test(await mobilePage.locator(".sound-effect-word").innerText()), "影片內沒有顯示日文擬聲語");

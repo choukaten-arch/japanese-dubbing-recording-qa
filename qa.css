@@ -307,6 +307,14 @@ h1 {
   text-shadow: 0 2px 3px rgba(0,0,0,0.96), 2px 0 0 rgba(0,0,0,0.8), -2px 0 0 rgba(0,0,0,0.8);
   transition: color 100ms linear, transform 100ms ease, text-shadow 100ms linear, opacity 100ms linear;
 }
+.sound-effect-word.sound-demo-button {
+  width: max-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 1px 7px 2px;
+  border: 0;
+  background: transparent;
+}
 .sound-effect-word.is-active { color: #ffd466; transform: scale(1.08); text-shadow: 0 2px 3px rgba(0,0,0,0.96), 0 0 10px rgba(231,94,105,0.95); }
 .sound-effect-word.is-finished { opacity: 0.62; transform: none; }
 .sound-cue-time { display: block; color: rgba(255,255,255,0.82); font-size: 10px; font-variant-numeric: tabular-nums; letter-spacing: 0; }
@@ -339,6 +347,19 @@ h1 {
 .sound-beat.is-target { border-color: rgba(255,212,102,0.72); }
 .sound-beat.is-passed { color: #26302d; border-color: #ffd466; background: #ffd466; }
 .sound-beat.is-current { color: #fff; border-color: #fff; background: #e75e69; box-shadow: 0 0 0 3px rgba(255,212,102,0.3), 0 0 12px rgba(231,94,105,0.72); }
+.sound-demo-button {
+  appearance: none;
+  pointer-events: auto;
+  cursor: pointer;
+  font: inherit;
+}
+.sound-demo-button::after { margin-left: 0.42em; color: currentColor; font-size: 0.62em; content: "▶"; opacity: 0.72; }
+.sound-demo-button:hover { color: #fff; border-color: #fff; }
+.sound-demo-button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.sound-demo-button.is-playing { color: #172622; border-color: #ffd466; background: #ffd466; box-shadow: 0 0 0 3px rgba(231,94,105,0.4), 0 0 13px rgba(255,212,102,0.9); transform: scale(1.05); }
+.sound-effect-word.sound-demo-button.is-playing { color: #ffd466; background: transparent; text-shadow: 0 2px 3px rgba(0,0,0,0.96), 0 0 12px rgba(231,94,105,0.95); }
+.is-preparing .sound-demo-button,
+.is-recording .sound-demo-button { pointer-events: none; cursor: default; }
 .karaoke-translation { margin: 0; color: rgba(255,255,255,0.86); font-size: 12px; font-weight: 700; line-height: 1.45; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
 
 .karaoke-guide {
