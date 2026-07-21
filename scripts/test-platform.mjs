@@ -332,15 +332,57 @@ try {
   await mobilePage.waitForFunction(() => document.body.classList.contains("sound-effect-mode"));
   assert((await mobilePage.locator("#selectedRole").innerText()).startsWith("音效＿"), "音效時間軸未轉成正式角色名稱");
   assert(await mobilePage.locator(".transcription-field").isHidden(), "音效錄製不應要求逐字辨識");
+  const soundTimingChecks = await mobilePage.evaluate(() => {
+    const activity = (onset, duration = 0.3) => Array.from({ length: 60 }, (_, index) => {
+      const start = index * 0.05;
+      return { start, end: start + 0.05, active: start >= onset && start < onset + duration, rms: 0.08 };
+    });
+    const point = { start: 10, end: 13.4, cueStart: 11.2, cueEnd: 11.85, cueIsRange: false };
+    const range = { start: 20, end: 32, cueStart: 20, cueEnd: 32, cueIsRange: true };
+    const sparseActivity = Array.from({ length: 120 }, (_, index) => {
+      const start = index * 0.1;
+      return { start, end: start + 0.1, active: start < 0.8, rms: 0.08 };
+    });
+    return {
+      exact: soundTimingMetrics(point, { activeStartSec: 1.2, activity: activity(1.2) }),
+      late: soundTimingMetrics(point, { activeStartSec: 2, activity: activity(2) }),
+      sparse: soundTimingMetrics(range, { activeStartSec: 0, activity: sparseActivity }),
+      silent: soundTimingMetrics(point, { activeStartSec: null, activity: [] }),
+    };
+  });
+  assert(soundTimingChecks.exact.onsetScore >= 98, "準時音效未取得高分");
+  assert(soundTimingChecks.late.onsetScore <= soundTimingChecks.exact.onsetScore - 50, "音效晚拍扣分仍太鬆散");
+  assert(soundTimingChecks.sparse.coverageScore <= 25, "持續音效只完成開頭卻取得過高區間分數");
+  assert(soundTimingChecks.silent.onsetScore === 0, "未錄到音效時不應取得出聲時機分數");
   await mobilePage.locator("#startRecording").click();
   await mobilePage.waitForFunction(() => document.body.classList.contains("is-recording"));
+  assert(await mobilePage.locator(".sound-beat").count() >= 4, "音效模式沒有顯示時間節拍");
+  assert((await mobilePage.locator(".sound-cue-time").innerText()).includes("出聲區間"), "音效模式沒有標示出聲區間");
   await mobilePage.waitForTimeout(700);
+  assert((await mobilePage.locator("#karaokeGuideLabel").innerText()).includes("現在持續出聲"), "音效進入指定時間後沒有即時出聲提示");
+  assert(await mobilePage.locator(".sound-beat.is-current").count() === 1, "目前音效節拍沒有醒目標示");
   await mobilePage.locator("#stopRecording").click();
   await mobilePage.waitForFunction(() => !document.querySelector("#recordingReview").hidden);
   await mobilePage.locator("#evaluateRecording").click();
-  await mobilePage.waitForFunction(() => document.querySelector("#resultMode")?.textContent.includes("音效時間軸"));
-  assert((await mobilePage.locator("#scoreRows").innerText()).includes("時間軸配合"), "音效評分缺少時間軸配合指標");
+  await mobilePage.waitForFunction(() => document.querySelector("#resultMode")?.textContent.includes("音效節拍"));
+  const soundScores = await mobilePage.locator("#scoreRows").innerText();
+  assert(soundScores.includes("出聲時機"), "音效評分缺少出聲時機指標");
+  assert(soundScores.includes("區間節拍"), "持續音效評分缺少區間節拍指標");
+  assert((await mobilePage.locator("#issueList").innerText()).includes("節拍"), "音效評語沒有回報節拍誤差");
+  assert(Number(await mobilePage.locator("#overallScore").innerText()) <= 55, "只錄到第一格的持續音效得分仍然過高");
   await mobilePage.screenshot({ path: `${outputDir}/sound-effect-recording-mobile.png`, fullPage: true });
+
+  await mobilePage.goto(`${baseUrl}index.html?work=kiki#line-9004`, { waitUntil: "domcontentloaded" });
+  await mobilePage.waitForFunction(() => document.body.classList.contains("sound-effect-mode"));
+  await mobilePage.evaluate(() => {
+    renderKaraokeOverlay();
+    updateSoundEffectBeatProgress(currentLine().cueStart, currentLine());
+  });
+  assert((await mobilePage.locator(".sound-cue-time").innerText()).includes("出聲拍點"), "單次音效沒有標示精確出聲拍點");
+  assert(await mobilePage.locator('.sound-beat-row[data-mode="point"] .sound-beat').count() === 4, "單次音效缺少三拍準備與出聲拍");
+  assert(await mobilePage.locator(".sound-beat.is-target.is-current").count() === 1, "單次音效到點時沒有標示出聲拍");
+  assert((await mobilePage.locator("#karaokeGuideLabel").innerText()) === "現在出聲", "單次音效到點時沒有顯示出聲指令");
+  await mobilePage.screenshot({ path: `${outputDir}/sound-effect-point-mobile.png`, fullPage: true });
   await mobile.close();
 
   if (errors.length) throw new Error(errors.join("\n"));

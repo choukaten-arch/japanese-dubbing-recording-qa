@@ -6,7 +6,7 @@ const QA_WORKS = Object.freeze([
   { slug: "totoro", title: "龍貓", navTitle: "龍貓", lineCount: 54 },
 ]);
 
-const QA_RELEASE = "20260721.3";
+const QA_RELEASE = "20260721.4";
 const QA_RECORDING_TIMING = Object.freeze({
   previousCueMaxSeconds: 4,
   fallbackPreRollSeconds: 2.1,
@@ -24,15 +24,24 @@ function soundCueBounds(timeLabel, duration) {
   const points = String(timeLabel || "").split(/\s*[–—-]\s*/).map(parseCueClock).filter(Number.isFinite);
   const limit = Math.max(0, Number(duration) || 0);
   if (points.length > 1) {
+    const cueStart = Math.max(0, points[0]);
+    const cueEnd = Math.max(cueStart + 0.5, limit ? Math.min(limit, points[1]) : points[1]);
     return {
-      start: Math.max(0, points[0]),
-      end: Math.max(points[0] + 0.5, limit ? Math.min(limit, points[1]) : points[1]),
+      start: cueStart,
+      end: cueEnd,
+      cueStart,
+      cueEnd,
+      cueIsRange: true,
     };
   }
-  const cue = points[0] || 0;
+  const cueStart = Math.max(0, points[0] || 0);
+  const cueEnd = limit ? Math.min(limit, cueStart + 0.65) : cueStart + 0.65;
   return {
-    start: Math.max(0, cue - 1.2),
-    end: limit ? Math.min(limit, cue + 2.2) : cue + 2.2,
+    start: Math.max(0, cueStart - 1.2),
+    end: limit ? Math.min(limit, cueStart + 2.2) : cueStart + 2.2,
+    cueStart,
+    cueEnd,
+    cueIsRange: false,
   };
 }
 
@@ -50,6 +59,9 @@ function extendWorkDataWithSoundEffects(source) {
       displayIndex: `S${cueIndex + 1}`,
       start: bounds.start,
       end: bounds.end,
+      cueStart: bounds.cueStart,
+      cueEnd: bounds.cueEnd,
+      cueIsRange: bounds.cueIsRange,
       role: soundEffectRoleName(cue),
       japanese: String(cue.sound || "音效"),
       japaneseHtml: String(cue.sound || "音效"),

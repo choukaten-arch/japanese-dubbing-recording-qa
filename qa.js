@@ -25,6 +25,7 @@ const state = {
   isReviewing: false,
   karaokeCharacters: [],
   karaokeSyncSamples: [],
+  soundBeatElements: [],
 };
 
 const elements = {};
@@ -293,20 +294,75 @@ async function finishRecordingPreRoll(line, preRoll) {
   }
 }
 
+function soundCueWindow(line) {
+  const cueStart = Number.isFinite(Number(line.cueStart)) ? Number(line.cueStart) : Number(line.start) || 0;
+  const defaultEnd = line.cueIsRange ? Number(line.end) : cueStart + 0.65;
+  const cueEnd = Math.max(cueStart + 0.1, Number.isFinite(Number(line.cueEnd)) ? Number(line.cueEnd) : defaultEnd);
+  return { cueStart, cueEnd, isRange: Boolean(line.cueIsRange) };
+}
+
+function renderSoundEffectBeats(line) {
+  const { cueStart, cueEnd, isRange } = soundCueWindow(line);
+  const title = document.createElement("span");
+  title.className = "sound-effect-title";
+  title.textContent = line.soundName;
+  const timing = document.createElement("span");
+  timing.className = "sound-cue-time";
+  timing.textContent = isRange
+    ? `出聲區間 ${formatTime(cueStart)}–${formatTime(cueEnd)}`
+    : `出聲拍點 ${formatTime(cueStart)}`;
+  const row = document.createElement("span");
+  row.className = "sound-beat-row";
+  row.dataset.mode = isRange ? "range" : "point";
+  const beats = [];
+
+  if (isRange) {
+    const count = Math.max(4, Math.min(12, Math.ceil((cueEnd - cueStart) / 3)));
+    const step = (cueEnd - cueStart) / count;
+    for (let index = 0; index < count; index += 1) {
+      beats.push({ start: cueStart + step * index, end: cueStart + step * (index + 1), target: true });
+    }
+  } else {
+    const leadStart = Math.min(cueStart, Number(line.start) || cueStart);
+    const leadStep = Math.max(0.1, (cueStart - leadStart) / 3);
+    for (let index = 0; index < 3; index += 1) {
+      beats.push({ start: leadStart + leadStep * index, end: leadStart + leadStep * (index + 1), target: false });
+    }
+    beats.push({ start: cueStart, end: cueEnd, target: true });
+  }
+
+  row.style.setProperty("--sound-beat-count", String(beats.length));
+  state.soundBeatElements = beats.map((beat, index) => {
+    const element = document.createElement("span");
+    element.className = `sound-beat${beat.target ? " is-target" : " is-prep"}`;
+    element.textContent = beat.target && !isRange ? "響" : String(index + 1);
+    element.setAttribute("aria-hidden", "true");
+    row.append(element);
+    return { ...beat, element };
+  });
+  elements.karaokeJapanese.replaceChildren(title, timing, row);
+  elements.karaokeJapanese.setAttribute("aria-label", `${line.soundName}，${timing.textContent}`);
+}
+
 function renderKaraokeOverlay() {
   const line = currentLine();
-  const fragment = document.createDocumentFragment();
-  const displayText = line.isSoundEffect ? `${line.soundName}｜${line.cueTime}` : line.japanese;
-  state.karaokeCharacters = [...displayText].map((character) => {
-    const span = document.createElement("span");
-    span.className = "karaoke-character";
-    span.textContent = character;
-    span.setAttribute("aria-hidden", "true");
-    fragment.append(span);
-    return span;
-  });
-  elements.karaokeJapanese.replaceChildren(fragment);
-  elements.karaokeJapanese.setAttribute("aria-label", displayText);
+  if (line.isSoundEffect) {
+    state.karaokeCharacters = [];
+    renderSoundEffectBeats(line);
+  } else {
+    const fragment = document.createDocumentFragment();
+    state.soundBeatElements = [];
+    state.karaokeCharacters = [...line.japanese].map((character) => {
+      const span = document.createElement("span");
+      span.className = "karaoke-character";
+      span.textContent = character;
+      span.setAttribute("aria-hidden", "true");
+      fragment.append(span);
+      return span;
+    });
+    elements.karaokeJapanese.replaceChildren(fragment);
+    elements.karaokeJapanese.setAttribute("aria-label", line.japanese);
+  }
   elements.karaokeTranslation.textContent = line.translation;
   elements.karaokeGuide.dataset.state = "waiting";
   elements.karaokeGuideLabel.textContent = "準備開始";
@@ -320,6 +376,7 @@ function hideKaraokeOverlay() {
   elements.karaokeJapanese.replaceChildren();
   elements.karaokeTranslation.textContent = "";
   state.karaokeCharacters = [];
+  state.soundBeatElements = [];
 }
 
 function setKaraokeGuide(status, label, spokenProgress, expectedProgress) {
@@ -329,8 +386,37 @@ function setKaraokeGuide(status, label, spokenProgress, expectedProgress) {
   elements.karaokeGuide.style.setProperty("--expected-progress", `${Math.round(Math.max(0, Math.min(1, expectedProgress)) * 100)}%`);
 }
 
+function updateSoundEffectBeatProgress(videoTime, line) {
+  const time = Number(videoTime) || 0;
+  const { cueStart, cueEnd, isRange } = soundCueWindow(line);
+  state.soundBeatElements.forEach((beat) => {
+    beat.element.classList.toggle("is-passed", time >= beat.end);
+    beat.element.classList.toggle("is-current", time >= beat.start && time < beat.end);
+  });
+
+  if (time < cueStart) {
+    const remaining = Math.max(0, cueStart - time);
+    const leadDuration = Math.max(0.1, cueStart - Math.min(Number(line.start) || cueStart, cueStart));
+    const progress = Math.max(0, Math.min(1, 1 - remaining / Math.max(leadDuration, 3)));
+    setKaraokeGuide("waiting", `準備 · ${remaining.toFixed(1)} 秒`, 0, progress);
+    return;
+  }
+  if (time < cueEnd) {
+    const progress = Math.max(0, Math.min(1, (time - cueStart) / Math.max(0.1, cueEnd - cueStart)));
+    setKaraokeGuide("on-time", isRange ? "現在持續出聲" : "現在出聲", progress, progress);
+    return;
+  }
+  if (state.isReviewing) setKaraokeGuide("review", "音效結束 · 收尾回看", 1, 1);
+  else if (state.mediaRecorder?.state === "recording") setKaraokeGuide("complete", "停止音效 · 收尾緩衝", 1, 1);
+  else setKaraokeGuide("complete", "音效拍點結束", 1, 1);
+}
+
 function updateKaraokeProgress(videoTime) {
   const line = currentLine();
+  if (line.isSoundEffect) {
+    updateSoundEffectBeatProgress(videoTime, line);
+    return;
+  }
   const duration = Math.max(0.1, line.end - line.start);
   const expectedProgress = Math.max(0, Math.min(1, (Number(videoTime) - line.start) / duration));
   const coloredCount = Math.floor(expectedProgress * state.karaokeCharacters.length);
@@ -347,10 +433,6 @@ function updateKaraokeProgress(videoTime) {
     return;
   }
   if (state.mediaRecorder?.state !== "recording") return;
-  if (line.isSoundEffect) {
-    setKaraokeGuide("on-time", "依時間軸製作音效", expectedProgress, expectedProgress);
-    return;
-  }
   const target = normalizeJapanese(line.japanese);
   const recognized = normalizeJapanese(`${state.finalTranscript}${state.interimTranscript}`);
   if (!state.recognition) {
@@ -768,7 +850,17 @@ function estimatePitch(samples, sampleRate) {
 
 async function analyzeRecordingAudio() {
   const fallbackRms = state.waveformSamples ? Math.sqrt(state.waveformSquares / state.waveformSamples) : 0;
-  const fallback = { rms: fallbackRms, voicedRatio: 0, voiceSpanRatio: 0, pitchRange: 0, pitchMovement: 0 };
+  const fallback = {
+    rms: fallbackRms,
+    voicedRatio: 0,
+    voiceSpanRatio: 0,
+    pitchRange: 0,
+    pitchMovement: 0,
+    activeStartSec: null,
+    activeEndSec: null,
+    activeRatio: 0,
+    activity: [],
+  };
   if (!state.recordingBlob || !window.AudioContext) return fallback;
   let context;
   try {
@@ -788,12 +880,18 @@ async function analyzeRecordingAudio() {
       const frame = samples.subarray(offset, offset + frameSize);
       let squares = 0;
       for (let index = 0; index < frame.length; index += 1) squares += frame[index] * frame[index];
-      frames.push({ frame, rms: Math.sqrt(squares / frame.length) });
+      frames.push({ frame, offset, rms: Math.sqrt(squares / frame.length) });
     }
     const rmsValues = frames.map((item) => item.rms);
     const peakRms = Math.max(...rmsValues, fallbackRms);
     const threshold = Math.max(0.006, peakRms * 0.16);
     const activeFrameIndexes = frames.map((item, index) => item.rms >= threshold ? index : -1).filter((index) => index >= 0);
+    const activity = frames.map((item) => ({
+      start: item.offset / buffer.sampleRate,
+      end: (item.offset + frameSize) / buffer.sampleRate,
+      active: item.rms >= threshold,
+      rms: item.rms,
+    }));
     const voiceSpanRatio = activeFrameIndexes.length
       ? (activeFrameIndexes.at(-1) - activeFrameIndexes[0] + 1) / frames.length
       : 0;
@@ -807,6 +905,10 @@ async function analyzeRecordingAudio() {
       rms: rmsValues.length ? Math.sqrt(rmsValues.reduce((sum, value) => sum + value * value, 0) / rmsValues.length) : fallbackRms,
       voicedRatio: frames.length ? pitches.length / frames.length : 0,
       voiceSpanRatio,
+      activeStartSec: activeFrameIndexes.length ? activity[activeFrameIndexes[0]].start : null,
+      activeEndSec: activeFrameIndexes.length ? activity[activeFrameIndexes.at(-1)].end : null,
+      activeRatio: frames.length ? activeFrameIndexes.length / frames.length : 0,
+      activity,
       pitchRange: semitones.length > 2 ? percentile(semitones, 0.9) - percentile(semitones, 0.1) : 0,
       pitchMovement: movements.length ? movements.reduce((sum, value) => sum + value, 0) / movements.length : 0,
     };
@@ -817,33 +919,128 @@ async function analyzeRecordingAudio() {
   }
 }
 
+function soundTimingHitScore(errorSeconds) {
+  const error = Math.abs(Number(errorSeconds));
+  if (!Number.isFinite(error)) return 0;
+  const bands = [
+    { end: 0.18, score: 100 },
+    { end: 0.35, score: 88 },
+    { end: 0.6, score: 65 },
+    { end: 1, score: 30 },
+    { end: 1.4, score: 5 },
+  ];
+  let previousEnd = 0;
+  let previousScore = 100;
+  for (const band of bands) {
+    if (error <= band.end) {
+      const progress = (error - previousEnd) / Math.max(0.01, band.end - previousEnd);
+      return Math.round(previousScore + (band.score - previousScore) * Math.max(0, progress));
+    }
+    previousEnd = band.end;
+    previousScore = band.score;
+  }
+  return Math.max(0, Math.round(5 - (error - 1.4) * 10));
+}
+
+function soundTimingMetrics(line, audioFeatures) {
+  const { cueStart, cueEnd, isRange } = soundCueWindow(line);
+  const lineStart = Number(line.start) || 0;
+  const expectedStart = Math.max(0, cueStart - lineStart);
+  const expectedEnd = Math.max(expectedStart + 0.1, cueEnd - lineStart);
+  const activity = Array.isArray(audioFeatures?.activity) ? audioFeatures.activity : [];
+  const activeFrames = activity.filter((frame) => frame.active);
+  const rawFeatureStart = audioFeatures?.activeStartSec;
+  const featureStart = rawFeatureStart === null || rawFeatureStart === undefined
+    ? Number.NaN
+    : Number(rawFeatureStart);
+  const actualStart = Number.isFinite(featureStart)
+    ? featureStart
+    : (activeFrames.length ? Number(activeFrames[0].start) : null);
+  const onsetError = actualStart === null ? null : actualStart - expectedStart;
+  const onsetScore = onsetError === null ? 0 : soundTimingHitScore(onsetError);
+  const beatCount = isRange
+    ? Math.max(4, Math.min(12, Math.ceil((cueEnd - cueStart) / 3)))
+    : 1;
+  const beatDuration = (expectedEnd - expectedStart) / beatCount;
+  let hitBeats = 0;
+  for (let index = 0; index < beatCount; index += 1) {
+    const beatStart = expectedStart + beatDuration * index;
+    const beatEnd = expectedStart + beatDuration * (index + 1);
+    if (activeFrames.some((frame) => Number(frame.end) >= beatStart && Number(frame.start) <= beatEnd)) hitBeats += 1;
+  }
+  const coverageScore = Math.round(hitBeats / beatCount * 100);
+  const timeline = isRange
+    ? Math.round(onsetScore * 0.45 + coverageScore * 0.55)
+    : onsetScore;
+  return {
+    cueStart,
+    cueEnd,
+    isRange,
+    expectedStart,
+    expectedEnd,
+    actualStart,
+    onsetError,
+    onsetScore,
+    beatCount,
+    hitBeats,
+    coverageScore,
+    timeline,
+  };
+}
+
 async function localSoundEffectEvaluation() {
   const line = currentLine();
   const audioFeatures = await analyzeRecordingAudio();
+  const timing = soundTimingMetrics(line, audioFeatures);
   const rms = Math.max(audioFeatures.rms, state.waveformSamples ? Math.sqrt(state.waveformSquares / state.waveformSamples) : 0);
   const clipping = state.waveformSamples ? state.clippingSamples / state.waveformSamples : 0;
-  const timeline = Math.round(Math.min(100, 50 + Math.min(1, state.recordingEndProgress / 0.85) * 50));
-  const presence = rms < 0.008
-    ? 25
-    : Math.round(Math.min(100, 55 + Math.min(1, audioFeatures.voiceSpanRatio / 0.48) * 45));
-  let volume = rms < 0.008 ? 25 : rms < 0.025 ? 68 : rms <= 0.28 ? 96 : 78;
+  const expectedActiveRatio = timing.isRange ? 0.1 : 0.035;
+  const presence = rms < 0.008 || timing.actualStart === null
+    ? 15
+    : Math.round(Math.min(100, 40 + Math.min(1, audioFeatures.activeRatio / expectedActiveRatio) * 60));
+  let volume = rms < 0.008 ? 20 : rms < 0.025 ? 65 : rms <= 0.28 ? 96 : 75;
   if (clipping > 0.01) volume = Math.max(35, volume - 28);
-  const clarity = Math.round(Math.max(30, Math.min(100, presence * 0.55 + volume * 0.45)));
-  const overall = Math.round(timeline * 0.45 + presence * 0.25 + volume * 0.3);
+  const weightedOverall = Math.round(timing.timeline * 0.78 + presence * 0.1 + volume * 0.12);
+  const coverageCap = Math.round(40 + timing.coverageScore * 0.6);
+  const overall = timing.isRange ? Math.min(weightedOverall, coverageCap) : weightedOverall;
   const issues = [];
-  if (timeline >= 92) issues.push("音效錄製已覆蓋指定時間軸。");
-  else issues.push("音效片段提早結束，可搭配影片回看並補足指定區段。");
-  if (rms < 0.008) issues.push("幾乎沒有偵測到音效，請靠近麥克風或提高音效強度。");
+  const targetLabel = timing.isRange
+    ? `${formatTime(timing.cueStart)}–${formatTime(timing.cueEnd)}`
+    : formatTime(timing.cueStart);
+  if (timing.actualStart === null) {
+    issues.push(`沒有偵測到明確起音；目標提示節拍是 ${formatTime(timing.cueStart)}。`);
+  } else {
+    const actualCueTime = Number(line.start) + timing.actualStart;
+    const difference = Math.abs(timing.onsetError);
+    if (difference <= 0.18) issues.push(`起音命中提示節拍，誤差 ${difference.toFixed(2)} 秒。`);
+    else if (timing.onsetError < 0) issues.push(`偵測起音 ${formatTime(actualCueTime)}，比提示節拍早 ${difference.toFixed(2)} 秒。`);
+    else issues.push(`偵測起音 ${formatTime(actualCueTime)}，比提示節拍晚 ${difference.toFixed(2)} 秒。`);
+  }
+  if (timing.isRange) {
+    issues.push(`指定區間 ${timing.hitBeats} / ${timing.beatCount} 個節拍偵測到音效。`);
+  }
+  if (rms < 0.008 || timing.actualStart === null) issues.push("幾乎沒有偵測到音效，請靠近麥克風或提高音效強度。");
   else if (clipping > 0.01) issues.push("音效有爆音跡象，請降低音量或離麥克風遠一點。");
   else issues.push("音效音量可供小組合成預覽使用。");
-  issues.push("音效完成度依時間軸與實際聲音區段計算，不使用台詞辨識。");
+  issues.push("本次依實際起音與畫面節拍評分，不再只用錄音長度判定。");
+  const scores = {
+    "出聲時機": timing.onsetScore,
+    ...(timing.isRange ? { "區間節拍": timing.coverageScore } : {}),
+    "音效存在": presence,
+    "音量": volume,
+  };
   return {
     overall,
-    aspects: { accent: presence, intonation: clarity, speed: timeline, volume },
-    scores: { "時間軸配合": timeline, "音效存在": presence, "音量": volume },
+    aspects: {
+      accent: presence,
+      intonation: timing.isRange ? timing.coverageScore : timing.onsetScore,
+      speed: timing.timeline,
+      volume,
+    },
+    scores,
     issues,
-    diffHtml: escapeHtml(`${line.soundName}｜${line.soundMethod}`),
-    mode: "音效時間軸檢查",
+    diffHtml: escapeHtml(`${line.soundName}｜目標 ${targetLabel}｜${line.soundMethod}`),
+    mode: "音效節拍評分",
   };
 }
 
