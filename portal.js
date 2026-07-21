@@ -996,7 +996,8 @@ async function renderGroupShowcases(showcases, container) {
     const lineMap = new Map(data.lines.map((line) => [Number(line.index), line]));
     const segments = (showcase.segments || []).map((segment) => {
       const line = lineMap.get(Number(segment.lineIndex));
-      return line ? { ...segment, start: line.start, end: line.end } : null;
+      const postRoll = Number(window.QA_RECORDING_TIMING?.postRollSeconds) || 0;
+      return line ? { ...segment, start: line.start, end: Math.min(Number(data.duration) || Infinity, line.end + postRoll) } : null;
     }).filter(Boolean).sort((left, right) => left.start - right.start);
     const article = document.createElement("article");
     article.className = `showcase-card${showcase.isOwnGroup ? " is-own-group" : ""}`;

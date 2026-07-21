@@ -6,7 +6,12 @@ const QA_WORKS = Object.freeze([
   { slug: "totoro", title: "龍貓", navTitle: "龍貓", lineCount: 54 },
 ]);
 
-const QA_RELEASE = "20260721.1";
+const QA_RELEASE = "20260721.2";
+const QA_RECORDING_TIMING = Object.freeze({
+  previousCueMaxSeconds: 4,
+  fallbackPreRollSeconds: 2.1,
+  postRollSeconds: 1.25,
+});
 const SOUND_EFFECT_LINE_BASE = 9001;
 
 function parseCueClock(value) {
@@ -79,6 +84,7 @@ function extendWorkDataWithSoundEffects(source) {
 
 window.QA_WORKS = QA_WORKS;
 window.QA_RELEASE = QA_RELEASE;
+window.QA_RECORDING_TIMING = QA_RECORDING_TIMING;
 window.QA_SOUND_EFFECT_LINE_BASE = SOUND_EFFECT_LINE_BASE;
 window.soundEffectRoleName = soundEffectRoleName;
 window.extendWorkDataWithSoundEffects = extendWorkDataWithSoundEffects;

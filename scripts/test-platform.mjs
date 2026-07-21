@@ -98,6 +98,13 @@ try {
     return player && !player.video.paused && player.audioElements.size > 0;
   });
   assert(await page.locator(".showcase-card.is-own-group video").evaluate((video) => video.muted), "小組成果播放時原影片未靜音");
+  const showcaseTailBuffer = await page.evaluate(() => {
+    const player = [...portalState.showcasePlayers.values()].find((item) => item.showcase.isOwnGroup);
+    const segment = player.segments[0];
+    const line = portalState.workData.get(player.showcase.workSlug).lines.find((item) => Number(item.index) === Number(segment.lineIndex));
+    return segment.end - line.end;
+  });
+  assert(showcaseTailBuffer >= 1.2, "小組成果播放沒有保留錄音句尾緩衝");
   await ownShowcaseButton.click();
   await page.locator("#changePreference").click();
   await page.waitForFunction(() => document.querySelector("#preferenceDialog")?.open);
@@ -115,13 +122,27 @@ try {
   assert((await page.locator(".assignment-context").innerText()).includes("琪琪"), "逐句頁缺少作業資訊");
   assert(await page.locator(".work-switcher:visible").count() === 0, "作業模式不應顯示作品切換列");
 
+  await page.locator(".script-line:visible").nth(1).click();
   await page.locator("#startRecording").click();
+  await page.waitForFunction(() => document.body.classList.contains("is-preparing") && document.querySelector("#recordState")?.textContent.includes("前奏"));
+  assert(!(await page.locator("#referenceVideo").evaluate((video) => video.muted)), "上一句前奏沒有播放原音");
+  assert(await page.locator("#referenceVideo").evaluate((video) => video.currentTime < currentLine().start), "上一句前奏沒有在本句開始前播放");
   await page.waitForFunction(() => document.body.classList.contains("is-recording"));
   assert(await page.locator("#referenceVideo").evaluate((video) => video.muted), "卡啦 OK 錄音時影片未靜音");
   assert(await page.locator("#karaokeOverlay").isVisible(), "錄音時未顯示卡啦 OK 字幕");
   await page.waitForTimeout(800);
   assert(await page.locator(".karaoke-character.is-sung").count() > 0, "字幕沒有隨影片時間變色");
-  await page.locator("#stopRecording").click();
+  await page.locator("#referenceVideo").evaluate((video) => {
+    video.pause();
+    video.currentTime = currentLine().end + 0.08;
+    handleReferenceTime();
+  });
+  assert(await page.evaluate(() => document.body.classList.contains("is-recording")), "本句結束時錄音仍被立即切斷");
+  assert((await page.locator("#karaokeGuideLabel").innerText()).includes("收尾緩衝"), "本句結束後沒有顯示收尾緩衝");
+  await page.locator("#referenceVideo").evaluate((video) => {
+    video.currentTime = recordingStopTime(currentLine());
+    handleReferenceTime();
+  });
   await page.waitForFunction(() => !document.querySelector("#recordingPlayback").hidden);
   assert(await page.locator("#recordingReview").isVisible(), "錄音完成後未顯示我的錄音播放器");
   assert(!(await page.locator("#playSyncedReview").isDisabled()), "錄音完成後無法啟用同步回看");
@@ -141,7 +162,7 @@ try {
   assert((await page.locator("#scoreRows").innerText()).includes("語調"), "評分明細缺少語調分數");
   const speedScore = Number(await page.locator(".score-row").filter({ hasText: "語速" }).locator("strong").innerText());
   assert(speedScore >= 50, "語速仍被錄音按鍵延遲過度扣分");
-  assert((await page.locator("#issueList").innerText()).includes("不包含倒數時間"), "語速說明未排除開始與停止按鍵延遲");
+  assert((await page.locator("#issueList").innerText()).includes("只計正式台詞區間"), "語速說明未排除前奏與收尾緩衝");
   const radarPixels = await page.locator("#performanceRadar").evaluate((canvas) => {
     const pixels = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
     let colored = 0;

@@ -190,6 +190,88 @@ function wait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+function recordingStopTime(line) {
+  const postRoll = Number(window.QA_RECORDING_TIMING?.postRollSeconds) || 0;
+  const duration = Number(state.data?.duration) || line.end + postRoll;
+  return Math.min(duration, line.end + postRoll);
+}
+
+function previousRecordingCue(line) {
+  if (line.isSoundEffect) {
+    const start = Math.max(0, line.start - 3);
+    return line.start - start >= 0.75 ? { start, end: line.start, label: "前奏：聽時間軸" } : null;
+  }
+  const previous = state.data.lines
+    .filter((candidate) => !candidate.isSoundEffect && candidate.index !== line.index && candidate.start < line.start - 0.02)
+    .sort((left, right) => right.start - left.start)[0];
+  if (!previous) return null;
+  const end = Math.min(previous.end, line.start);
+  const maxSeconds = Number(window.QA_RECORDING_TIMING?.previousCueMaxSeconds) || 4;
+  const start = Math.max(previous.start, end - maxSeconds);
+  return end - start >= 0.35 ? { start, end, label: `前奏：先聽 ${previous.role}` } : null;
+}
+
+function waitForVideoTime(endTime) {
+  return new Promise((resolve) => {
+    const video = elements.referenceVideo;
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      video.removeEventListener("timeupdate", check);
+      video.removeEventListener("ended", finish);
+      resolve();
+    };
+    const check = () => {
+      if (video.currentTime >= endTime - 0.05) finish();
+    };
+    const remaining = Math.max(0, endTime - video.currentTime);
+    const timeout = setTimeout(finish, Math.max(1400, Math.min(6500, (remaining + 0.8) * 1400)));
+    video.addEventListener("timeupdate", check);
+    video.addEventListener("ended", finish, { once: true });
+    check();
+  });
+}
+
+async function playRecordingPreRoll(line) {
+  const video = elements.referenceVideo;
+  const cue = previousRecordingCue(line);
+  let cuePlayed = false;
+  if (cue) {
+    elements.recordState.textContent = cue.label;
+    elements.recordTimer.textContent = "前奏";
+    setKaraokeGuide("waiting", cue.label, 0, 0);
+    video.muted = false;
+    await seekVideo(cue.start);
+    try {
+      await video.play();
+      cuePlayed = true;
+      await waitForVideoTime(cue.end);
+    } catch {}
+    video.pause();
+  }
+
+  video.muted = true;
+  await seekVideo(line.start);
+  if (cuePlayed) {
+    elements.recordState.textContent = "準備接下一句";
+    elements.recordTimer.textContent = "GO";
+    setKaraokeGuide("waiting", line.isSoundEffect ? "準備音效" : "下一句換你", 0, 0);
+    await wait(450);
+    return;
+  }
+
+  const total = Number(window.QA_RECORDING_TIMING?.fallbackPreRollSeconds) || 2.1;
+  const step = total * 1000 / 3;
+  for (let count = 3; count >= 1; count -= 1) {
+    elements.recordState.textContent = `倒數 ${count}`;
+    elements.recordTimer.textContent = String(count);
+    setKaraokeGuide("waiting", `倒數 ${count}`, 0, 0);
+    await wait(step);
+  }
+}
+
 function renderKaraokeOverlay() {
   const line = currentLine();
   const fragment = document.createDocumentFragment();
@@ -232,6 +314,12 @@ function updateKaraokeProgress(videoTime) {
   const expectedProgress = Math.max(0, Math.min(1, (Number(videoTime) - line.start) / duration));
   const coloredCount = Math.floor(expectedProgress * state.karaokeCharacters.length);
   state.karaokeCharacters.forEach((character, index) => character.classList.toggle("is-sung", index < coloredCount));
+
+  if (Number(videoTime) >= line.end) {
+    if (state.isReviewing) setKaraokeGuide("review", "收尾回看", 1, 1);
+    else if (state.mediaRecorder?.state === "recording") setKaraokeGuide("complete", "收尾緩衝", 1, 1);
+    return;
+  }
 
   if (state.isReviewing) {
     setKaraokeGuide("review", "同步回看中", expectedProgress, expectedProgress);
@@ -309,7 +397,7 @@ async function toggleSyncedReview() {
   elements.recordingPlayback.currentTime = 0;
   renderKaraokeOverlay();
   state.isReviewing = true;
-  state.referenceStopAt = line.end;
+  state.referenceStopAt = recordingStopTime(line);
   document.body.classList.add("is-reviewing");
   elements.playSyncedReview.innerHTML = '<span aria-hidden="true">■</span>停止同步回看';
   setKaraokeGuide("review", "同步回看中", 0, 0);
@@ -357,9 +445,11 @@ function drawWaveform() {
     else context.lineTo(x, y);
   });
   context.stroke();
-  state.waveformSquares += sum;
-  state.waveformSamples += samples.length;
-  state.clippingSamples += clipped;
+  if (elements.referenceVideo.currentTime <= currentLine().end + 0.04) {
+    state.waveformSquares += sum;
+    state.waveformSamples += samples.length;
+    state.clippingSamples += clipped;
+  }
   state.waveformFrame = requestAnimationFrame(drawWaveform);
 }
 
@@ -424,15 +514,8 @@ async function startRecording() {
     const line = currentLine();
     renderKaraokeOverlay();
     elements.referenceVideo.pause();
-    elements.referenceVideo.muted = true;
     elements.referenceVideo.controls = false;
-    await seekVideo(line.start);
-    for (let count = 3; count >= 1; count -= 1) {
-      elements.recordState.textContent = `倒數 ${count}`;
-      elements.recordTimer.textContent = String(count);
-      setKaraokeGuide("waiting", `倒數 ${count}`, 0, 0);
-      await wait(700);
-    }
+    await playRecordingPreRoll(line);
 
     state.mediaRecorder.start(200);
 
@@ -443,7 +526,7 @@ async function startRecording() {
     document.body.classList.remove("is-preparing");
     state.recordingStartedAt = performance.now();
     state.timerId = setInterval(updateRecordingTimer, 100);
-    state.referenceStopAt = line.end;
+    state.referenceStopAt = recordingStopTime(line);
     elements.recordState.textContent = "錄音中";
     elements.recordTimer.textContent = "00:00.0";
     elements.startRecording.disabled = true;
@@ -666,7 +749,10 @@ async function analyzeRecordingAudio() {
     context = new AudioContext();
     const bytes = await state.recordingBlob.arrayBuffer();
     const buffer = await context.decodeAudioData(bytes.slice(0));
-    const samples = buffer.getChannelData(0);
+    const channel = buffer.getChannelData(0);
+    const line = currentLine();
+    const targetSamples = Math.max(512, Math.ceil(Math.max(0.1, line.end - line.start) * buffer.sampleRate));
+    const samples = channel.subarray(0, Math.min(channel.length, targetSamples));
     if (samples.length < 512) return fallback;
     const frameSize = Math.min(2048, 2 ** Math.max(9, Math.floor(Math.log2(samples.length / 24))));
     const frameCount = Math.max(12, Math.min(48, Math.floor(samples.length / frameSize)));
@@ -773,7 +859,7 @@ async function localEvaluation() {
   else if (followScore !== null) issues.push("部分台詞沒有跟上變色字幕，可用同步回看確認停頓位置。");
   else if (audioFeatures.voiceSpanRatio >= 0.55) issues.push("未取得即時辨識進度，已依實際發聲區段估算語速。");
   else issues.push("可分析的發聲區段較短，語速分數暫以較寬鬆標準估算。");
-  issues.push("語速計分不包含倒數時間與開始、停止按鍵延遲。");
+  issues.push("語速計分只計正式台詞區間，不包含前奏、收尾緩衝與按鍵延遲。");
   if (rms < 0.008) issues.push("麥克風音量很小或接近靜音，請靠近麥克風再試一次。");
   else if (clipping > 0.01) issues.push("錄音有爆音跡象，請稍微遠離麥克風。");
   else issues.push("錄音音量可供分析。");
