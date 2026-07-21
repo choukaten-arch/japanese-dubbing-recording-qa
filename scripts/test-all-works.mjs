@@ -75,6 +75,8 @@ try {
 
     const data = await page.evaluate(async (slug) => (await (await fetch(`data/${slug}.json`)).json()), work.slug);
     assert(data.lines.length === work.lines, `${work.title} 的資料行數錯誤`);
+    assert(data.soundCues.every((cue) => Array.isArray(cue.onomatopoeia) && cue.onomatopoeia.length > 0), `${work.title} 有音效缺少日文擬聲語`);
+    assert(data.soundCues.flatMap((cue) => cue.onomatopoeia).every((word) => /[ぁ-ヿ]/.test(word)), `${work.title} 的音效提示不是日文擬聲語`);
     assert(await page.locator(".work-switcher__link").count() === 5, "作品切換列應顯示五部");
     assert(await page.locator(".work-switcher__link.is-active").count() === 1, `${work.title} 沒有唯一選取狀態`);
     assert((await page.locator("#workMeta").textContent()).includes(`${work.roles + work.soundEffects} 角`), `${work.title} 的角色資訊錯誤`);

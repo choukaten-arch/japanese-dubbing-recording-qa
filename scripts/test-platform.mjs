@@ -357,7 +357,17 @@ try {
   await mobilePage.locator("#startRecording").click();
   await mobilePage.waitForFunction(() => document.body.classList.contains("is-recording"));
   assert(await mobilePage.locator(".sound-beat").count() >= 4, "音效模式沒有顯示時間節拍");
-  assert((await mobilePage.locator(".sound-cue-time").innerText()).includes("出聲區間"), "音效模式沒有標示出聲區間");
+  assert((await mobilePage.locator(".sound-cue-time").innerText()).includes("効果音"), "音效模式沒有以日文標示提示時間");
+  assert(/[ぁ-ヿ]/.test(await mobilePage.locator(".sound-effect-word").innerText()), "影片內沒有顯示日文擬聲語");
+  assert(await mobilePage.locator(".karaoke-translation").isHidden(), "音效模式仍在影片內顯示中文說明");
+  const soundWordAtTop = await mobilePage.locator(".sound-effect-word").evaluate((word) => {
+    const shell = word.closest(".video-shell").getBoundingClientRect();
+    const bounds = word.getBoundingClientRect();
+    return bounds.top - shell.top <= 24;
+  });
+  assert(soundWordAtTop, "日文擬聲語沒有顯示在影片上緣");
+  const rangeBeatWords = await mobilePage.locator(".sound-beat.is-target").allTextContents();
+  assert(rangeBeatWords.every((word) => /[ぁ-ヿ]/.test(word)), "持續音效節拍仍使用數字而非日文擬聲語");
   await mobilePage.waitForTimeout(700);
   assert((await mobilePage.locator("#karaokeGuideLabel").innerText()).includes("現在持續出聲"), "音效進入指定時間後沒有即時出聲提示");
   assert(await mobilePage.locator(".sound-beat.is-current").count() === 1, "目前音效節拍沒有醒目標示");
@@ -378,9 +388,11 @@ try {
     renderKaraokeOverlay();
     updateSoundEffectBeatProgress(currentLine().cueStart, currentLine());
   });
-  assert((await mobilePage.locator(".sound-cue-time").innerText()).includes("出聲拍點"), "單次音效沒有標示精確出聲拍點");
+  assert((await mobilePage.locator(".sound-cue-time").innerText()).includes("効果音"), "單次音效沒有標示精確出聲拍點");
   assert(await mobilePage.locator('.sound-beat-row[data-mode="point"] .sound-beat').count() === 4, "單次音效缺少三拍準備與出聲拍");
   assert(await mobilePage.locator(".sound-beat.is-target.is-current").count() === 1, "單次音效到點時沒有標示出聲拍");
+  assert((await mobilePage.locator(".sound-beat.is-target").innerText()) === "カーン", "單次音效目標拍沒有使用日文擬聲語");
+  assert((await mobilePage.locator(".sound-effect-word").innerText()) === "カーン", "影片上緣沒有顯示目前的日文擬聲語");
   assert((await mobilePage.locator("#karaokeGuideLabel").innerText()) === "現在出聲", "單次音效到點時沒有顯示出聲指令");
   await mobilePage.screenshot({ path: `${outputDir}/sound-effect-point-mobile.png`, fullPage: true });
   await mobile.close();

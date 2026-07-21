@@ -26,6 +26,8 @@ const state = {
   karaokeCharacters: [],
   karaokeSyncSamples: [],
   soundBeatElements: [],
+  soundEffectWordElement: null,
+  soundEffectWords: [],
 };
 
 const elements = {};
@@ -301,16 +303,25 @@ function soundCueWindow(line) {
   return { cueStart, cueEnd, isRange: Boolean(line.cueIsRange) };
 }
 
+function soundWordsForLine(line) {
+  const words = (Array.isArray(line.onomatopoeia) ? line.onomatopoeia : [line.onomatopoeia])
+    .map((word) => String(word || "").trim())
+    .filter(Boolean);
+  return words.length ? words : ["ドン"];
+}
+
 function renderSoundEffectBeats(line) {
   const { cueStart, cueEnd, isRange } = soundCueWindow(line);
-  const title = document.createElement("span");
-  title.className = "sound-effect-title";
-  title.textContent = line.soundName;
+  const words = soundWordsForLine(line);
+  const wordDisplay = document.createElement("span");
+  wordDisplay.className = "sound-effect-word is-waiting";
+  wordDisplay.lang = "ja";
+  wordDisplay.textContent = words[0];
   const timing = document.createElement("span");
   timing.className = "sound-cue-time";
   timing.textContent = isRange
-    ? `出聲區間 ${formatTime(cueStart)}–${formatTime(cueEnd)}`
-    : `出聲拍點 ${formatTime(cueStart)}`;
+    ? `効果音 ${formatTime(cueStart)}–${formatTime(cueEnd)}`
+    : `効果音 ${formatTime(cueStart)}`;
   const row = document.createElement("span");
   row.className = "sound-beat-row";
   row.dataset.mode = isRange ? "range" : "point";
@@ -320,28 +331,37 @@ function renderSoundEffectBeats(line) {
     const count = Math.max(4, Math.min(12, Math.ceil((cueEnd - cueStart) / 3)));
     const step = (cueEnd - cueStart) / count;
     for (let index = 0; index < count; index += 1) {
-      beats.push({ start: cueStart + step * index, end: cueStart + step * (index + 1), target: true });
+      beats.push({
+        start: cueStart + step * index,
+        end: cueStart + step * (index + 1),
+        target: true,
+        word: words[index % words.length],
+      });
     }
   } else {
     const leadStart = Math.min(cueStart, Number(line.start) || cueStart);
     const leadStep = Math.max(0.1, (cueStart - leadStart) / 3);
     for (let index = 0; index < 3; index += 1) {
-      beats.push({ start: leadStart + leadStep * index, end: leadStart + leadStep * (index + 1), target: false });
+      beats.push({ start: leadStart + leadStep * index, end: leadStart + leadStep * (index + 1), target: false, word: "・" });
     }
-    beats.push({ start: cueStart, end: cueEnd, target: true });
+    beats.push({ start: cueStart, end: cueEnd, target: true, word: words[0] });
   }
 
   row.style.setProperty("--sound-beat-count", String(beats.length));
-  state.soundBeatElements = beats.map((beat, index) => {
+  row.style.setProperty("--sound-beat-columns", String(Math.min(6, beats.length)));
+  state.soundEffectWords = words;
+  state.soundEffectWordElement = wordDisplay;
+  state.soundBeatElements = beats.map((beat) => {
     const element = document.createElement("span");
     element.className = `sound-beat${beat.target ? " is-target" : " is-prep"}`;
-    element.textContent = beat.target && !isRange ? "響" : String(index + 1);
+    element.lang = beat.target ? "ja" : "";
+    element.textContent = beat.word;
     element.setAttribute("aria-hidden", "true");
     row.append(element);
     return { ...beat, element };
   });
-  elements.karaokeJapanese.replaceChildren(title, timing, row);
-  elements.karaokeJapanese.setAttribute("aria-label", `${line.soundName}，${timing.textContent}`);
+  elements.karaokeJapanese.replaceChildren(wordDisplay, timing, row);
+  elements.karaokeJapanese.setAttribute("aria-label", `${words.join("、")}，${timing.textContent}，${line.soundName}`);
 }
 
 function renderKaraokeOverlay() {
@@ -352,6 +372,8 @@ function renderKaraokeOverlay() {
   } else {
     const fragment = document.createDocumentFragment();
     state.soundBeatElements = [];
+    state.soundEffectWordElement = null;
+    state.soundEffectWords = [];
     state.karaokeCharacters = [...line.japanese].map((character) => {
       const span = document.createElement("span");
       span.className = "karaoke-character";
@@ -377,6 +399,8 @@ function hideKaraokeOverlay() {
   elements.karaokeTranslation.textContent = "";
   state.karaokeCharacters = [];
   state.soundBeatElements = [];
+  state.soundEffectWordElement = null;
+  state.soundEffectWords = [];
 }
 
 function setKaraokeGuide(status, label, spokenProgress, expectedProgress) {
@@ -389,10 +413,20 @@ function setKaraokeGuide(status, label, spokenProgress, expectedProgress) {
 function updateSoundEffectBeatProgress(videoTime, line) {
   const time = Number(videoTime) || 0;
   const { cueStart, cueEnd, isRange } = soundCueWindow(line);
+  let currentBeat = null;
   state.soundBeatElements.forEach((beat) => {
     beat.element.classList.toggle("is-passed", time >= beat.end);
-    beat.element.classList.toggle("is-current", time >= beat.start && time < beat.end);
+    const isCurrent = time >= beat.start && time < beat.end;
+    beat.element.classList.toggle("is-current", isCurrent);
+    if (isCurrent) currentBeat = beat;
   });
+  if (state.soundEffectWordElement) {
+    const activeWord = currentBeat?.target ? currentBeat.word : state.soundEffectWords[0];
+    state.soundEffectWordElement.textContent = activeWord || "ドン";
+    state.soundEffectWordElement.classList.toggle("is-active", Boolean(currentBeat?.target));
+    state.soundEffectWordElement.classList.toggle("is-waiting", time < cueStart);
+    state.soundEffectWordElement.classList.toggle("is-finished", time >= cueEnd);
+  }
 
   if (time < cueStart) {
     const remaining = Math.max(0, cueStart - time);

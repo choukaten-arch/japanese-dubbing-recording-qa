@@ -289,31 +289,53 @@ h1 {
 }
 .karaoke-character { transition: color 100ms linear, text-shadow 100ms linear; }
 .karaoke-character.is-sung { color: #ffd466; text-shadow: 0 2px 4px rgba(0,0,0,0.95), 0 0 8px rgba(231,94,105,0.72); }
-.sound-effect-mode .karaoke-japanese { display: grid; gap: 5px; }
-.sound-effect-title { display: block; color: #fff; font-size: 18px; line-height: 1.25; }
-.sound-cue-time { display: block; color: #ffd466; font-size: 11px; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.sound-effect-mode .karaoke-overlay {
+  align-content: start;
+  padding-block: 10px 14px;
+  background: linear-gradient(180deg, rgba(12,20,30,0.94) 0%, rgba(12,20,30,0.68) 54%, transparent 100%);
+}
+.sound-effect-mode .karaoke-caption { gap: 3px; }
+.sound-effect-mode .karaoke-japanese { display: grid; gap: 4px; }
+.sound-effect-mode .karaoke-translation { display: none; }
+.sound-effect-word {
+  display: block;
+  color: rgba(255,255,255,0.84);
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0;
+  text-shadow: 0 2px 3px rgba(0,0,0,0.96), 2px 0 0 rgba(0,0,0,0.8), -2px 0 0 rgba(0,0,0,0.8);
+  transition: color 100ms linear, transform 100ms ease, text-shadow 100ms linear, opacity 100ms linear;
+}
+.sound-effect-word.is-active { color: #ffd466; transform: scale(1.08); text-shadow: 0 2px 3px rgba(0,0,0,0.96), 0 0 10px rgba(231,94,105,0.95); }
+.sound-effect-word.is-finished { opacity: 0.62; transform: none; }
+.sound-cue-time { display: block; color: rgba(255,255,255,0.82); font-size: 10px; font-variant-numeric: tabular-nums; letter-spacing: 0; }
 .sound-beat-row {
   display: grid;
   width: min(100%, 440px);
-  grid-template-columns: repeat(var(--sound-beat-count), minmax(18px, 1fr));
+  grid-template-columns: repeat(var(--sound-beat-columns), minmax(34px, 1fr));
   gap: 4px;
   margin-inline: auto;
 }
-.sound-beat-row[data-mode="point"] { width: min(82%, 230px); }
+.sound-beat-row[data-mode="point"] { width: min(88%, 260px); }
 .sound-beat {
-  height: 22px;
+  min-height: 24px;
+  padding: 3px 2px;
   display: grid;
   place-items: center;
   color: rgba(255,255,255,0.78);
   border: 1px solid rgba(255,255,255,0.45);
   border-radius: 4px;
   background: rgba(12,20,30,0.66);
+  font-family: "Noto Sans JP", "Hiragino Sans", sans-serif;
   font-size: 10px;
   font-weight: 900;
-  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
   transition: color 100ms linear, border-color 100ms linear, background 100ms linear, box-shadow 100ms linear;
 }
-.sound-beat.is-prep { border-style: dashed; }
+.sound-beat.is-prep { color: rgba(255,255,255,0.54); border-style: dashed; font-size: 15px; }
 .sound-beat.is-target { border-color: rgba(255,212,102,0.72); }
 .sound-beat.is-passed { color: #26302d; border-color: #ffd466; background: #ffd466; }
 .sound-beat.is-current { color: #fff; border-color: #fff; background: #e75e69; box-shadow: 0 0 0 3px rgba(255,212,102,0.3), 0 0 12px rgba(231,94,105,0.72); }
@@ -589,10 +611,11 @@ rt { color: #7a4c12; font-size: 0.52em; font-weight: 600; }
   .line-japanese { font-size: 19px; }
   .karaoke-overlay { padding: 12px 10px 9px; gap: 6px; }
   .karaoke-japanese { font-size: 16px; line-height: 1.45; }
-  .sound-effect-title { font-size: 15px; }
-  .sound-cue-time { font-size: 10px; }
+  .sound-effect-mode .karaoke-overlay { padding: 8px 9px 10px; }
+  .sound-effect-word { font-size: 24px; }
+  .sound-cue-time { font-size: 9px; }
   .sound-beat-row { gap: 3px; }
-  .sound-beat { min-width: 0; height: 20px; font-size: 9px; }
+  .sound-beat { min-width: 0; min-height: 20px; padding: 2px 1px; font-size: 9px; }
   .karaoke-translation { font-size: 10px; }
   .karaoke-guide { min-height: 25px; grid-template-columns: minmax(68px, auto) 82px; gap: 7px; font-size: 10px; }
   .karaoke-guide-track { width: 82px; }
