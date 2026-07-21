@@ -124,9 +124,15 @@ try {
 
   await page.locator(".script-line:visible").nth(1).click();
   await page.locator("#startRecording").click();
-  await page.waitForFunction(() => document.body.classList.contains("is-preparing") && document.querySelector("#recordState")?.textContent.includes("前奏"));
+  await page.waitForFunction(() => document.body.classList.contains("is-preparing")
+    && document.querySelector("#recordState")?.textContent.includes("有聲前奏")
+    && !document.querySelector("#referenceVideo")?.paused);
   assert(!(await page.locator("#referenceVideo").evaluate((video) => video.muted)), "上一句前奏沒有播放原音");
+  assert(await page.locator("#referenceVideo").evaluate((video) => video.volume >= 0.99), "上一句前奏音量未開啟");
   assert(await page.locator("#referenceVideo").evaluate((video) => video.currentTime < currentLine().start), "上一句前奏沒有在本句開始前播放");
+  const preRollStartedAt = await page.locator("#referenceVideo").evaluate((video) => video.currentTime);
+  await page.waitForTimeout(350);
+  assert(await page.locator("#referenceVideo").evaluate((video, start) => video.currentTime > start + 0.08, preRollStartedAt), "有聲前奏實際上沒有播放前進");
   await page.waitForFunction(() => document.body.classList.contains("is-recording"));
   assert(await page.locator("#referenceVideo").evaluate((video) => video.muted), "卡啦 OK 錄音時影片未靜音");
   assert(await page.locator("#karaokeOverlay").isVisible(), "錄音時未顯示卡啦 OK 字幕");

@@ -199,7 +199,7 @@ function recordingStopTime(line) {
 function previousRecordingCue(line) {
   if (line.isSoundEffect) {
     const start = Math.max(0, line.start - 3);
-    return line.start - start >= 0.75 ? { start, end: line.start, label: "前奏：聽時間軸" } : null;
+    return line.start - start >= 0.75 ? { start, end: line.start, label: "有聲前奏：聽時間軸" } : null;
   }
   const previous = state.data.lines
     .filter((candidate) => !candidate.isSoundEffect && candidate.index !== line.index && candidate.start < line.start - 0.02)
@@ -208,50 +208,71 @@ function previousRecordingCue(line) {
   const end = Math.min(previous.end, line.start);
   const maxSeconds = Number(window.QA_RECORDING_TIMING?.previousCueMaxSeconds) || 4;
   const start = Math.max(previous.start, end - maxSeconds);
-  return end - start >= 0.35 ? { start, end, label: `前奏：先聽 ${previous.role}` } : null;
+  return end - start >= 0.35 ? { start, end, label: `有聲前奏：先聽 ${previous.role}` } : null;
 }
 
 function waitForVideoTime(endTime) {
   return new Promise((resolve) => {
     const video = elements.referenceVideo;
     let settled = false;
-    const finish = () => {
+    let timeout;
+    let onEnded;
+    const finish = (reached = false) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
       video.removeEventListener("timeupdate", check);
-      video.removeEventListener("ended", finish);
-      resolve();
+      video.removeEventListener("ended", onEnded);
+      resolve(reached);
     };
     const check = () => {
-      if (video.currentTime >= endTime - 0.05) finish();
+      if (video.currentTime >= endTime - 0.05) finish(true);
     };
+    onEnded = () => finish(true);
     const remaining = Math.max(0, endTime - video.currentTime);
-    const timeout = setTimeout(finish, Math.max(1400, Math.min(6500, (remaining + 0.8) * 1400)));
+    timeout = setTimeout(() => finish(false), Math.max(1400, Math.min(6500, (remaining + 0.8) * 1400)));
     video.addEventListener("timeupdate", check);
-    video.addEventListener("ended", finish, { once: true });
+    video.addEventListener("ended", onEnded, { once: true });
     check();
   });
 }
 
-async function playRecordingPreRoll(line) {
+function beginRecordingPreRoll(line) {
   const video = elements.referenceVideo;
   const cue = previousRecordingCue(line);
-  let cuePlayed = false;
-  if (cue) {
-    elements.recordState.textContent = cue.label;
-    elements.recordTimer.textContent = "前奏";
-    setKaraokeGuide("waiting", cue.label, 0, 0);
-    video.muted = false;
-    await seekVideo(cue.start);
-    try {
-      await video.play();
-      cuePlayed = true;
-      await waitForVideoTime(cue.end);
-    } catch {}
-    video.pause();
+  if (!cue) return null;
+  elements.recordState.textContent = cue.label;
+  elements.recordTimer.textContent = "有聲前奏";
+  setKaraokeGuide("waiting", cue.label, 0, 0);
+  video.pause();
+  video.muted = false;
+  video.volume = 1;
+  try {
+    video.currentTime = cue.start;
+    const finished = Promise.resolve(video.play())
+      .then(() => waitForVideoTime(cue.end))
+      .then((reached) => {
+        video.pause();
+        return reached;
+      })
+      .catch(() => {
+        video.pause();
+        return false;
+      });
+    return { cue, finished };
+  } catch {
+    return { cue, finished: Promise.resolve(false) };
   }
+}
 
+async function finishRecordingPreRoll(line, preRoll) {
+  const video = elements.referenceVideo;
+  const cuePlayed = preRoll ? await preRoll.finished : false;
+  if (preRoll && !cuePlayed) {
+    const error = new Error("前奏聲音被瀏覽器阻擋，請再按一次開始配音。");
+    error.code = "PRE_ROLL_AUDIO_BLOCKED";
+    throw error;
+  }
   video.muted = true;
   await seekVideo(line.start);
   if (cuePlayed) {
@@ -491,6 +512,11 @@ async function startRecording() {
   elements.evaluateRecording.disabled = true;
   elements.resetRecording.disabled = true;
   document.body.classList.add("is-preparing");
+  const line = currentLine();
+  renderKaraokeOverlay();
+  elements.referenceVideo.pause();
+  elements.referenceVideo.controls = false;
+  const preRoll = beginRecordingPreRoll(line);
   try {
     state.mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
@@ -511,11 +537,7 @@ async function startRecording() {
     };
     state.mediaRecorder.onstop = finishRecording;
 
-    const line = currentLine();
-    renderKaraokeOverlay();
-    elements.referenceVideo.pause();
-    elements.referenceVideo.controls = false;
-    await playRecordingPreRoll(line);
+    await finishRecordingPreRoll(line, preRoll);
 
     state.mediaRecorder.start(200);
 
@@ -538,7 +560,9 @@ async function startRecording() {
     setKaraokeGuide("waiting", line.isSoundEffect ? "準備音效" : (state.recognition ? "準備開口" : "字幕同步中"), 0, 0);
     await elements.referenceVideo.play().catch(() => {});
   } catch (error) {
-    const message = error.name === "NotAllowedError" ? "未取得麥克風權限" : "無法啟動麥克風";
+    const message = error.code === "PRE_ROLL_AUDIO_BLOCKED"
+      ? error.message
+      : error.name === "NotAllowedError" ? "未取得麥克風權限" : "無法啟動麥克風";
     state.isPreparing = false;
     document.body.classList.remove("is-preparing");
     state.mediaStream?.getTracks().forEach((track) => track.stop());
@@ -551,7 +575,9 @@ async function startRecording() {
     elements.stopRecording.disabled = true;
     elements.recordState.textContent = message;
     elements.recordTimer.textContent = "00:00.0";
-    elements.recognitionStatus.textContent = "請檢查瀏覽器麥克風設定";
+    elements.recognitionStatus.textContent = error.code === "PRE_ROLL_AUDIO_BLOCKED"
+      ? "請確認手機未設為靜音，再重新按一次"
+      : "請檢查瀏覽器麥克風設定";
   }
 }
 
