@@ -28,8 +28,14 @@ const state = {
   soundBeatElements: [],
   soundEffectWordElement: null,
   soundEffectWords: [],
-  soundDemoTimer: null,
   soundDemoToken: 0,
+  isSoundDemo: false,
+  soundDemoStart: null,
+  soundDemoEnd: null,
+  referenceAudioContext: null,
+  referenceAudioSource: null,
+  referenceAudioGain: null,
+  referenceAudioCompressor: null,
 };
 
 const elements = {};
@@ -169,6 +175,7 @@ async function playReference() {
   const line = currentLine();
   stopSyncedReview();
   stopSoundDemo(false);
+  await state.referenceAudioContext?.resume().catch(() => {});
   if (line.isSoundEffect) renderKaraokeOverlay();
   else hideKaraokeOverlay();
   elements.referenceVideo.pause();
@@ -185,11 +192,13 @@ function handleReferenceTime() {
   if (elements.referenceVideo.currentTime >= state.referenceStopAt - 0.04) {
     const shouldStopRecording = state.mediaRecorder?.state === "recording";
     const shouldStopReview = state.isReviewing;
+    const shouldStopSoundDemo = state.isSoundDemo;
     elements.referenceVideo.pause();
     elements.referenceVideo.currentTime = state.referenceStopAt;
     state.referenceStopAt = null;
     if (shouldStopRecording) stopRecording();
     if (shouldStopReview) stopSyncedReview(false);
+    if (shouldStopSoundDemo) stopSoundDemo(true);
   }
 }
 
@@ -252,6 +261,7 @@ function beginRecordingPreRoll(line) {
   elements.recordTimer.textContent = "有聲前奏";
   setKaraokeGuide("waiting", cue.label, 0, 0);
   video.pause();
+  state.referenceAudioContext?.resume().catch(() => {});
   video.muted = false;
   video.volume = 1;
   try {
@@ -314,10 +324,12 @@ function soundWordsForLine(line) {
   return words.length ? words : ["ドン"];
 }
 
-function setSoundDemoButtonLabel(element, word) {
+function setSoundDemoButtonLabel(element, word, start, end) {
   if (!element) return;
-  element.title = `播放「${word}」示範音`;
-  element.setAttribute("aria-label", `播放日文擬聲語 ${word} 的示範音`);
+  element.dataset.demoStart = String(start);
+  element.dataset.demoEnd = String(end);
+  element.title = `播放原片「${word}」音效（${formatTime(start)}–${formatTime(end)}）`;
+  element.setAttribute("aria-label", `播放原影片中日文擬聲語 ${word} 對應的音效`);
 }
 
 function clearSoundDemoHighlights() {
@@ -331,55 +343,142 @@ function clearSoundDemoHighlights() {
 
 function stopSoundDemo(restoreTimeline = true) {
   state.soundDemoToken += 1;
-  clearTimeout(state.soundDemoTimer);
-  state.soundDemoTimer = null;
-  window.QASoundDemo?.stop();
+  if (state.isSoundDemo) {
+    elements.referenceVideo.pause();
+    state.referenceStopAt = null;
+  }
+  state.isSoundDemo = false;
+  state.soundDemoStart = null;
+  state.soundDemoEnd = null;
+  document.body.classList.remove("is-sound-demo");
+  if (state.referenceAudioGain) state.referenceAudioGain.gain.value = 1;
+  if (elements.referenceVideo) elements.referenceVideo.controls = true;
   clearSoundDemoHighlights();
   const line = state.data?.lines?.[state.selectedIndex];
   if (restoreTimeline && line?.isSoundEffect && !elements.karaokeOverlay?.hidden) {
-    updateSoundEffectBeatProgress(elements.referenceVideo.currentTime || line.start, line);
+    elements.referenceVideo.currentTime = line.start;
+    updateSoundEffectBeatProgress(line.start, line);
   }
 }
 
-async function playSoundDemo(word, trigger) {
-  if (state.isPreparing || state.mediaRecorder?.state === "recording" || !window.QASoundDemo) return;
+async function enableReferenceAudioBoost() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return false;
+  if (!state.referenceAudioContext || state.referenceAudioContext.state === "closed") {
+    const context = new AudioContextClass();
+    const source = context.createMediaElementSource(elements.referenceVideo);
+    const gain = context.createGain();
+    const compressor = context.createDynamicsCompressor();
+    compressor.threshold.value = -18;
+    compressor.knee.value = 12;
+    compressor.ratio.value = 4;
+    compressor.attack.value = 0.004;
+    compressor.release.value = 0.22;
+    source.connect(gain).connect(compressor).connect(context.destination);
+    state.referenceAudioContext = context;
+    state.referenceAudioSource = source;
+    state.referenceAudioGain = gain;
+    state.referenceAudioCompressor = compressor;
+  }
+  await state.referenceAudioContext.resume();
+  state.referenceAudioGain.gain.value = 2.35;
+  return true;
+}
+
+async function playSoundDemo(word, start, end, trigger) {
+  if (state.isPreparing || state.mediaRecorder?.state === "recording") return;
   stopSoundDemo(false);
   const token = state.soundDemoToken;
   elements.referenceVideo.pause();
   state.referenceStopAt = null;
   try {
-    const playback = await window.QASoundDemo.play(word);
-    if (token !== state.soundDemoToken) return;
+    const boostPromise = enableReferenceAudioBoost();
+    state.isSoundDemo = true;
+    state.soundDemoStart = start;
+    state.soundDemoEnd = end;
+    state.referenceStopAt = end;
+    document.body.classList.add("is-sound-demo");
+    elements.referenceVideo.muted = false;
+    elements.referenceVideo.volume = 1;
+    elements.referenceVideo.controls = false;
     clearSoundDemoHighlights();
     state.soundEffectWordElement.textContent = word;
     state.soundEffectWordElement.classList.add("is-playing");
     state.soundEffectWordElement.setAttribute("aria-pressed", "true");
-    setSoundDemoButtonLabel(state.soundEffectWordElement, word);
+    setSoundDemoButtonLabel(state.soundEffectWordElement, word, start, end);
     state.soundBeatElements
-      .filter((beat) => beat.target && beat.word === word)
+      .filter((beat) => beat.target && beat.start === start && beat.end === end)
       .forEach((beat) => {
         beat.element.classList.add("is-playing");
         beat.element.setAttribute("aria-pressed", "true");
       });
     trigger?.focus({ preventScroll: true });
-    setKaraokeGuide("review", "示範音播放中", 1, 1);
-    state.soundDemoTimer = setTimeout(() => stopSoundDemo(true), Math.ceil((playback.duration + 0.15) * 1000));
+    setKaraokeGuide("review", "原片音效播放中", 0, 0);
+    const seekPromise = seekVideo(start);
+    const playPromise = elements.referenceVideo.play();
+    await Promise.all([boostPromise, seekPromise, playPromise]);
+    if (token !== state.soundDemoToken) return;
   } catch {
-    setKaraokeGuide("waiting", "無法播放示範音", 0, 0);
+    if (token !== state.soundDemoToken) return;
+    stopSoundDemo(false);
+    elements.referenceVideo.controls = true;
+    setKaraokeGuide("waiting", "無法播放原片音效", 0, 0);
   }
+}
+
+function buildSoundEffectBeats(line) {
+  const { cueStart, cueEnd, isRange } = soundCueWindow(line);
+  const words = soundWordsForLine(line);
+  const beats = [];
+  if (isRange) {
+    const count = Math.max(4, Math.min(12, Math.ceil((cueEnd - cueStart) / 3)));
+    const step = (cueEnd - cueStart) / count;
+    for (let index = 0; index < count; index += 1) {
+      const start = cueStart + step * index;
+      const end = cueStart + step * (index + 1);
+      const wordIndex = Math.min(words.length - 1, Math.floor(index * words.length / count));
+      beats.push({ start, end, target: true, word: words[wordIndex] });
+    }
+  } else {
+    const leadStart = Math.min(cueStart, Number(line.start) || cueStart);
+    const leadStep = Math.max(0.1, (cueStart - leadStart) / 3);
+    for (let index = 0; index < 3; index += 1) {
+      beats.push({ start: leadStart + leadStep * index, end: leadStart + leadStep * (index + 1), target: false, word: "・" });
+    }
+    beats.push({
+      start: cueStart,
+      end: cueEnd,
+      demoStart: Math.max(Number(line.start) || 0, cueStart - 0.45),
+      demoEnd: Math.min(Number(line.end) || cueStart + 1.35, cueStart + 1.35),
+      target: true,
+      word: words[0],
+    });
+  }
+  return beats.map((beat) => ({
+    ...beat,
+    demoStart: Number.isFinite(beat.demoStart) ? beat.demoStart : beat.start,
+    demoEnd: Number.isFinite(beat.demoEnd) ? beat.demoEnd : beat.end,
+  }));
 }
 
 function renderSoundEffectBeats(line) {
   const { cueStart, cueEnd, isRange } = soundCueWindow(line);
   const words = soundWordsForLine(line);
+  const beats = buildSoundEffectBeats(line);
+  const firstTarget = beats.find((beat) => beat.target);
   const wordDisplay = document.createElement("button");
   wordDisplay.type = "button";
   wordDisplay.className = "sound-effect-word sound-demo-button is-waiting";
   wordDisplay.lang = "ja";
   wordDisplay.textContent = words[0];
   wordDisplay.setAttribute("aria-pressed", "false");
-  setSoundDemoButtonLabel(wordDisplay, words[0]);
-  wordDisplay.addEventListener("click", () => playSoundDemo(wordDisplay.textContent, wordDisplay));
+  setSoundDemoButtonLabel(wordDisplay, words[0], firstTarget.demoStart, firstTarget.demoEnd);
+  wordDisplay.addEventListener("click", () => playSoundDemo(
+    wordDisplay.textContent,
+    Number(wordDisplay.dataset.demoStart),
+    Number(wordDisplay.dataset.demoEnd),
+    wordDisplay,
+  ));
   const timing = document.createElement("span");
   timing.className = "sound-cue-time";
   timing.textContent = isRange
@@ -388,27 +487,6 @@ function renderSoundEffectBeats(line) {
   const row = document.createElement("span");
   row.className = "sound-beat-row";
   row.dataset.mode = isRange ? "range" : "point";
-  const beats = [];
-
-  if (isRange) {
-    const count = Math.max(4, Math.min(12, Math.ceil((cueEnd - cueStart) / 3)));
-    const step = (cueEnd - cueStart) / count;
-    for (let index = 0; index < count; index += 1) {
-      beats.push({
-        start: cueStart + step * index,
-        end: cueStart + step * (index + 1),
-        target: true,
-        word: words[index % words.length],
-      });
-    }
-  } else {
-    const leadStart = Math.min(cueStart, Number(line.start) || cueStart);
-    const leadStep = Math.max(0.1, (cueStart - leadStart) / 3);
-    for (let index = 0; index < 3; index += 1) {
-      beats.push({ start: leadStart + leadStep * index, end: leadStart + leadStep * (index + 1), target: false, word: "・" });
-    }
-    beats.push({ start: cueStart, end: cueEnd, target: true, word: words[0] });
-  }
 
   row.style.setProperty("--sound-beat-count", String(beats.length));
   row.style.setProperty("--sound-beat-columns", String(Math.min(6, beats.length)));
@@ -422,8 +500,8 @@ function renderSoundEffectBeats(line) {
     element.textContent = beat.word;
     if (beat.target) {
       element.setAttribute("aria-pressed", "false");
-      setSoundDemoButtonLabel(element, beat.word);
-      element.addEventListener("click", () => playSoundDemo(beat.word, element));
+      setSoundDemoButtonLabel(element, beat.word, beat.demoStart, beat.demoEnd);
+      element.addEventListener("click", () => playSoundDemo(beat.word, beat.demoStart, beat.demoEnd, element));
     } else {
       element.setAttribute("aria-hidden", "true");
     }
@@ -491,12 +569,24 @@ function updateSoundEffectBeatProgress(videoTime, line) {
     if (isCurrent) currentBeat = beat;
   });
   if (state.soundEffectWordElement) {
-    const activeWord = currentBeat?.target ? currentBeat.word : state.soundEffectWords[0];
+    const activeTarget = currentBeat?.target ? currentBeat : state.soundBeatElements.find((beat) => beat.target);
+    const activeWord = activeTarget?.word || state.soundEffectWords[0];
     state.soundEffectWordElement.textContent = activeWord || "ドン";
-    setSoundDemoButtonLabel(state.soundEffectWordElement, activeWord || "ドン");
+    setSoundDemoButtonLabel(
+      state.soundEffectWordElement,
+      activeWord || "ドン",
+      activeTarget?.demoStart ?? cueStart,
+      activeTarget?.demoEnd ?? cueEnd,
+    );
     state.soundEffectWordElement.classList.toggle("is-active", Boolean(currentBeat?.target));
     state.soundEffectWordElement.classList.toggle("is-waiting", time < cueStart);
     state.soundEffectWordElement.classList.toggle("is-finished", time >= cueEnd);
+  }
+
+  if (state.isSoundDemo) {
+    const progress = Math.max(0, Math.min(1, (time - state.soundDemoStart) / Math.max(0.1, state.soundDemoEnd - state.soundDemoStart)));
+    setKaraokeGuide("review", "原片音效播放中", progress, progress);
+    return;
   }
 
   if (time < cueStart) {
