@@ -77,6 +77,14 @@ try {
     assert(data.lines.length === work.lines, `${work.title} 的資料行數錯誤`);
     assert(data.soundCues.every((cue) => Array.isArray(cue.onomatopoeia) && cue.onomatopoeia.length > 0), `${work.title} 有音效缺少日文擬聲語`);
     assert(data.soundCues.flatMap((cue) => cue.onomatopoeia).every((word) => /[ぁ-ヿ]/.test(word)), `${work.title} 的音效提示不是日文擬聲語`);
+    if (work.slug === "kiki") {
+      assert(data.soundCues.every((cue) => Array.isArray(cue.events) && cue.events.length > 0), "魔女宅急便仍有音效使用平均切段而非逐事件時間");
+      assert(!data.soundCues.some((cue) => /風箱|時鐘提醒/.test(cue.sound)), "魔女宅急便仍保留原片中不存在的風箱或鐘響");
+      const doorbell = data.soundCues.find((cue) => cue.sound === "門鈴")?.events?.[0];
+      assert(doorbell?.word === "ピンポーン" && doorbell.time.startsWith("04:44.80"), "魔女宅急便門鈴沒有校正到原片 04:45.2 左右");
+      const closingDoor = data.soundCues.find((cue) => cue.sound === "關門")?.events?.[0];
+      assert(closingDoor?.word === "バタン" && closingDoor.time.startsWith("05:20.40"), "魔女宅急便關門沒有校正到原片 05:20.7 左右");
+    }
     const demoCoverage = await page.evaluate(() => state.data.lines.filter((line) => line.isSoundEffect).every((line) => {
       const words = soundWordsForLine(line);
       const beats = buildSoundEffectBeats(line).filter((beat) => beat.target);

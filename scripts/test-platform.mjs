@@ -333,7 +333,8 @@ try {
   assert((await mobilePage.locator("#selectedRole").innerText()).startsWith("音效＿"), "音效時間軸未轉成正式角色名稱");
   assert(await mobilePage.locator(".transcription-field").isHidden(), "音效錄製不應要求逐字辨識");
   assert(await mobilePage.locator("#karaokeOverlay").isVisible(), "音效示範按鈕沒有在錄音前顯示於影片上");
-  assert(await mobilePage.locator(".sound-demo-button").count() >= 5, "音效擬聲語沒有全部做成試聽按鈕");
+  assert(await mobilePage.locator(".sound-demo-button").count() === 4, "魔女宅急便第一組三個精確音效沒有全部做成試聽按鈕");
+  assert((await mobilePage.locator(".sound-beat.is-target").allTextContents()).join("|") === "ギイッ|ゴトゴト|ドサッ", "魔女宅急便柴門與木柴音效順序仍不正確");
   await mobilePage.waitForFunction(() => document.querySelector("#referenceVideo")?.readyState >= 1);
   const firstSoundButton = mobilePage.locator(".sound-beat.is-target").first();
   const expectedDemoStart = Number(await firstSoundButton.getAttribute("data-demo-start"));
@@ -355,6 +356,17 @@ try {
     });
     const point = { start: 10, end: 13.4, cueStart: 11.2, cueEnd: 11.85, cueIsRange: false };
     const range = { start: 20, end: 32, cueStart: 20, cueEnd: 32, cueIsRange: true };
+    const explicit = {
+      start: 40,
+      end: 50,
+      cueStart: 40,
+      cueEnd: 50,
+      cueIsRange: true,
+      soundEvents: [
+        { word: "ギイッ", sound: "門", start: 41, end: 42, demoStart: 40.8, demoEnd: 42.2 },
+        { word: "バタン", sound: "關門", start: 47, end: 48, demoStart: 46.8, demoEnd: 48.2 },
+      ],
+    };
     const sparseActivity = Array.from({ length: 120 }, (_, index) => {
       const start = index * 0.1;
       return { start, end: start + 0.1, active: start < 0.8, rms: 0.08 };
@@ -363,12 +375,15 @@ try {
       exact: soundTimingMetrics(point, { activeStartSec: 1.2, activity: activity(1.2) }),
       late: soundTimingMetrics(point, { activeStartSec: 2, activity: activity(2) }),
       sparse: soundTimingMetrics(range, { activeStartSec: 0, activity: sparseActivity }),
+      explicitPartial: soundTimingMetrics(explicit, { activeStartSec: 1, activity: activity(1) }),
       silent: soundTimingMetrics(point, { activeStartSec: null, activity: [] }),
     };
   });
   assert(soundTimingChecks.exact.onsetScore >= 98, "準時音效未取得高分");
   assert(soundTimingChecks.late.onsetScore <= soundTimingChecks.exact.onsetScore - 50, "音效晚拍扣分仍太鬆散");
   assert(soundTimingChecks.sparse.coverageScore <= 25, "持續音效只完成開頭卻取得過高區間分數");
+  assert(soundTimingChecks.explicitPartial.coverageScore === 50, "逐事件音效沒有分別計算命中率");
+  assert(soundTimingChecks.explicitPartial.eventResults[1].hit === false, "未完成的第二個音效事件沒有被標記為漏拍");
   assert(soundTimingChecks.silent.onsetScore === 0, "未錄到音效時不應取得出聲時機分數");
   await mobilePage.locator("#startRecording").click();
   await mobilePage.waitForFunction(() => document.body.classList.contains("is-recording"));
@@ -386,7 +401,7 @@ try {
   const rangeBeatWords = await mobilePage.locator(".sound-beat.is-target").allTextContents();
   assert(rangeBeatWords.every((word) => /[ぁ-ヿ]/.test(word)), "持續音效節拍仍使用數字而非日文擬聲語");
   await mobilePage.waitForTimeout(700);
-  assert((await mobilePage.locator("#karaokeGuideLabel").innerText()).includes("現在持續出聲"), "音效進入指定時間後沒有即時出聲提示");
+  assert((await mobilePage.locator("#karaokeGuideLabel").innerText()).includes("現在 · ギイッ"), "音效進入精確事件時間後沒有即時出聲提示");
   assert(await mobilePage.locator(".sound-beat.is-current").count() === 1, "目前音效節拍沒有醒目標示");
   await mobilePage.locator("#stopRecording").click();
   await mobilePage.waitForFunction(() => !document.querySelector("#recordingReview").hidden);
@@ -394,7 +409,7 @@ try {
   await mobilePage.waitForFunction(() => document.querySelector("#resultMode")?.textContent.includes("音效節拍"));
   const soundScores = await mobilePage.locator("#scoreRows").innerText();
   assert(soundScores.includes("出聲時機"), "音效評分缺少出聲時機指標");
-  assert(soundScores.includes("區間節拍"), "持續音效評分缺少區間節拍指標");
+  assert(soundScores.includes("逐事件節拍"), "音效評分缺少逐事件節拍指標");
   assert((await mobilePage.locator("#issueList").innerText()).includes("節拍"), "音效評語沒有回報節拍誤差");
   assert(Number(await mobilePage.locator("#overallScore").innerText()) <= 55, "只錄到第一格的持續音效得分仍然過高");
   await mobilePage.screenshot({ path: `${outputDir}/sound-effect-recording-mobile.png`, fullPage: true });
@@ -403,14 +418,14 @@ try {
   await mobilePage.waitForFunction(() => document.body.classList.contains("sound-effect-mode"));
   await mobilePage.evaluate(() => {
     renderKaraokeOverlay();
-    updateSoundEffectBeatProgress(currentLine().cueStart, currentLine());
+    updateSoundEffectBeatProgress(currentLine().soundEvents[0].start, currentLine());
   });
   assert((await mobilePage.locator(".sound-cue-time").innerText()).includes("効果音"), "單次音效沒有標示精確出聲拍點");
-  assert(await mobilePage.locator('.sound-beat-row[data-mode="point"] .sound-beat').count() === 4, "單次音效缺少三拍準備與出聲拍");
+  assert(await mobilePage.locator(".sound-beat.is-target").count() === 1, "鳥鳴音效不是單一精確事件");
   assert(await mobilePage.locator(".sound-beat.is-target.is-current").count() === 1, "單次音效到點時沒有標示出聲拍");
-  assert((await mobilePage.locator(".sound-beat.is-target").innerText()) === "カーン", "單次音效目標拍沒有使用日文擬聲語");
-  assert((await mobilePage.locator(".sound-effect-word").innerText()) === "カーン", "影片上緣沒有顯示目前的日文擬聲語");
-  assert((await mobilePage.locator("#karaokeGuideLabel").innerText()) === "現在出聲", "單次音效到點時沒有顯示出聲指令");
+  assert((await mobilePage.locator(".sound-beat.is-target").innerText()) === "チュンチュン", "單次音效目標拍沒有使用正確日文擬聲語");
+  assert((await mobilePage.locator(".sound-effect-word").innerText()) === "チュンチュン", "影片上緣沒有顯示目前的日文擬聲語");
+  assert((await mobilePage.locator("#karaokeGuideLabel").innerText()) === "現在 · チュンチュン", "單次音效到點時沒有顯示出聲指令");
   await mobilePage.screenshot({ path: `${outputDir}/sound-effect-point-mobile.png`, fullPage: true });
   await mobile.close();
 

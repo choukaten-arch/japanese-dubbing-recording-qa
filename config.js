@@ -6,7 +6,7 @@ const QA_WORKS = Object.freeze([
   { slug: "totoro", title: "龍貓", navTitle: "龍貓", lineCount: 54 },
 ]);
 
-const QA_RELEASE = "20260721.7";
+const QA_RELEASE = "20260721.8";
 const QA_RECORDING_TIMING = Object.freeze({
   previousCueMaxSeconds: 4,
   fallbackPreRollSeconds: 2.1,
@@ -49,11 +49,27 @@ function soundEffectRoleName(cue) {
   return `音效＿${String(cue?.sound || "未命名音效").trim()}＿${String(cue?.time || "00:00").trim()}`;
 }
 
+function soundCueEvents(cue, duration) {
+  return (Array.isArray(cue?.events) ? cue.events : []).map((event) => {
+    const eventBounds = soundCueBounds(event.time, duration);
+    const previewBounds = soundCueBounds(event.preview || event.time, duration);
+    return {
+      word: String(event.word || "").trim(),
+      sound: String(event.sound || cue.sound || "音效").trim(),
+      start: eventBounds.cueStart,
+      end: eventBounds.cueEnd,
+      demoStart: previewBounds.cueStart,
+      demoEnd: previewBounds.cueEnd,
+    };
+  }).filter((event) => event.word && event.end > event.start);
+}
+
 function extendWorkDataWithSoundEffects(source) {
   if (!source || source.soundEffectsReady) return source;
   const cues = Array.isArray(source.soundCues) ? source.soundCues : [];
   const effectLines = cues.map((cue, cueIndex) => {
     const bounds = soundCueBounds(cue.time, source.duration);
+    const events = soundCueEvents(cue, source.duration);
     return {
       index: SOUND_EFFECT_LINE_BASE + cueIndex,
       displayIndex: `S${cueIndex + 1}`,
@@ -70,9 +86,12 @@ function extendWorkDataWithSoundEffects(source) {
       cueTime: String(cue.time || ""),
       soundName: String(cue.sound || "音效"),
       soundMethod: String(cue.method || ""),
-      onomatopoeia: (Array.isArray(cue.onomatopoeia) ? cue.onomatopoeia : [cue.onomatopoeia])
-        .map((word) => String(word || "").trim())
-        .filter(Boolean),
+      soundEvents: events,
+      onomatopoeia: events.length
+        ? events.map((event) => event.word)
+        : (Array.isArray(cue.onomatopoeia) ? cue.onomatopoeia : [cue.onomatopoeia])
+          .map((word) => String(word || "").trim())
+          .filter(Boolean),
       isSoundEffect: true,
     };
   });

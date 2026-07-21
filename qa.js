@@ -324,12 +324,28 @@ function soundWordsForLine(line) {
   return words.length ? words : ["ドン"];
 }
 
-function setSoundDemoButtonLabel(element, word, start, end) {
+function soundEventsForLine(line) {
+  return (Array.isArray(line.soundEvents) ? line.soundEvents : [])
+    .map((event) => ({
+      word: String(event.word || "").trim(),
+      sound: String(event.sound || line.soundName || "音效").trim(),
+      start: Number(event.start),
+      end: Number(event.end),
+      demoStart: Number(event.demoStart),
+      demoEnd: Number(event.demoEnd),
+    }))
+    .filter((event) => event.word && Number.isFinite(event.start) && Number.isFinite(event.end) && event.end > event.start)
+    .sort((left, right) => left.start - right.start || left.end - right.end);
+}
+
+function setSoundDemoButtonLabel(element, word, start, end, sound = "") {
   if (!element) return;
   element.dataset.demoStart = String(start);
   element.dataset.demoEnd = String(end);
-  element.title = `播放原片「${word}」音效（${formatTime(start)}–${formatTime(end)}）`;
-  element.setAttribute("aria-label", `播放原影片中日文擬聲語 ${word} 對應的音效`);
+  element.dataset.soundLabel = String(sound || "");
+  const detail = sound ? `：${sound}` : "";
+  element.title = `播放原片「${word}」${detail}（${formatTime(start)}–${formatTime(end)}）`;
+  element.setAttribute("aria-label", `播放原影片中日文擬聲語 ${word}${detail} 對應的音效`);
 }
 
 function clearSoundDemoHighlights() {
@@ -405,9 +421,9 @@ async function playSoundDemo(word, start, end, trigger) {
     state.soundEffectWordElement.textContent = word;
     state.soundEffectWordElement.classList.add("is-playing");
     state.soundEffectWordElement.setAttribute("aria-pressed", "true");
-    setSoundDemoButtonLabel(state.soundEffectWordElement, word, start, end);
+    setSoundDemoButtonLabel(state.soundEffectWordElement, word, start, end, trigger?.dataset.soundLabel);
     state.soundBeatElements
-      .filter((beat) => beat.target && beat.start === start && beat.end === end)
+      .filter((beat) => beat.target && beat.demoStart === start && beat.demoEnd === end)
       .forEach((beat) => {
         beat.element.classList.add("is-playing");
         beat.element.setAttribute("aria-pressed", "true");
@@ -429,7 +445,26 @@ async function playSoundDemo(word, start, end, trigger) {
 function buildSoundEffectBeats(line) {
   const { cueStart, cueEnd, isRange } = soundCueWindow(line);
   const words = soundWordsForLine(line);
+  const explicitEvents = soundEventsForLine(line);
   const beats = [];
+  if (explicitEvents.length) {
+    let cursor = Number(line.start) || cueStart;
+    explicitEvents.forEach((event) => {
+      if (event.start > cursor + 0.05) {
+        beats.push({ start: cursor, end: event.start, target: false, word: "・" });
+      }
+      beats.push({
+        ...event,
+        demoStart: Number.isFinite(event.demoStart) ? event.demoStart : event.start,
+        demoEnd: Number.isFinite(event.demoEnd) ? event.demoEnd : event.end,
+        target: true,
+      });
+      cursor = Math.max(cursor, event.end);
+    });
+    const lineEnd = Number(line.end) || cueEnd;
+    if (lineEnd > cursor + 0.05) beats.push({ start: cursor, end: lineEnd, target: false, word: "・" });
+    return beats;
+  }
   if (isRange) {
     const count = Math.max(4, Math.min(12, Math.ceil((cueEnd - cueStart) / 3)));
     const step = (cueEnd - cueStart) / count;
@@ -472,7 +507,7 @@ function renderSoundEffectBeats(line) {
   wordDisplay.lang = "ja";
   wordDisplay.textContent = words[0];
   wordDisplay.setAttribute("aria-pressed", "false");
-  setSoundDemoButtonLabel(wordDisplay, words[0], firstTarget.demoStart, firstTarget.demoEnd);
+  setSoundDemoButtonLabel(wordDisplay, words[0], firstTarget.demoStart, firstTarget.demoEnd, firstTarget.sound);
   wordDisplay.addEventListener("click", () => playSoundDemo(
     wordDisplay.textContent,
     Number(wordDisplay.dataset.demoStart),
@@ -500,7 +535,7 @@ function renderSoundEffectBeats(line) {
     element.textContent = beat.word;
     if (beat.target) {
       element.setAttribute("aria-pressed", "false");
-      setSoundDemoButtonLabel(element, beat.word, beat.demoStart, beat.demoEnd);
+      setSoundDemoButtonLabel(element, beat.word, beat.demoStart, beat.demoEnd, beat.sound);
       element.addEventListener("click", () => playSoundDemo(beat.word, beat.demoStart, beat.demoEnd, element));
     } else {
       element.setAttribute("aria-hidden", "true");
@@ -561,15 +596,18 @@ function setKaraokeGuide(status, label, spokenProgress, expectedProgress) {
 function updateSoundEffectBeatProgress(videoTime, line) {
   const time = Number(videoTime) || 0;
   const { cueStart, cueEnd, isRange } = soundCueWindow(line);
-  let currentBeat = null;
+  const currentTargets = [];
   state.soundBeatElements.forEach((beat) => {
     beat.element.classList.toggle("is-passed", time >= beat.end);
     const isCurrent = time >= beat.start && time < beat.end;
     beat.element.classList.toggle("is-current", isCurrent);
-    if (isCurrent) currentBeat = beat;
+    if (isCurrent && beat.target) currentTargets.push(beat);
   });
   if (state.soundEffectWordElement) {
-    const activeTarget = currentBeat?.target ? currentBeat : state.soundBeatElements.find((beat) => beat.target);
+    const targetBeats = state.soundBeatElements.filter((beat) => beat.target);
+    const activeTarget = currentTargets.at(-1)
+      || targetBeats.find((beat) => beat.start > time)
+      || targetBeats.at(-1);
     const activeWord = activeTarget?.word || state.soundEffectWords[0];
     state.soundEffectWordElement.textContent = activeWord || "ドン";
     setSoundDemoButtonLabel(
@@ -577,15 +615,37 @@ function updateSoundEffectBeatProgress(videoTime, line) {
       activeWord || "ドン",
       activeTarget?.demoStart ?? cueStart,
       activeTarget?.demoEnd ?? cueEnd,
+      activeTarget?.sound,
     );
-    state.soundEffectWordElement.classList.toggle("is-active", Boolean(currentBeat?.target));
-    state.soundEffectWordElement.classList.toggle("is-waiting", time < cueStart);
+    state.soundEffectWordElement.classList.toggle("is-active", currentTargets.length > 0);
+    state.soundEffectWordElement.classList.toggle("is-waiting", currentTargets.length === 0 && time < cueEnd);
     state.soundEffectWordElement.classList.toggle("is-finished", time >= cueEnd);
   }
 
   if (state.isSoundDemo) {
     const progress = Math.max(0, Math.min(1, (time - state.soundDemoStart) / Math.max(0.1, state.soundDemoEnd - state.soundDemoStart)));
     setKaraokeGuide("review", "原片音效播放中", progress, progress);
+    return;
+  }
+
+  const explicitEvents = soundEventsForLine(line);
+  if (explicitEvents.length) {
+    const activeEvent = explicitEvents.filter((event) => time >= event.start && time < event.end).at(-1);
+    if (activeEvent) {
+      const progress = Math.max(0, Math.min(1, (time - activeEvent.start) / Math.max(0.1, activeEvent.end - activeEvent.start)));
+      setKaraokeGuide("on-time", `現在 · ${activeEvent.word}`, progress, progress);
+      return;
+    }
+    const nextEvent = explicitEvents.find((event) => event.start > time);
+    if (nextEvent) {
+      const remaining = Math.max(0, nextEvent.start - time);
+      const timelineProgress = Math.max(0, Math.min(1, (time - Number(line.start)) / Math.max(0.1, Number(line.end) - Number(line.start))));
+      setKaraokeGuide("waiting", `準備 ${nextEvent.word} · ${remaining.toFixed(1)} 秒`, 0, timelineProgress);
+      return;
+    }
+    if (state.isReviewing) setKaraokeGuide("review", "音效結束 · 收尾回看", 1, 1);
+    else if (state.mediaRecorder?.state === "recording") setKaraokeGuide("complete", "停止音效 · 收尾緩衝", 1, 1);
+    else setKaraokeGuide("complete", "音效拍點結束", 1, 1);
     return;
   }
 
@@ -1077,7 +1137,8 @@ async function analyzeRecordingAudio() {
     const samples = channel.subarray(0, Math.min(channel.length, targetSamples));
     if (samples.length < 512) return fallback;
     const frameSize = Math.min(2048, 2 ** Math.max(9, Math.floor(Math.log2(samples.length / 24))));
-    const frameCount = Math.max(12, Math.min(48, Math.floor(samples.length / frameSize)));
+    const frameLimit = line.isSoundEffect ? 240 : 48;
+    const frameCount = Math.max(12, Math.min(frameLimit, Math.floor(samples.length / frameSize)));
     const step = Math.max(1, Math.floor((samples.length - frameSize) / Math.max(1, frameCount - 1)));
     const frames = [];
     for (let offset = 0; offset + frameSize <= samples.length && frames.length < frameCount; offset += step) {
@@ -1149,10 +1210,50 @@ function soundTimingHitScore(errorSeconds) {
 function soundTimingMetrics(line, audioFeatures) {
   const { cueStart, cueEnd, isRange } = soundCueWindow(line);
   const lineStart = Number(line.start) || 0;
-  const expectedStart = Math.max(0, cueStart - lineStart);
-  const expectedEnd = Math.max(expectedStart + 0.1, cueEnd - lineStart);
   const activity = Array.isArray(audioFeatures?.activity) ? audioFeatures.activity : [];
   const activeFrames = activity.filter((frame) => frame.active);
+  const explicitEvents = soundEventsForLine(line);
+  if (explicitEvents.length) {
+    const eventResults = explicitEvents.map((event) => {
+      const expectedStart = Math.max(0, event.start - lineStart);
+      const expectedEnd = Math.max(expectedStart + 0.1, event.end - lineStart);
+      const duration = expectedEnd - expectedStart;
+      const beatCount = Math.max(1, Math.ceil(duration / 2.5));
+      let hitBeats = 0;
+      for (let index = 0; index < beatCount; index += 1) {
+        const beatStart = expectedStart + duration * index / beatCount;
+        const beatEnd = expectedStart + duration * (index + 1) / beatCount;
+        if (activeFrames.some((frame) => Number(frame.end) >= beatStart && Number(frame.start) <= beatEnd)) hitBeats += 1;
+      }
+      return { ...event, expectedStart, expectedEnd, beatCount, hitBeats, hit: hitBeats > 0 };
+    });
+    const expectedStart = eventResults[0].expectedStart;
+    const expectedEnd = Math.max(...eventResults.map((event) => event.expectedEnd));
+    const actualStart = activeFrames.length ? Number(activeFrames[0].start) : null;
+    const onsetError = actualStart === null ? null : actualStart - expectedStart;
+    const onsetScore = onsetError === null ? 0 : soundTimingHitScore(onsetError);
+    const beatCount = eventResults.reduce((sum, event) => sum + event.beatCount, 0);
+    const hitBeats = eventResults.reduce((sum, event) => sum + event.hitBeats, 0);
+    const coverageScore = Math.round(hitBeats / Math.max(1, beatCount) * 100);
+    return {
+      cueStart,
+      cueEnd,
+      isRange: true,
+      explicitEvents: true,
+      expectedStart,
+      expectedEnd,
+      actualStart,
+      onsetError,
+      onsetScore,
+      beatCount,
+      hitBeats,
+      coverageScore,
+      timeline: Math.round(onsetScore * 0.35 + coverageScore * 0.65),
+      eventResults,
+    };
+  }
+  const expectedStart = Math.max(0, cueStart - lineStart);
+  const expectedEnd = Math.max(expectedStart + 0.1, cueEnd - lineStart);
   const rawFeatureStart = audioFeatures?.activeStartSec;
   const featureStart = rawFeatureStart === null || rawFeatureStart === undefined
     ? Number.NaN
@@ -1221,7 +1322,11 @@ async function localSoundEffectEvaluation() {
     else issues.push(`偵測起音 ${formatTime(actualCueTime)}，比提示節拍晚 ${difference.toFixed(2)} 秒。`);
   }
   if (timing.isRange) {
-    issues.push(`指定區間 ${timing.hitBeats} / ${timing.beatCount} 個節拍偵測到音效。`);
+    const missedEvents = timing.eventResults?.filter((event) => !event.hit) || [];
+    issues.push(`${timing.explicitEvents ? "逐事件" : "指定區間"} ${timing.hitBeats} / ${timing.beatCount} 個節拍偵測到音效。`);
+    if (missedEvents.length) {
+      issues.push(`未命中：${missedEvents.map((event) => `${event.word}（${formatTime(event.start)}）`).join("、")}。`);
+    }
   }
   if (rms < 0.008 || timing.actualStart === null) issues.push("幾乎沒有偵測到音效，請靠近麥克風或提高音效強度。");
   else if (clipping > 0.01) issues.push("音效有爆音跡象，請降低音量或離麥克風遠一點。");
@@ -1229,7 +1334,7 @@ async function localSoundEffectEvaluation() {
   issues.push("本次依實際起音與畫面節拍評分，不再只用錄音長度判定。");
   const scores = {
     "出聲時機": timing.onsetScore,
-    ...(timing.isRange ? { "區間節拍": timing.coverageScore } : {}),
+    ...(timing.isRange ? { [timing.explicitEvents ? "逐事件節拍" : "區間節拍"]: timing.coverageScore } : {}),
     "音效存在": presence,
     "音量": volume,
   };
