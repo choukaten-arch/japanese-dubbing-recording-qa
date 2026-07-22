@@ -10,6 +10,8 @@ const state = {
   recordingStartedAt: 0,
   recordingDuration: 0,
   recordingEndProgress: 0,
+  recordingFinalizeTimer: null,
+  isStopping: false,
   timerId: null,
   audioContext: null,
   analyser: null,
@@ -171,7 +173,7 @@ function seekVideo(time) {
 }
 
 async function playReference() {
-  if (state.isPreparing || state.mediaRecorder?.state === "recording") return;
+  if (state.isPreparing || state.isStopping || state.mediaRecorder?.state === "recording") return;
   const line = currentLine();
   stopSyncedReview();
   stopSoundDemo(false);
@@ -189,7 +191,7 @@ async function playReference() {
 function handleReferenceTime() {
   if (!elements.karaokeOverlay.hidden) updateKaraokeProgress(elements.referenceVideo.currentTime);
   if (state.referenceStopAt === null) return;
-  if (elements.referenceVideo.currentTime >= state.referenceStopAt - 0.04) {
+  if (elements.referenceVideo.currentTime >= state.referenceStopAt) {
     const shouldStopRecording = state.mediaRecorder?.state === "recording";
     const shouldStopReview = state.isReviewing;
     const shouldStopSoundDemo = state.isSoundDemo;
@@ -839,7 +841,7 @@ function createRecognition() {
 }
 
 async function startRecording() {
-  if (state.isPreparing || state.mediaRecorder?.state === "recording") return;
+  if (state.isPreparing || state.isStopping || state.mediaRecorder?.state === "recording") return;
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
     elements.recordState.textContent = "此瀏覽器不支援錄音";
     return;
@@ -926,24 +928,37 @@ function updateRecordingTimer() {
 }
 
 function stopRecording() {
-  if (state.mediaRecorder?.state !== "recording") return;
+  if (state.mediaRecorder?.state !== "recording" || state.isStopping) return;
+  state.isStopping = true;
   state.recordingDuration = (performance.now() - state.recordingStartedAt) / 1000;
   state.recordingEndProgress = Math.max(0, Math.min(1, (elements.referenceVideo.currentTime - currentLine().start) / Math.max(0.1, currentLine().end - currentLine().start)));
   elements.referenceVideo.pause();
   elements.referenceVideo.controls = true;
   state.referenceStopAt = null;
-  state.mediaRecorder.stop();
   try { state.recognition?.stop(); } catch {}
-  state.mediaStream?.getTracks().forEach((track) => track.stop());
   clearInterval(state.timerId);
   cancelAnimationFrame(state.waveformFrame);
-  state.audioContext?.close();
-  elements.recordState.textContent = "處理錄音";
+  try { state.mediaRecorder.requestData(); } catch {}
+  const flushMilliseconds = Math.max(200, Number(window.QA_RECORDING_TIMING?.encoderFlushMilliseconds) || 400);
+  clearTimeout(state.recordingFinalizeTimer);
+  state.recordingFinalizeTimer = setTimeout(() => {
+    state.recordingFinalizeTimer = null;
+    if (state.mediaRecorder?.state === "recording") state.mediaRecorder.stop();
+  }, flushMilliseconds);
+  elements.recordState.textContent = "正在保存句尾";
   elements.stopRecording.disabled = true;
   document.body.classList.remove("is-recording");
+  document.body.classList.add("is-finalizing");
 }
 
 function finishRecording() {
+  clearTimeout(state.recordingFinalizeTimer);
+  state.recordingFinalizeTimer = null;
+  state.recordingDuration = (performance.now() - state.recordingStartedAt) / 1000;
+  state.mediaStream?.getTracks().forEach((track) => track.stop());
+  state.audioContext?.close();
+  state.isStopping = false;
+  document.body.classList.remove("is-finalizing");
   const type = state.mediaRecorder.mimeType || "audio/webm";
   state.recordingBlob = new Blob(state.chunks, { type });
   if (state.recordingUrl) URL.revokeObjectURL(state.recordingUrl);
@@ -964,11 +979,13 @@ function finishRecording() {
 }
 
 function resetRecording() {
-  if (state.mediaRecorder?.state === "recording") return;
+  if (state.isStopping || state.mediaRecorder?.state === "recording") return;
   stopSoundDemo(false);
   stopSyncedReview();
   state.isPreparing = false;
-  document.body.classList.remove("is-preparing", "is-reviewing");
+  document.body.classList.remove("is-preparing", "is-reviewing", "is-finalizing");
+  clearTimeout(state.recordingFinalizeTimer);
+  state.recordingFinalizeTimer = null;
   clearInterval(state.timerId);
   cancelAnimationFrame(state.waveformFrame);
   state.mediaStream?.getTracks().forEach((track) => track.stop());

@@ -102,9 +102,13 @@ try {
     const player = [...portalState.showcasePlayers.values()].find((item) => item.showcase.isOwnGroup);
     const segment = player.segments[0];
     const line = portalState.workData.get(player.showcase.workSlug).lines.find((item) => Number(item.index) === Number(segment.lineIndex));
-    return segment.end - line.end;
+    return {
+      tail: segment.end - line.end,
+      coversRecording: segment.end - segment.start >= Number(segment.recordingDuration) - 0.01,
+    };
   });
-  assert(showcaseTailBuffer >= 1.2, "小組成果播放沒有保留錄音句尾緩衝");
+  assert(showcaseTailBuffer.tail >= 2, "小組成果播放沒有保留錄音句尾緩衝");
+  assert(showcaseTailBuffer.coversRecording, "小組成果仍在實際錄音結束前切斷音檔");
   await ownShowcaseButton.click();
   await page.locator("#changePreference").click();
   await page.waitForFunction(() => document.querySelector("#preferenceDialog")?.open);
@@ -131,8 +135,7 @@ try {
   assert(await page.locator("#referenceVideo").evaluate((video) => video.volume >= 0.99), "上一句前奏音量未開啟");
   assert(await page.locator("#referenceVideo").evaluate((video) => video.currentTime < currentLine().start), "上一句前奏沒有在本句開始前播放");
   const preRollStartedAt = await page.locator("#referenceVideo").evaluate((video) => video.currentTime);
-  await page.waitForTimeout(350);
-  assert(await page.locator("#referenceVideo").evaluate((video, start) => video.currentTime > start + 0.08, preRollStartedAt), "有聲前奏實際上沒有播放前進");
+  await page.waitForFunction((start) => document.querySelector("#referenceVideo").currentTime > start + 0.08, preRollStartedAt, { timeout: 5000 });
   await page.waitForFunction(() => document.body.classList.contains("is-recording"));
   assert(await page.locator("#referenceVideo").evaluate((video) => video.muted), "卡啦 OK 錄音時影片未靜音");
   assert(await page.locator("#karaokeOverlay").isVisible(), "錄音時未顯示卡啦 OK 字幕");
@@ -147,9 +150,26 @@ try {
   assert((await page.locator("#karaokeGuideLabel").innerText()).includes("收尾緩衝"), "本句結束後沒有顯示收尾緩衝");
   await page.locator("#referenceVideo").evaluate((video) => {
     video.currentTime = recordingStopTime(currentLine());
+    window.__recordingStopRequestedAt = performance.now();
     handleReferenceTime();
   });
+  assert(await page.evaluate(() => state.isStopping && document.body.classList.contains("is-finalizing")), "錄音停止時沒有保留編碼收尾");
   await page.waitForFunction(() => !document.querySelector("#recordingPlayback").hidden);
+  const recordingIntegrity = await page.evaluate(async () => {
+    const context = new AudioContext();
+    const decoded = await context.decodeAudioData(await state.recordingBlob.arrayBuffer());
+    const result = {
+      finalizeMilliseconds: performance.now() - window.__recordingStopRequestedAt,
+      encodedDuration: decoded.duration,
+      recordedDuration: state.recordingDuration,
+      size: state.recordingBlob.size,
+    };
+    await context.close();
+    return result;
+  });
+  assert(recordingIntegrity.finalizeMilliseconds >= 350, "錄音器尚未送出最後資料塊就被關閉");
+  assert(recordingIntegrity.size > 1000 && recordingIntegrity.encodedDuration >= 0.9, "實際錄音檔過短或內容不完整");
+  assert(recordingIntegrity.encodedDuration >= recordingIntegrity.recordedDuration - 0.45, "錄音檔秒數少於頁面記錄秒數");
   assert(await page.locator("#recordingReview").isVisible(), "錄音完成後未顯示我的錄音播放器");
   assert(!(await page.locator("#playSyncedReview").isDisabled()), "錄音完成後無法啟用同步回看");
   await page.locator("#playSyncedReview").click();
@@ -282,9 +302,12 @@ try {
   await mobilePage.waitForFunction(() => document.querySelectorAll("#preferenceRoles input[type=checkbox]").length > 1);
   await mobilePage.locator('#preferenceRoles input[value="琪琪"]').check();
   await mobilePage.locator('#preferenceRoles input[value="吉吉"]').check();
+  const selectedSoundRole = await mobilePage.locator('#preferenceRoles input[value^="音效＿"]').first().getAttribute("value");
+  await mobilePage.locator('#preferenceRoles input[value^="音效＿"]').first().check();
   await mobilePage.locator("#preferenceForm button[type=submit]").click();
   await mobilePage.waitForFunction(() => document.querySelectorAll(".task-item").length > 0);
-  assert(await mobilePage.locator(".self-practice-item").count() === 2, "手機版未顯示複數角色自主練習");
+  assert(await mobilePage.locator(".self-practice-item").count() === 3, "手機版未顯示複數角色自主練習");
+  assert((await mobilePage.locator("#studentPreferenceLabel").innerText()).includes(selectedSoundRole), "學生選擇音效角色後沒有保存");
   await mobilePage.locator("#changePreference").click();
   await mobilePage.waitForFunction(() => document.querySelector("#preferenceDialog")?.open);
   await mobilePage.locator("#preferenceWork").selectOption("ponyo");

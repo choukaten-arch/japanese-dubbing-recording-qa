@@ -478,7 +478,7 @@ async function demoGroupShowcases(isTeacher = false) {
         canSeeMembers: true,
         canSeeMemberScores: true,
         members: demoMembers(ownMembers, true),
-        segments: ownData.lines.slice(0, 2).map((line, index) => ({ resultKey: `demo-own-${index}`, lineIndex: line.index, role: line.role, score: 82 - index * 3, studentName: ownMembers[index % ownMembers.length]?.name || "測試學生", updatedAt: new Date().toISOString() })),
+        segments: ownData.lines.slice(0, 2).map((line, index) => ({ resultKey: `demo-own-${index}`, lineIndex: line.index, role: line.role, score: 82 - index * 3, recordingDuration: line.end - line.start + 2.4, studentName: ownMembers[index % ownMembers.length]?.name || "測試學生", updatedAt: new Date().toISOString() })),
         updatedAt: new Date().toISOString(),
       },
       {
@@ -495,7 +495,7 @@ async function demoGroupShowcases(isTeacher = false) {
         canSeeMembers: true,
         canSeeMemberScores: isTeacher,
         members: demoMembers(otherMembers, isTeacher),
-        segments: [{ resultKey: "demo-other-0", lineIndex: otherData.lines[0].index, role: otherData.lines[0].role, score: 76, studentName: "", updatedAt: new Date().toISOString() }],
+        segments: [{ resultKey: "demo-other-0", lineIndex: otherData.lines[0].index, role: otherData.lines[0].role, score: 76, recordingDuration: otherData.lines[0].end - otherData.lines[0].start + 2.4, studentName: "", updatedAt: new Date().toISOString() }],
         updatedAt: new Date().toISOString(),
       },
     ],
@@ -888,15 +888,24 @@ async function ensureShowcaseSegmentAudio(player, segment) {
       const audio = new Audio(url);
       audio.preload = "auto";
       player.audioElements.set(segment.resultKey, audio);
+      const captureDuration = () => {
+        const audioDuration = Number(audio.duration);
+        if (!Number.isFinite(audioDuration) || audioDuration <= 0) return;
+        segment.audioDuration = audioDuration;
+        segment.playbackEnd = Math.min(player.duration, Math.max(segment.end, segment.start + audioDuration));
+      };
+      audio.addEventListener("loadedmetadata", captureDuration, { once: true });
       audio.load();
       return new Promise((resolve) => {
         if (audio.readyState >= 2) {
+          captureDuration();
           resolve(audio);
           return;
         }
         const finish = () => {
           clearTimeout(timeout);
           audio.removeEventListener("loadeddata", finish);
+          captureDuration();
           resolve(audio);
         };
         const timeout = setTimeout(finish, 3000);
@@ -915,12 +924,12 @@ async function ensureShowcaseSegmentAudio(player, segment) {
 }
 
 async function prepareShowcaseWindow(player, currentTime, lookAhead = 18) {
-  const upcoming = player.segments.filter((segment) => segment.end >= currentTime - 0.5 && segment.start <= currentTime + lookAhead);
+  const upcoming = player.segments.filter((segment) => (segment.playbackEnd || segment.end) >= currentTime - 0.5 && segment.start <= currentTime + lookAhead);
   await Promise.allSettled(upcoming.map((segment) => ensureShowcaseSegmentAudio(player, segment)));
 }
 
 function activeShowcaseSegments(player, time) {
-  return player.segments.filter((segment) => time >= segment.start - 0.08 && time < segment.end);
+  return player.segments.filter((segment) => time >= segment.start - 0.08 && time < (segment.playbackEnd || segment.end));
 }
 
 function syncShowcasePlayer(player) {
@@ -997,7 +1006,12 @@ async function renderGroupShowcases(showcases, container) {
     const segments = (showcase.segments || []).map((segment) => {
       const line = lineMap.get(Number(segment.lineIndex));
       const postRoll = Number(window.QA_RECORDING_TIMING?.postRollSeconds) || 0;
-      return line ? { ...segment, start: line.start, end: Math.min(Number(data.duration) || Infinity, line.end + postRoll) } : null;
+      const duration = Number(data.duration) || Infinity;
+      const expectedEnd = line ? Math.min(duration, line.end + postRoll) : 0;
+      const recordedEnd = line && Number(segment.recordingDuration) > 0
+        ? Math.min(duration, line.start + Number(segment.recordingDuration))
+        : expectedEnd;
+      return line ? { ...segment, start: line.start, end: Math.max(expectedEnd, recordedEnd) } : null;
     }).filter(Boolean).sort((left, right) => left.start - right.start);
     const article = document.createElement("article");
     article.className = `showcase-card${showcase.isOwnGroup ? " is-own-group" : ""}`;
@@ -1026,6 +1040,7 @@ async function renderGroupShowcases(showcases, container) {
     const player = {
       showcase,
       segments,
+      duration: Number(data.duration) || Infinity,
       video,
       button,
       status,

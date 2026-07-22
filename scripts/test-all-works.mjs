@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { runInNewContext } from "node:vm";
 
 const moduleRoot = process.env.WORKSPACE_NODE_MODULES;
 const require = createRequire(moduleRoot ? `${moduleRoot}/package.json` : import.meta.url);
@@ -22,6 +23,14 @@ await mkdir(outputDir, { recursive: true });
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
+
+const appsScriptSource = await readFile(resolve(import.meta.dirname, "../apps-script/Code.gs"), "utf8");
+const soundCatalogStart = appsScriptSource.indexOf("const SOUND_EFFECT_WORKS");
+const soundCatalogEnd = appsScriptSource.indexOf("\n\nfunction onOpen", soundCatalogStart);
+assert(soundCatalogStart >= 0 && soundCatalogEnd > soundCatalogStart, "Apps Script 缺少音效角色清單");
+const soundCatalogContext = {};
+runInNewContext(`${appsScriptSource.slice(soundCatalogStart, soundCatalogEnd)}\nthis.soundWorks = SOUND_EFFECT_WORKS;`, soundCatalogContext);
+const backendSoundWorks = soundCatalogContext.soundWorks;
 
 function monitor(page, label) {
   page.on("console", (message) => {
@@ -74,6 +83,10 @@ try {
     await waitForWork(page, work);
 
     const data = await page.evaluate(async (slug) => (await (await fetch(`data/${slug}.json`)).json()), work.slug);
+    const backendSoundWork = backendSoundWorks.find((item) => item.workSlug === work.slug);
+    const frontendSoundRoles = data.soundCues.map((cue) => `音效＿${cue.sound}＿${cue.time}`);
+    const backendSoundRoles = (backendSoundWork?.cues || []).map((cue) => `音效＿${cue[1]}＿${cue[0]}`);
+    assert(JSON.stringify(frontendSoundRoles) === JSON.stringify(backendSoundRoles), `${work.title} 前後端音效角清單不同步`);
     assert(data.lines.length === work.lines, `${work.title} 的資料行數錯誤`);
     assert(data.soundCues.every((cue) => Array.isArray(cue.onomatopoeia) && cue.onomatopoeia.length > 0), `${work.title} 有音效缺少日文擬聲語`);
     assert(data.soundCues.flatMap((cue) => cue.onomatopoeia).every((word) => /[ぁ-ヿ]/.test(word)), `${work.title} 的音效提示不是日文擬聲語`);
