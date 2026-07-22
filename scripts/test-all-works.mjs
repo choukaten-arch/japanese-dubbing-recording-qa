@@ -10,11 +10,11 @@ const { chromium } = require("playwright");
 const baseUrl = process.env.QA_URL || "http://127.0.0.1:4273/";
 const outputDir = resolve(import.meta.dirname, "../test-results/all-works");
 const works = [
-  { slug: "kiki", title: "魔女宅急便", lines: 59, roles: 6, soundEffects: 8 },
-  { slug: "ponyo", title: "崖上的波妞", lines: 77, roles: 8, soundEffects: 7 },
-  { slug: "maruko", title: "櫻桃小丸子：來自義大利的少年", lines: 88, roles: 22, soundEffects: 5 },
-  { slug: "spirited-away", title: "神隱少女", lines: 70, roles: 8, soundEffects: 8 },
-  { slug: "totoro", title: "龍貓", lines: 54, roles: 5, soundEffects: 6 },
+  { slug: "kiki", title: "魔女宅急便", lines: 59, roles: 6, soundEffects: 11, soundEvents: 72 },
+  { slug: "ponyo", title: "崖上的波妞", lines: 77, roles: 8, soundEffects: 10, soundEvents: 60 },
+  { slug: "maruko", title: "櫻桃小丸子：來自義大利的少年", lines: 88, roles: 22, soundEffects: 9, soundEvents: 49 },
+  { slug: "spirited-away", title: "神隱少女", lines: 70, roles: 8, soundEffects: 11, soundEvents: 62 },
+  { slug: "totoro", title: "龍貓", lines: 54, roles: 5, soundEffects: 10, soundEvents: 51 },
 ];
 const errors = [];
 
@@ -22,6 +22,14 @@ await mkdir(outputDir, { recursive: true });
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function cueSeconds(value) {
+  return String(value || "").split(":").reduce((total, part) => total * 60 + Number(part), 0);
+}
+
+function cueRange(value) {
+  return String(value || "").split("–").map(cueSeconds);
 }
 
 const appsScriptSource = await readFile(resolve(import.meta.dirname, "../apps-script/Code.gs"), "utf8");
@@ -88,14 +96,37 @@ try {
     const backendSoundRoles = (backendSoundWork?.cues || []).map((cue) => `音效＿${cue[1]}＿${cue[0]}`);
     assert(JSON.stringify(frontendSoundRoles) === JSON.stringify(backendSoundRoles), `${work.title} 前後端音效角清單不同步`);
     assert(data.lines.length === work.lines, `${work.title} 的資料行數錯誤`);
+    assert(data.soundCues.length === work.soundEffects, `${work.title} 的音效場景數量錯誤`);
     assert(data.soundCues.every((cue) => Array.isArray(cue.onomatopoeia) && cue.onomatopoeia.length > 0), `${work.title} 有音效缺少日文擬聲語`);
     assert(data.soundCues.flatMap((cue) => cue.onomatopoeia).every((word) => /[ぁ-ヿ]/.test(word)), `${work.title} 的音效提示不是日文擬聲語`);
+    assert(data.soundCues.every((cue) => Array.isArray(cue.events) && cue.events.length > 0), `${work.title} 仍有音效使用平均切段而非逐事件時間`);
+    assert(data.soundCues.flatMap((cue) => cue.events).length === work.soundEvents, `${work.title} 的逐事件音效盤點數量錯誤`);
+    let previousCueEnd = 0;
+    for (const cue of data.soundCues) {
+      const [cueStart, cueEnd] = cueRange(cue.time);
+      assert(Number.isFinite(cueStart) && Number.isFinite(cueEnd) && cueEnd > cueStart, `${work.title} 的音效場景時間格式錯誤：${cue.time}`);
+      assert(cueStart >= previousCueEnd - 0.001, `${work.title} 的音效場景互相重疊：${cue.time}`);
+      assert(cueEnd <= data.duration + 0.001, `${work.title} 的音效場景超出影片：${cue.time}`);
+      previousCueEnd = cueEnd;
+      assert(JSON.stringify(cue.onomatopoeia) === JSON.stringify(cue.events.map((event) => event.word)), `${work.title} 的擬聲語與逐事件清單不同步：${cue.sound}`);
+      let previousEventStart = cueStart;
+      for (const event of cue.events) {
+        const [eventStart, eventEnd] = cueRange(event.time);
+        const [previewStart, previewEnd] = cueRange(event.preview);
+        assert(event.word && /[ぁ-ヿ]/.test(event.word) && event.sound, `${work.title} 有逐事件音效缺少擬聲語或名稱：${cue.sound}`);
+        assert(eventStart >= previousEventStart - 0.001, `${work.title} 的逐事件音效順序錯誤：${event.sound}`);
+        assert(eventStart >= cueStart - 0.001 && eventEnd <= cueEnd + 0.001 && eventEnd > eventStart, `${work.title} 的逐事件音效超出場景：${event.sound}`);
+        assert(previewStart >= cueStart - 0.001 && previewEnd <= cueEnd + 0.001 && previewEnd > previewStart, `${work.title} 的示範片段超出場景：${event.sound}`);
+        previousEventStart = eventStart;
+      }
+    }
     if (work.slug === "kiki") {
-      assert(data.soundCues.every((cue) => Array.isArray(cue.events) && cue.events.length > 0), "魔女宅急便仍有音效使用平均切段而非逐事件時間");
-      assert(!data.soundCues.some((cue) => /風箱|時鐘提醒/.test(cue.sound)), "魔女宅急便仍保留原片中不存在的風箱或鐘響");
-      const doorbell = data.soundCues.find((cue) => cue.sound === "門鈴")?.events?.[0];
+      const kikiEvents = data.soundCues.flatMap((cue) => cue.events);
+      assert(!data.soundCues.some((cue) => /風箱|時鐘提醒|雷/.test(cue.sound)), "魔女宅急便仍保留原片中不存在的風箱、鐘響或雷聲");
+      assert(["燈泡玻璃與燈罩輕碰", "杯子與杯碟清楚碰響", "孫女打開屋門", "在收據上簽名", "列車或電車長鳴笛"].every((sound) => kikiEvents.some((event) => event.sound === sound)), "魔女宅急便的關鍵漏音仍未補齊");
+      const doorbell = kikiEvents.find((event) => event.sound === "門鈴響起");
       assert(doorbell?.word === "ピンポーン" && doorbell.time.startsWith("04:44.80"), "魔女宅急便門鈴沒有校正到原片 04:45.2 左右");
-      const closingDoor = data.soundCues.find((cue) => cue.sound === "關門")?.events?.[0];
+      const closingDoor = kikiEvents.find((event) => event.sound === "屋門在琪琪面前關上");
       assert(closingDoor?.word === "バタン" && closingDoor.time.startsWith("05:20.40"), "魔女宅急便關門沒有校正到原片 05:20.7 左右");
     }
     const demoCoverage = await page.evaluate(() => state.data.lines.filter((line) => line.isSoundEffect).every((line) => {
@@ -105,6 +136,29 @@ try {
         && beats.every((beat) => beat.demoEnd > beat.demoStart && beat.demoStart >= line.start && beat.demoEnd <= line.end);
     }));
     assert(demoCoverage, `${work.title} 有擬聲語缺少對應的原片播放區間`);
+    const renderedSoundCues = await page.evaluate(() => state.data.lines.filter((line) => line.isSoundEffect).map((line) => {
+      const lineIndex = state.data.lines.indexOf(line);
+      selectLine(lineIndex, false);
+      renderKaraokeOverlay();
+      const buttons = [...document.querySelectorAll(".sound-beat.is-target")];
+      const row = document.querySelector(".sound-beat-row");
+      return {
+        expected: line.soundEvents.length,
+        rendered: buttons.length,
+        words: buttons.map((button) => button.textContent),
+        labelsComplete: buttons.every((button) => button.dataset.soundLabel
+          && Number(button.dataset.demoEnd) > Number(button.dataset.demoStart)
+          && button.getAttribute("aria-label")?.includes(button.textContent)),
+        overflow: row ? row.scrollWidth > row.clientWidth + 1 : true,
+      };
+    }));
+    assert(renderedSoundCues.every((cue) => cue.rendered === cue.expected), `${work.title} 有逐事件音效未顯示在卡啦 OK 節拍列`);
+    assert(renderedSoundCues.every((cue) => cue.labelsComplete), `${work.title} 有音效示範按鈕缺少名稱或原片區間`);
+    assert(renderedSoundCues.every((cue) => !cue.overflow), `${work.title} 的音效節拍列出現文字溢位`);
+    await page.evaluate(() => {
+      hideKaraokeOverlay();
+      selectLine(0, false);
+    });
     assert(await page.locator(".work-switcher__link").count() === 5, "作品切換列應顯示五部");
     assert(await page.locator(".work-switcher__link.is-active").count() === 1, `${work.title} 沒有唯一選取狀態`);
     assert((await page.locator("#workMeta").textContent()).includes(`${work.roles + work.soundEffects} 角`), `${work.title} 的角色資訊錯誤`);
@@ -152,6 +206,14 @@ try {
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.waitForTimeout(120);
     await page.screenshot({ path: `${outputDir}/${work.slug}-desktop.png`, fullPage: false });
+    if (work.slug === "kiki") {
+      await page.evaluate(() => {
+        const index = state.data.lines.findIndex((line) => line.isSoundEffect && line.soundEvents.length === 12);
+        selectLine(index, false);
+        renderKaraokeOverlay();
+      });
+      await page.screenshot({ path: `${outputDir}/kiki-sound-cue-desktop.png`, fullPage: false });
+    }
     await page.close();
   }
   await desktop.close();

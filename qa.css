@@ -321,7 +321,7 @@ h1 {
 .sound-beat-row {
   display: grid;
   width: min(100%, 440px);
-  grid-template-columns: repeat(var(--sound-beat-columns), minmax(34px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 104px), 1fr));
   gap: 4px;
   margin-inline: auto;
 }
@@ -336,11 +336,12 @@ h1 {
   border-radius: 4px;
   background: rgba(12,20,30,0.66);
   font-family: "Noto Sans JP", "Hiragino Sans", sans-serif;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 900;
   line-height: 1.1;
   letter-spacing: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  white-space: nowrap;
   transition: color 100ms linear, border-color 100ms linear, background 100ms linear, box-shadow 100ms linear;
 }
 .sound-beat.is-prep { color: rgba(255,255,255,0.54); border-style: dashed; font-size: 15px; }
@@ -351,7 +352,6 @@ h1 {
   appearance: none;
   pointer-events: auto;
   cursor: pointer;
-  font: inherit;
 }
 .sound-demo-button::after { margin-left: 0.42em; color: currentColor; font-size: 0.62em; content: "▶"; opacity: 0.72; }
 .sound-demo-button:hover { color: #fff; border-color: #fff; }

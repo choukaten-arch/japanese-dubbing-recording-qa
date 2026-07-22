@@ -66,7 +66,7 @@ try {
   assert(await page.locator("#preferenceDialog .group-editor").count() === 0, "學生首次設定不應包含組別欄位");
   await page.locator("#preferenceWork").selectOption("kiki");
   await page.waitForFunction(() => document.querySelectorAll("#preferenceRoles input[type=checkbox]").length > 1);
-  assert(await page.locator('#preferenceRoles input[value^="音效＿"]').count() === 8, "魔女宅急便應提供 8 個具時間軸名稱的音效角色");
+  assert(await page.locator('#preferenceRoles input[value^="音效＿"]').count() === 11, "魔女宅急便應提供 11 個具時間軸名稱的音效角色");
   await page.locator('#preferenceRoles input[value="琪琪"]').check();
   await page.locator('#preferenceRoles input[value="老夫人"]').check();
   await page.locator("#preferenceForm button[type=submit]").click();
@@ -356,8 +356,8 @@ try {
   assert((await mobilePage.locator("#selectedRole").innerText()).startsWith("音效＿"), "音效時間軸未轉成正式角色名稱");
   assert(await mobilePage.locator(".transcription-field").isHidden(), "音效錄製不應要求逐字辨識");
   assert(await mobilePage.locator("#karaokeOverlay").isVisible(), "音效示範按鈕沒有在錄音前顯示於影片上");
-  assert(await mobilePage.locator(".sound-demo-button").count() === 4, "魔女宅急便第一組三個精確音效沒有全部做成試聽按鈕");
-  assert((await mobilePage.locator(".sound-beat.is-target").allTextContents()).join("|") === "ギイッ|ゴトゴト|ドサッ", "魔女宅急便柴門與木柴音效順序仍不正確");
+  assert(await mobilePage.locator(".sound-demo-button").count() === 11, "魔女宅急便第一組十個精確音效沒有全部做成試聽按鈕");
+  assert((await mobilePage.locator(".sound-beat.is-target").allTextContents()).join("|") === "タタタッ|ギイッ|ガサッ|ゴトゴト|バタン|ゴトッ|コツコツ|ゴトゴト|ドサッ|カサカサ", "魔女宅急便柴房與木柴音效順序仍不正確");
   await mobilePage.waitForFunction(() => document.querySelector("#referenceVideo")?.readyState >= 1);
   const firstSoundButton = mobilePage.locator(".sound-beat.is-target").first();
   const expectedDemoStart = Number(await firstSoundButton.getAttribute("data-demo-start"));
@@ -424,7 +424,7 @@ try {
   const rangeBeatWords = await mobilePage.locator(".sound-beat.is-target").allTextContents();
   assert(rangeBeatWords.every((word) => /[ぁ-ヿ]/.test(word)), "持續音效節拍仍使用數字而非日文擬聲語");
   await mobilePage.waitForTimeout(700);
-  assert((await mobilePage.locator("#karaokeGuideLabel").innerText()).includes("現在 · ギイッ"), "音效進入精確事件時間後沒有即時出聲提示");
+  assert((await mobilePage.locator("#karaokeGuideLabel").innerText()).includes("現在 · タタタッ"), "音效進入精確事件時間後沒有即時出聲提示");
   assert(await mobilePage.locator(".sound-beat.is-current").count() === 1, "目前音效節拍沒有醒目標示");
   await mobilePage.locator("#stopRecording").click();
   await mobilePage.waitForFunction(() => !document.querySelector("#recordingReview").hidden);
@@ -437,16 +437,17 @@ try {
   assert(Number(await mobilePage.locator("#overallScore").innerText()) <= 55, "只錄到第一格的持續音效得分仍然過高");
   await mobilePage.screenshot({ path: `${outputDir}/sound-effect-recording-mobile.png`, fullPage: true });
 
-  await mobilePage.goto(`${baseUrl}index.html?work=kiki#line-9004`, { waitUntil: "domcontentloaded" });
+  await mobilePage.goto(`${baseUrl}index.html?work=kiki#line-9005`, { waitUntil: "domcontentloaded" });
   await mobilePage.waitForFunction(() => document.body.classList.contains("sound-effect-mode"));
   await mobilePage.evaluate(() => {
     renderKaraokeOverlay();
-    updateSoundEffectBeatProgress(currentLine().soundEvents[0].start, currentLine());
+    const bird = currentLine().soundEvents.find((event) => event.sound === "窗外短促鳥鳴");
+    updateSoundEffectBeatProgress(bird.start, currentLine());
   });
-  assert((await mobilePage.locator(".sound-cue-time").innerText()).includes("効果音"), "單次音效沒有標示精確出聲拍點");
-  assert(await mobilePage.locator(".sound-beat.is-target").count() === 1, "鳥鳴音效不是單一精確事件");
-  assert(await mobilePage.locator(".sound-beat.is-target.is-current").count() === 1, "單次音效到點時沒有標示出聲拍");
-  assert((await mobilePage.locator(".sound-beat.is-target").innerText()) === "チュンチュン", "單次音效目標拍沒有使用正確日文擬聲語");
+  assert((await mobilePage.locator(".sound-cue-time").innerText()).includes("効果音"), "逐事件音效沒有標示精確出聲拍點");
+  assert(await mobilePage.locator(".sound-beat.is-target").count() === 5, "茶具與鳥鳴場景沒有顯示全部五個精確事件");
+  assert(await mobilePage.locator(".sound-beat.is-target.is-current").count() === 1, "鳥鳴音效到點時沒有唯一標示出聲拍");
+  assert((await mobilePage.locator(".sound-beat.is-target.is-current").innerText()) === "チュンチュン", "鳥鳴目標拍沒有使用正確日文擬聲語");
   assert((await mobilePage.locator(".sound-effect-word").innerText()) === "チュンチュン", "影片上緣沒有顯示目前的日文擬聲語");
   assert((await mobilePage.locator("#karaokeGuideLabel").innerText()) === "現在 · チュンチュン", "單次音效到點時沒有顯示出聲指令");
   await mobilePage.screenshot({ path: `${outputDir}/sound-effect-point-mobile.png`, fullPage: true });
