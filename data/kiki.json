@@ -210,7 +210,7 @@
       "end": 108.54,
       "role": "琪琪",
       "japanese": "40分くらいでしょうか。",
-      "japaneseHtml": "40<ruby>分<rt>ぷん</rt></ruby>くらいでしょうか。",
+      "japaneseHtml": "<ruby>40分<rt>よんじゅっぷん</rt></ruby>くらいでしょうか。",
       "translation": "大概四十分鐘嗎？",
       "performance": "表演：確認時間。"
     },
@@ -280,7 +280,7 @@
       "end": 130.77,
       "role": "琪琪",
       "japanese": "心配屋！ フルスピードで飛ばせば、15分でギリギリセーフよ。",
-      "japaneseHtml": "<ruby>心配<rt>しんぱい</rt></ruby><ruby>屋<rt>や</rt></ruby>！ フルスピードで<ruby>飛<rt>と</rt></ruby>ばせば、15<ruby>分<rt>ふん</rt></ruby>でギリギリセーフよ。",
+      "japaneseHtml": "<ruby>心配<rt>しんぱい</rt></ruby><ruby>屋<rt>や</rt></ruby>！ フルスピードで<ruby>飛<rt>と</rt></ruby>ばせば、<ruby>15分<rt>じゅうごふん</rt></ruby>でギリギリセーフよ。",
       "translation": "愛操心！全速飛的話，十五分鐘剛好壓線。",
       "performance": "表演：帶自信反駁。"
     },
@@ -300,7 +300,7 @@
       "end": 140.34,
       "role": "老夫人",
       "japanese": "6時からパーティー？ 間に合うの！？",
-      "japaneseHtml": "6<ruby>時<rt>じ</rt></ruby>からパーティー？ <ruby>間<rt>ま</rt></ruby>に<ruby>合<rt>あ</rt></ruby>うの！？",
+      "japaneseHtml": "<ruby>6時<rt>ろくじ</rt></ruby>からパーティー？ <ruby>間<rt>ま</rt></ruby>に<ruby>合<rt>あ</rt></ruby>うの！？",
       "translation": "派對六點開始？來得及嗎？",
       "performance": "表演：突然警覺。"
     },
@@ -310,7 +310,7 @@
       "end": 143.52,
       "role": "琪琪",
       "japanese": "大丈夫です。15分あれば足りますから。",
-      "japaneseHtml": "<ruby>大丈夫<rt>だいじょうぶ</rt></ruby>です。15<ruby>分<rt>ふん</rt></ruby>あれば<ruby>足<rt>た</rt></ruby>りますから。",
+      "japaneseHtml": "<ruby>大丈夫<rt>だいじょうぶ</rt></ruby>です。<ruby>15分<rt>じゅうごふん</rt></ruby>あれば<ruby>足<rt>た</rt></ruby>りますから。",
       "translation": "沒問題，十五分鐘就夠了。",
       "performance": "表演：仍有把握。"
     },
@@ -320,7 +320,7 @@
       "end": 148.6,
       "role": "老夫人",
       "japanese": "大変！ あの時計、10分遅れてるのよ。",
-      "japaneseHtml": "<ruby>大変<rt>たいへん</rt></ruby>！ あの<ruby>時計<rt>とけい</rt></ruby>、10<ruby>分<rt>ぷん</rt></ruby><ruby>遅<rt>おく</rt></ruby>れてるのよ。",
+      "japaneseHtml": "<ruby>大変<rt>たいへん</rt></ruby>！ あの<ruby>時計<rt>とけい</rt></ruby>、<ruby>10分<rt>じゅっぷん</rt></ruby><ruby>遅<rt>おく</rt></ruby>れてるのよ。",
       "translation": "糟了！那座鐘慢了十分鐘。",
       "performance": "表演：驚慌但吐字要清楚。"
     },

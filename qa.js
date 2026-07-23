@@ -690,13 +690,13 @@ function updateKaraokeProgress(videoTime) {
     return;
   }
   if (state.mediaRecorder?.state !== "recording") return;
-  const target = normalizeJapanese(line.japanese);
-  const recognized = normalizeJapanese(`${state.finalTranscript}${state.interimTranscript}`);
+  const transcript = `${state.finalTranscript}${state.interimTranscript}`;
+  const recognized = normalizeJapanesePronunciation(transcript);
   if (!state.recognition) {
     setKaraokeGuide("waiting", "字幕同步中", expectedProgress, expectedProgress);
     return;
   }
-  const spokenProgress = Math.min(1, recognized.length / Math.max(1, target.length));
+  const spokenProgress = japaneseTranscriptProgress(line, transcript);
   if (!recognized) {
     setKaraokeGuide("waiting", expectedProgress < 0.18 ? "準備開口" : "等待辨識", 0, expectedProgress);
     return;
@@ -710,11 +710,10 @@ function updateKaraokeProgress(videoTime) {
 function captureKaraokeSyncSample() {
   if (state.mediaRecorder?.state !== "recording") return;
   const line = currentLine();
-  const target = normalizeJapanese(line.japanese);
-  const recognized = normalizeJapanese(`${state.finalTranscript}${state.interimTranscript}`);
-  if (!target || !recognized) return;
+  const transcript = `${state.finalTranscript}${state.interimTranscript}`;
+  if (!normalizeJapanesePronunciation(transcript)) return;
   const expectedProgress = Math.max(0, Math.min(1, (elements.referenceVideo.currentTime - line.start) / Math.max(0.1, line.end - line.start)));
-  const spokenProgress = Math.min(1, recognized.length / target.length);
+  const spokenProgress = japaneseTranscriptProgress(line, transcript);
   const previous = state.karaokeSyncSamples.at(-1);
   if (previous && Math.abs(previous.expectedProgress - expectedProgress) < 0.035) return;
   state.karaokeSyncSamples.push({ expectedProgress, spokenProgress });
@@ -821,10 +820,16 @@ function createRecognition() {
   recognition.lang = "ja-JP";
   recognition.continuous = true;
   recognition.interimResults = true;
+  recognition.maxAlternatives = 5;
   recognition.onresult = (event) => {
     let interim = "";
     for (let index = event.resultIndex; index < event.results.length; index += 1) {
-      const value = event.results[index][0].transcript;
+      const result = event.results[index];
+      const alternatives = Array.from(
+        { length: result.length },
+        (_, alternativeIndex) => result[alternativeIndex]?.transcript || "",
+      ).filter(Boolean);
+      const value = closestRecognitionText(alternatives, `${state.finalTranscript}${interim}`, currentLine());
       if (event.results[index].isFinal) state.finalTranscript += value;
       else interim += value;
     }
@@ -1066,6 +1071,202 @@ function levenshtein(left, right) {
     }
   }
   return previous[right.length];
+}
+
+const japaneseTargetFormsCache = new WeakMap();
+
+function kanaVowel(character) {
+  if (!character) return "";
+  if ("ぁあかがさざただなはばぱまゃやらゎわ".includes(character)) return "あ";
+  if ("ぃいきぎしじちぢにひびぴみりゐ".includes(character)) return "い";
+  if ("ぅうくぐすずつづぬふぶぷむゅゆるゔ".includes(character)) return "う";
+  if ("ぇえけげせぜてでねへべぺめれゑ".includes(character)) return "え";
+  if ("ぉおこごそぞとどのほぼぽもょよろを".includes(character)) return "お";
+  return "";
+}
+
+function normalizeJapanesePronunciation(value) {
+  let normalized = String(value || "")
+    .normalize("NFKC")
+    .toLocaleLowerCase("ja")
+    .replace(/[っッ](?=[\s\p{P}\p{S}]|$)/gu, "")
+    .replace(/[\u30A1-\u30F6]/g, (character) => String.fromCharCode(character.charCodeAt(0) - 0x60))
+    .replace(/[\s\p{P}\p{S}]/gu, "")
+    .replace(/[ゕゖ]/g, "か")
+    .replace(/ゎ/g, "わ")
+    .replace(/ゐ/g, "い")
+    .replace(/ゑ/g, "え")
+    .replace(/ゔ/g, "ぶ")
+    .replace(/ぢ/g, "じ")
+    .replace(/づ/g, "ず")
+    .replace(/を/g, "お");
+
+  let expanded = "";
+  for (const character of normalized) {
+    if (character === "ー") {
+      expanded += kanaVowel([...expanded].at(-1)) || "";
+    } else {
+      expanded += character;
+    }
+  }
+
+  normalized = "";
+  for (const character of expanded) {
+    const previousVowel = kanaVowel([...normalized].at(-1));
+    const isLongVowel = character === previousVowel
+      || (previousVowel === "お" && character === "う")
+      || (previousVowel === "え" && character === "い");
+    if (!isLongVowel) normalized += character;
+  }
+  return normalized;
+}
+
+function japaneseNumberToKanji(value) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 0 || number > 9999) return String(value);
+  if (number === 0) return "零";
+  const digits = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+  const places = [
+    [1000, "千"],
+    [100, "百"],
+    [10, "十"],
+  ];
+  let remaining = number;
+  let output = "";
+  places.forEach(([amount, unit]) => {
+    const digit = Math.floor(remaining / amount);
+    if (!digit) return;
+    output += `${digit === 1 ? "" : digits[digit]}${unit}`;
+    remaining %= amount;
+  });
+  return `${output}${digits[remaining]}`;
+}
+
+function withKanjiNumbers(value) {
+  return String(value || "").replace(/\d+/g, japaneseNumberToKanji);
+}
+
+function rubyTextForm(line, readingIndexes) {
+  const template = document.createElement("template");
+  template.innerHTML = String(line?.japaneseHtml || line?.japanese || "");
+  [...template.content.querySelectorAll("ruby")].forEach((ruby, index) => {
+    const reading = ruby.querySelector("rt")?.textContent || "";
+    const base = [...ruby.childNodes]
+      .filter((node) => !["RT", "RP"].includes(node.nodeName))
+      .map((node) => node.textContent || "")
+      .join("");
+    ruby.replaceWith(document.createTextNode(readingIndexes.has(index) && reading ? reading : base));
+  });
+  template.content.querySelectorAll("rt, rp").forEach((node) => node.remove());
+  return template.content.textContent || String(line?.japanese || "");
+}
+
+function japaneseTargetDetails(line) {
+  if (line && typeof line === "object" && japaneseTargetFormsCache.has(line)) {
+    return japaneseTargetFormsCache.get(line);
+  }
+
+  const html = String(line?.japaneseHtml || "");
+  const rubyCount = (html.match(/<ruby(?:\s|>)/gi) || []).length;
+  const forms = new Set([String(line?.japanese || "")]);
+  let reading = String(line?.japanese || "");
+  if (rubyCount) {
+    const allReadings = new Set(Array.from({ length: rubyCount }, (_, index) => index));
+    reading = rubyTextForm(line, allReadings);
+    forms.add(rubyTextForm(line, new Set()));
+    forms.add(reading);
+    for (let index = 0; index < rubyCount; index += 1) {
+      forms.add(rubyTextForm(line, new Set([index])));
+    }
+    for (let split = 1; split < rubyCount; split += 1) {
+      forms.add(rubyTextForm(line, new Set(Array.from({ length: split }, (_, index) => index))));
+      forms.add(rubyTextForm(line, new Set(Array.from({ length: rubyCount - split }, (_, index) => split + index))));
+    }
+  }
+
+  [...forms].forEach((form) => {
+    forms.add(withKanjiNumbers(form));
+  });
+  forms.add(reading.replace(/は/g, "わ").replace(/へ/g, "え").replace(/を/g, "お"));
+
+  const details = {
+    reading,
+    forms: [...forms].filter(Boolean),
+  };
+  if (line && typeof line === "object") japaneseTargetFormsCache.set(line, details);
+  return details;
+}
+
+function japaneseReadingForLine(line) {
+  return japaneseTargetDetails(line).reading;
+}
+
+function japaneseComparisonTargets(line) {
+  return [...new Set(japaneseTargetDetails(line).forms.map(normalizeJapanesePronunciation).filter(Boolean))];
+}
+
+function compareJapaneseTranscript(line, transcript) {
+  const actual = normalizeJapanesePronunciation(transcript);
+  const targets = japaneseComparisonTargets(line);
+  let best = {
+    target: targets[0] || "",
+    actual,
+    distance: actual ? Number.POSITIVE_INFINITY : (targets[0] || "").length,
+    accuracy: actual ? 0 : 0,
+  };
+  targets.forEach((target) => {
+    const distance = actual ? levenshtein(target, actual) : target.length;
+    const accuracy = Math.round(Math.max(0, 1 - distance / Math.max(target.length, actual.length, 1)) * 100);
+    if (distance < best.distance || (distance === best.distance && accuracy > best.accuracy)) {
+      best = { target, actual, distance, accuracy };
+    }
+  });
+  return best;
+}
+
+function japaneseTranscriptMatchScore(line, transcript) {
+  const actual = normalizeJapanesePronunciation(transcript);
+  if (!actual) return 0;
+  return japaneseComparisonTargets(line).reduce((best, target) => {
+    const prefix = target.slice(0, Math.min(target.length, actual.length));
+    const distance = levenshtein(prefix, actual);
+    const similarity = Math.max(0, 1 - distance / Math.max(prefix.length, actual.length, 1));
+    const progress = Math.min(1, actual.length / Math.max(1, target.length));
+    return Math.max(best, similarity * 0.9 + progress * 0.1);
+  }, 0);
+}
+
+function japaneseTranscriptProgress(line, transcript) {
+  const actual = normalizeJapanesePronunciation(transcript);
+  if (!actual) return 0;
+  let bestScore = -1;
+  let bestProgress = 0;
+  japaneseComparisonTargets(line).forEach((target) => {
+    const prefix = target.slice(0, Math.min(target.length, actual.length));
+    const distance = levenshtein(prefix, actual);
+    const score = Math.max(0, 1 - distance / Math.max(prefix.length, actual.length, 1));
+    const progress = Math.min(1, actual.length / Math.max(1, target.length));
+    if (score > bestScore || (score === bestScore && progress < bestProgress)) {
+      bestScore = score;
+      bestProgress = progress;
+    }
+  });
+  return bestProgress;
+}
+
+function closestRecognitionText(alternatives, prefix, line) {
+  const candidates = (Array.isArray(alternatives) ? alternatives : []).filter(Boolean);
+  if (!candidates.length) return "";
+  let best = candidates[0];
+  let bestScore = japaneseTranscriptMatchScore(line, `${prefix}${best}`);
+  candidates.slice(1).forEach((candidate) => {
+    const score = japaneseTranscriptMatchScore(line, `${prefix}${candidate}`);
+    if (score > bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  });
+  return best;
 }
 
 function lcsDiff(target, actual) {
@@ -1373,10 +1574,8 @@ async function localSoundEffectEvaluation() {
 async function localEvaluation() {
   const line = currentLine();
   if (line.isSoundEffect) return localSoundEffectEvaluation();
-  const target = normalizeJapanese(line.japanese);
-  const actual = normalizeJapanese(elements.recognizedText.value);
-  const distance = actual ? levenshtein(target, actual) : target.length;
-  const accuracy = Math.round(Math.max(0, 1 - distance / Math.max(target.length, actual.length, 1)) * 100);
+  const comparison = compareJapaneseTranscript(line, elements.recognizedText.value);
+  const { target, actual, accuracy } = comparison;
   const audioFeatures = await analyzeRecordingAudio();
   const rms = Math.max(audioFeatures.rms, state.waveformSamples ? Math.sqrt(state.waveformSquares / state.waveformSamples) : 0);
   const followScore = karaokeFollowScore();

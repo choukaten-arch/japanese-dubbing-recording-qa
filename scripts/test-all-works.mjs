@@ -39,6 +39,17 @@ assert(soundCatalogStart >= 0 && soundCatalogEnd > soundCatalogStart, "Apps Scri
 const soundCatalogContext = {};
 runInNewContext(`${appsScriptSource.slice(soundCatalogStart, soundCatalogEnd)}\nthis.soundWorks = SOUND_EFFECT_WORKS;`, soundCatalogContext);
 const backendSoundWorks = soundCatalogContext.soundWorks;
+const pronunciationContext = {};
+runInNewContext(
+  `${appsScriptSource}\nthis.pronunciationApi = { score: bestPronunciationAccuracy_ };`,
+  pronunciationContext,
+);
+
+function readingFromHtml(line) {
+  return String(line.japaneseHtml || line.japanese || "")
+    .replace(/<ruby>(.*?)<rt>(.*?)<\/rt><\/ruby>/g, "$2")
+    .replace(/<[^>]+>/g, "");
+}
 
 function monitor(page, label) {
   page.on("console", (message) => {
@@ -97,6 +108,46 @@ try {
     assert(JSON.stringify(frontendSoundRoles) === JSON.stringify(backendSoundRoles), `${work.title} 前後端音效角清單不同步`);
     assert(data.lines.length === work.lines, `${work.title} 的資料行數錯誤`);
     assert(data.soundCues.length === work.soundEffects, `${work.title} 的音效場景數量錯誤`);
+    const pronunciationAudit = await page.evaluate(() => state.data.lines
+      .filter((line) => !line.isSoundEffect)
+      .map((line) => {
+        const reading = japaneseReadingForLine(line);
+        const longVowelVariant = reading
+          .replace(/おお|おう/g, "お")
+          .replace(/ええ|えい/g, "え")
+          .replace(/([あいうえお])\1/g, "$1")
+          .replace(/ー/g, "");
+        const choonVariant = reading
+          .replace(/おお|おう/g, "おー")
+          .replace(/ええ|えい/g, "えー");
+        const hiraganaVariant = reading.replace(
+          /[\u30A1-\u30F6]/g,
+          (character) => String.fromCharCode(character.charCodeAt(0) - 0x60),
+        );
+        const particleVariant = reading.replace(/は/g, "わ").replace(/へ/g, "え").replace(/を/g, "お");
+        const voicedVariant = reading.replace(/ぢ/g, "じ").replace(/づ/g, "ず").replace(/ゔ/g, "ぶ");
+        const variants = [line.japanese, reading, longVowelVariant, choonVariant, hiraganaVariant, particleVariant, voicedVariant];
+        return {
+          index: line.index,
+          reading,
+          scores: variants.map((variant) => compareJapaneseTranscript(line, variant).accuracy),
+        };
+      }));
+    assert(pronunciationAudit.length === work.lines, `${work.title} 的全台詞讀音稽核數量錯誤`);
+    const failedPronunciations = pronunciationAudit.filter((line) => line.scores.some((score) => score !== 100));
+    assert(!failedPronunciations.length, `${work.title} 有讀音表記未被等價辨識：${JSON.stringify(failedPronunciations.slice(0, 3))}`);
+    assert(pronunciationAudit.every((line) => !/[一-龯々0-9]/u.test(line.reading)), `${work.title} 的完整讀音仍殘留漢字或數字`);
+    const backendPronunciationFailures = data.lines.filter((line) => {
+      const reading = readingFromHtml(line);
+      const variants = [
+        line.japanese,
+        reading,
+        reading.replace(/おお|おう/g, "おー").replace(/ええ|えい/g, "えー"),
+        reading.replace(/おお|おう/g, "お").replace(/ええ|えい/g, "え").replace(/ー/g, ""),
+      ];
+      return variants.some((variant) => pronunciationContext.pronunciationApi.score(line.japanese, variant, reading) !== 100);
+    });
+    assert(!backendPronunciationFailures.length, `${work.title} 的歷史分數校正規則未通過全台詞讀音測試`);
     assert(data.soundCues.every((cue) => Array.isArray(cue.onomatopoeia) && cue.onomatopoeia.length > 0), `${work.title} 有音效缺少日文擬聲語`);
     assert(data.soundCues.flatMap((cue) => cue.onomatopoeia).every((word) => /[ぁ-ヿ]/.test(word)), `${work.title} 的音效提示不是日文擬聲語`);
     assert(data.soundCues.every((cue) => Array.isArray(cue.events) && cue.events.length > 0), `${work.title} 仍有音效使用平均切段而非逐事件時間`);
@@ -121,6 +172,27 @@ try {
       }
     }
     if (work.slug === "kiki") {
+      const longVowelLine = await page.evaluate(() => state.data.lines.find((line) => line.japanese.includes("大仕事")));
+      const longVowelScores = await page.evaluate((lineIndex) => {
+        const line = state.data.lines.find((candidate) => candidate.index === lineIndex);
+        const variants = [
+          "そうはいっても大仕事よ",
+          "そうはいってもおおしごとよ",
+          "そうはいってもおうしごとよ",
+          "そうはいってもおーしごとよ",
+          "そうはいってもおしごとよ",
+        ];
+        return {
+          scores: variants.map((variant) => compareJapaneseTranscript(line, variant).accuracy),
+          chosen: closestRecognitionText(
+            ["そうはいっても大きい仕事よ", "そうはいっても大仕事よ"],
+            "",
+            line,
+          ),
+        };
+      }, longVowelLine.index);
+      assert(longVowelScores.scores.every((score) => score === 100), "大仕事的 おお／おう／おー 長音表記仍被錯判");
+      assert(longVowelScores.chosen === "そうはいっても大仕事よ", "多候選辨識沒有選到最接近大仕事台詞的結果");
       const kikiEvents = data.soundCues.flatMap((cue) => cue.events);
       assert(!data.soundCues.some((cue) => /風箱|時鐘提醒|雷/.test(cue.sound)), "魔女宅急便仍保留原片中不存在的風箱、鐘響或雷聲");
       assert(["燈泡玻璃與燈罩輕碰", "杯子與杯碟清楚碰響", "孫女打開屋門", "在收據上簽名", "列車或電車長鳴笛"].every((sound) => kikiEvents.some((event) => event.sound === sound)), "魔女宅急便的關鍵漏音仍未補齊");

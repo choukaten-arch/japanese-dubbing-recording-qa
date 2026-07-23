@@ -238,6 +238,10 @@ function route_(payload, event) {
     case "groupShowcaseClip": return groupShowcaseClip_(payload.token, payload.resultKey);
     case "teacherOverview": return teacherOverview_(payload.token);
     case "studentHistory": return studentHistory_(payload.token, payload.studentId);
+    case "recalibratePronunciationScores": return recalibratePronunciationScores_(
+      payload.token,
+      payload.readings,
+    );
     case "upsertStudents": return upsertStudents_(payload.token, payload.students, Boolean(payload.resetExisting));
     case "setStudentPins": return setStudentPins_(payload.token, payload.updates);
     case "resetStudentPin": return resetStudentPin_(payload.token, payload.studentId);
@@ -973,6 +977,117 @@ function studentHistory_(token, studentIdInput) {
       submittedAt: isoValue_(row.submitted_at),
     })),
   };
+}
+
+function recalibratePronunciationScores_(token, readingsInput) {
+  verifySession_(token, "teacher");
+  if (!Array.isArray(readingsInput) || !readingsInput.length || readingsInput.length > 1000) {
+    fail_("INVALID_READINGS", "讀音校正資料不完整。");
+  }
+
+  const readings = {};
+  readingsInput.forEach((item) => {
+    const workSlug = cleanText_(item && item.workSlug, 80);
+    const lineIndex = Number(item && item.lineIndex);
+    const reading = cleanText_(item && item.reading, 2000);
+    if (!workSlug || !Number.isInteger(lineIndex) || lineIndex < 1 || lineIndex >= SOUND_EFFECT_LINE_BASE || !reading) return;
+    readings[`${workSlug}|${lineIndex}`] = reading;
+  });
+  if (!Object.keys(readings).length) fail_("INVALID_READINGS", "沒有可使用的讀音校正資料。");
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const results = recalibrateScoreTable_(readTable_(SHEETS.RESULTS), readings);
+    const history = recalibrateScoreTable_(readTable_(SHEETS.HISTORY), readings);
+    return {
+      recalibration: {
+        results,
+        history,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function recalibrateScoreTable_(table, readings) {
+  const overallColumn = table.indexes.overall_score;
+  const accuracyColumn = table.indexes.text_accuracy;
+  if (overallColumn === undefined || accuracyColumn === undefined) {
+    fail_("MISSING_COLUMN", `${table.sheet.getName()} 缺少分數欄位。`);
+  }
+
+  const rowCount = Math.max(0, table.sheet.getLastRow() - 1);
+  if (!rowCount) {
+    return { examined: 0, updated: 0, students: 0, accuracyPointsRestored: 0, overallPointsRestored: 0 };
+  }
+
+  const overallValues = table.sheet.getRange(2, overallColumn + 1, rowCount, 1).getValues();
+  const accuracyValues = table.sheet.getRange(2, accuracyColumn + 1, rowCount, 1).getValues();
+  const updatedStudents = new Set();
+  let examined = 0;
+  let updated = 0;
+  let accuracyPointsRestored = 0;
+  let overallPointsRestored = 0;
+
+  table.records.forEach((row) => {
+    const lineIndex = Number(row.line_index);
+    const transcript = cleanText_(row.transcript, 2000);
+    if (!Number.isInteger(lineIndex) || lineIndex < 1 || lineIndex >= SOUND_EFFECT_LINE_BASE || !transcript) return;
+    const reading = readings[`${cleanText_(row.work_slug, 80)}|${lineIndex}`] || "";
+    if (!reading) return;
+    examined += 1;
+
+    const oldAccuracy = clampScore_(row.text_accuracy);
+    const newAccuracy = Math.max(
+      oldAccuracy,
+      bestPronunciationAccuracy_(row.target_text, transcript, reading),
+    );
+    if (newAccuracy <= oldAccuracy) return;
+
+    const oldOverall = clampScore_(row.overall_score);
+    const restoredOverall = clampScore_(oldOverall + (newAccuracy - oldAccuracy) * 0.45);
+    const arrayIndex = row.__row - 2;
+    accuracyValues[arrayIndex][0] = newAccuracy;
+    overallValues[arrayIndex][0] = Math.max(oldOverall, restoredOverall);
+    accuracyPointsRestored += newAccuracy - oldAccuracy;
+    overallPointsRestored += Math.max(0, restoredOverall - oldOverall);
+    updatedStudents.add(normalizeStudentId_(row.student_id));
+    updated += 1;
+  });
+
+  if (updated) {
+    table.sheet.getRange(2, accuracyColumn + 1, rowCount, 1).setValues(accuracyValues);
+    table.sheet.getRange(2, overallColumn + 1, rowCount, 1).setValues(overallValues);
+    SpreadsheetApp.flush();
+  }
+  return {
+    examined,
+    updated,
+    students: [...updatedStudents].filter(Boolean).length,
+    accuracyPointsRestored: Math.round(accuracyPointsRestored * 10) / 10,
+    overallPointsRestored: Math.round(overallPointsRestored * 10) / 10,
+  };
+}
+
+function bestPronunciationAccuracy_(targetText, transcript, reading) {
+  const actual = normalizeJapanesePronunciation_(transcript);
+  if (!actual) return 0;
+  const candidates = [
+    targetText,
+    withKanjiNumbers_(targetText),
+    reading,
+    String(reading || "").replace(/は/g, "わ").replace(/へ/g, "え").replace(/を/g, "お"),
+  ];
+  return candidates.reduce((best, candidate) => {
+    const target = normalizeJapanesePronunciation_(candidate);
+    if (!target) return best;
+    const distance = levenshtein_(target, actual);
+    const accuracy = Math.round(Math.max(0, 1 - distance / Math.max(target.length, actual.length, 1)) * 100);
+    return Math.max(best, accuracy);
+  }, 0);
 }
 
 function upsertStudents_(token, studentInputs, resetExisting) {
@@ -1850,6 +1965,85 @@ function base64UrlEncode_(value) {
 
 function base64UrlDecode_(value) {
   return Utilities.newBlob(Utilities.base64DecodeWebSafe(value)).getDataAsString("UTF-8");
+}
+
+function kanaVowel_(character) {
+  if (!character) return "";
+  if ("ぁあかがさざただなはばぱまゃやらゎわ".includes(character)) return "あ";
+  if ("ぃいきぎしじちぢにひびぴみりゐ".includes(character)) return "い";
+  if ("ぅうくぐすずつづぬふぶぷむゅゆるゔ".includes(character)) return "う";
+  if ("ぇえけげせぜてでねへべぺめれゑ".includes(character)) return "え";
+  if ("ぉおこごそぞとどのほぼぽもょよろを".includes(character)) return "お";
+  return "";
+}
+
+function normalizeJapanesePronunciation_(value) {
+  let normalized = String(value || "")
+    .normalize("NFKC")
+    .toLocaleLowerCase("ja")
+    .replace(/[っッ](?=[\s。、，．！？!?「」『』（）()・…／/]|$)/g, "")
+    .replace(/[\u30A1-\u30F6]/g, (character) => String.fromCharCode(character.charCodeAt(0) - 0x60))
+    .replace(/[\s。、，．！？!?「」『』（）()・…／/：:；;〜～—–-]/g, "")
+    .replace(/[ゕゖ]/g, "か")
+    .replace(/ゎ/g, "わ")
+    .replace(/ゐ/g, "い")
+    .replace(/ゑ/g, "え")
+    .replace(/ゔ/g, "ぶ")
+    .replace(/ぢ/g, "じ")
+    .replace(/づ/g, "ず")
+    .replace(/を/g, "お");
+
+  let expanded = "";
+  for (const character of normalized) {
+    if (character === "ー") expanded += kanaVowel_(expanded.slice(-1)) || "";
+    else expanded += character;
+  }
+
+  normalized = "";
+  for (const character of expanded) {
+    const previousVowel = kanaVowel_(normalized.slice(-1));
+    const isLongVowel = character === previousVowel
+      || (previousVowel === "お" && character === "う")
+      || (previousVowel === "え" && character === "い");
+    if (!isLongVowel) normalized += character;
+  }
+  return normalized;
+}
+
+function levenshtein_(left, right) {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let row = 1; row <= left.length; row += 1) {
+    let diagonal = previous[0];
+    previous[0] = row;
+    for (let column = 1; column <= right.length; column += 1) {
+      const above = previous[column];
+      const cost = left[row - 1] === right[column - 1] ? 0 : 1;
+      previous[column] = Math.min(previous[column] + 1, previous[column - 1] + 1, diagonal + cost);
+      diagonal = above;
+    }
+  }
+  return previous[right.length];
+}
+
+function japaneseNumberToKanji_(value) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 0 || number > 9999) return String(value);
+  if (number === 0) return "零";
+  const digits = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+  const places = [[1000, "千"], [100, "百"], [10, "十"]];
+  let remaining = number;
+  let output = "";
+  places.forEach(([amount, unit]) => {
+    const digit = Math.floor(remaining / amount);
+    if (!digit) return;
+    output += `${digit === 1 ? "" : digits[digit]}${unit}`;
+    remaining %= amount;
+  });
+  return `${output}${digits[remaining]}`;
+}
+
+function withKanjiNumbers_(value) {
+  return String(value || "").replace(/\d+/g, japaneseNumberToKanji_);
 }
 
 function normalizeStudentId_(value) {
