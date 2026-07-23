@@ -10,6 +10,7 @@ const SHEETS = Object.freeze({
 
 const LOGIN_LIMIT = 5;
 const LOGIN_LOCK_SECONDS = 10 * 60;
+const TEACHER_ACCOUNTS_PROPERTY = "TEACHER_ACCOUNTS_JSON";
 const MAX_AUDIO_BYTES = 6 * 1024 * 1024;
 const ALLOWED_AUDIO_TYPES = Object.freeze(["audio/webm", "audio/mp4", "audio/ogg"]);
 const HISTORY_HEADERS = Object.freeze([
@@ -238,6 +239,7 @@ function route_(payload, event) {
     case "groupShowcaseClip": return groupShowcaseClip_(payload.token, payload.resultKey);
     case "teacherOverview": return teacherOverview_(payload.token);
     case "studentHistory": return studentHistory_(payload.token, payload.studentId);
+    case "upsertTeacherAccounts": return upsertTeacherAccounts_(payload.token, payload.accounts);
     case "recalibratePronunciationScores": return recalibratePronunciationScores_(
       payload.token,
       payload.readings,
@@ -315,17 +317,30 @@ function teacherLogin_(pinInput, userAgent) {
   requireConfigured_();
   const rateKey = "login:teacher";
   enforceLoginLimit_(rateKey);
-  const pinHash = PropertiesService.getScriptProperties().getProperty("TEACHER_PIN_HASH");
-  if (!verifyPin_(String(pinInput || "").trim(), pinHash)) {
+  const password = String(pinInput || "").trim();
+  const account = teacherCredentials_().find((candidate) => verifyPin_(password, candidate.pinHash));
+  if (!account) {
     registerLoginFailure_(rateKey);
     appendLoginLog_("teacher", "", false, "登入失敗", userAgent, "");
     fail_("INVALID_LOGIN", "老師密碼不正確。");
   }
 
   clearLoginFailures_(rateKey);
-  const session = createSession_({ type: "teacher", sub: "teacher", name: "老師", authTag: credentialTag_(pinHash) });
-  appendLoginLog_("teacher", "", true, "登入成功", userAgent, new Date(session.expiresAt));
-  return { session, account: { type: "teacher", name: "老師" } };
+  const session = createSession_({
+    type: "teacher",
+    sub: account.id,
+    name: account.name,
+    authTag: credentialTag_(account.pinHash),
+  });
+  appendLoginLog_("teacher", account.id, true, "登入成功", userAgent, new Date(session.expiresAt));
+  return {
+    session,
+    account: {
+      type: "teacher",
+      teacherId: account.id,
+      name: account.name,
+    },
+  };
 }
 
 function studentTasks_(token) {
@@ -1006,6 +1021,66 @@ function recalibratePronunciationScores_(token, readingsInput) {
         history,
         updatedAt: new Date().toISOString(),
       },
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function upsertTeacherAccounts_(token, accountInputs) {
+  verifySession_(token, "teacher");
+  if (!Array.isArray(accountInputs) || !accountInputs.length || accountInputs.length > 20) {
+    fail_("INVALID_TEACHER_ACCOUNTS", "老師帳號資料不完整。");
+  }
+
+  const normalizedInputs = accountInputs.map((input) => {
+    const id = normalizeTeacherId_(input && input.id);
+    const name = cleanText_(input && (input.name || input.displayName), 80);
+    const password = normalizeTeacherPassword_(input && input.password);
+    if (id === "teacher") fail_("RESERVED_TEACHER_ID", "teacher 是保留的老師帳號名稱。");
+    if (!name) fail_("INVALID_TEACHER_NAME", "老師顯示名稱不可空白。");
+    return { id, name, password };
+  });
+
+  const ids = new Set();
+  const passwords = new Set();
+  normalizedInputs.forEach((account) => {
+    if (ids.has(account.id)) fail_("DUPLICATE_TEACHER_ID", "老師帳號名稱不可重複。");
+    if (passwords.has(account.password)) fail_("DUPLICATE_TEACHER_PASSWORD", "老師密碼不可重複。");
+    ids.add(account.id);
+    passwords.add(account.password);
+  });
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const properties = PropertiesService.getScriptProperties();
+    const existing = additionalTeacherCredentials_();
+    const untouchedCredentials = teacherCredentials_().filter((account) => !ids.has(account.id));
+    normalizedInputs.forEach((account) => {
+      if (untouchedCredentials.some((credential) => verifyPin_(account.password, credential.pinHash))) {
+        fail_("DUPLICATE_TEACHER_PASSWORD", "老師密碼不可與其他老師相同。");
+      }
+    });
+
+    const byId = {};
+    existing.forEach((account) => {
+      byId[account.id] = account;
+    });
+    normalizedInputs.forEach((account) => {
+      byId[account.id] = {
+        id: account.id,
+        name: account.name,
+        pinHash: makePinHash_(account.password),
+      };
+      properties.deleteProperty(sessionPropertyKey_("teacher", account.id));
+    });
+
+    const accounts = Object.values(byId).sort((left, right) => left.id.localeCompare(right.id));
+    properties.setProperty(TEACHER_ACCOUNTS_PROPERTY, JSON.stringify(accounts));
+    return {
+      updated: normalizedInputs.length,
+      teachers: accounts.map((account) => ({ id: account.id, name: account.name })),
     };
   } finally {
     lock.releaseLock();
@@ -1842,8 +1917,9 @@ function verifySession_(tokenInput, expectedType) {
     fail_("SESSION_EXPIRED", "登入已過期，請重新登入。");
   }
   if (expectedType === "teacher") {
-    const currentTag = credentialTag_(PropertiesService.getScriptProperties().getProperty("TEACHER_PIN_HASH"));
-    if (!payload.authTag || !constantTimeEqual_(payload.authTag, currentTag)) {
+    const credential = teacherCredentialById_(subject);
+    const currentTag = credential ? credentialTag_(credential.pinHash) : "";
+    if (!credential || !payload.authTag || !constantTimeEqual_(payload.authTag, currentTag)) {
       fail_("SESSION_EXPIRED", "老師密碼已重設，請重新登入。");
     }
   }
@@ -1893,6 +1969,34 @@ function credentialTag_(storedHash) {
     String(storedHash || ""),
     Utilities.Charset.UTF_8,
   )).slice(0, 24);
+}
+
+function additionalTeacherCredentials_() {
+  const raw = PropertiesService.getScriptProperties().getProperty(TEACHER_ACCOUNTS_PROPERTY);
+  if (!raw) return [];
+  try {
+    const accounts = JSON.parse(raw);
+    if (!Array.isArray(accounts)) return [];
+    return accounts.map((account) => ({
+      id: normalizeTeacherId_(account && account.id),
+      name: cleanText_(account && account.name, 80),
+      pinHash: String(account && account.pinHash || ""),
+    })).filter((account) => account.id !== "teacher" && account.name && account.pinHash.includes("$"));
+  } catch (error) {
+    console.error(`Teacher account settings could not be read: ${error}`);
+    return [];
+  }
+}
+
+function teacherCredentials_() {
+  const legacyHash = PropertiesService.getScriptProperties().getProperty("TEACHER_PIN_HASH");
+  const legacy = legacyHash ? [{ id: "teacher", name: "張嘉展老師", pinHash: legacyHash }] : [];
+  return legacy.concat(additionalTeacherCredentials_());
+}
+
+function teacherCredentialById_(teacherId) {
+  const id = String(teacherId || "");
+  return teacherCredentials_().find((account) => account.id === id) || null;
 }
 
 function enforceLoginLimit_(key) {
@@ -2048,6 +2152,25 @@ function withKanjiNumbers_(value) {
 
 function normalizeStudentId_(value) {
   return String(value || "").trim().replace(/\s+/g, "").slice(0, 30);
+}
+
+function normalizeTeacherId_(value) {
+  const id = String(value || "").trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9._-]{1,39}$/.test(id)) {
+    fail_("INVALID_TEACHER_ID", "老師帳號名稱必須是 2 至 40 個英數字元。");
+  }
+  return id;
+}
+
+function normalizeTeacherPassword_(value) {
+  const password = String(value === undefined || value === null ? "" : value).trim();
+  if (password.length < 6 || password.length > 80) {
+    fail_("INVALID_TEACHER_PASSWORD", "老師密碼必須是 6 至 80 個字元。");
+  }
+  if (/[\u0000-\u001f\u007f]/.test(password)) {
+    fail_("INVALID_TEACHER_PASSWORD", "老師密碼包含不支援的字元。");
+  }
+  return password;
 }
 
 function normalizeOptionalStudentPin_(value) {

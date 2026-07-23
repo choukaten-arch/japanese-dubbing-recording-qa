@@ -7,10 +7,10 @@
   <meta name="description" content="日語配音每日作業、逐句錄音與老師進度管理平台">
   <title>配音作業平台｜日語配音練習站</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="portal.css?v=20260723.1">
-  <script src="config.js?v=20260723.1"></script>
-  <script src="radar-chart.js?v=20260723.1"></script>
-  <script src="portal.js?v=20260723.1" defer></script>
+  <link rel="stylesheet" href="portal.css?v=20260723.2">
+  <script src="config.js?v=20260723.2"></script>
+  <script src="radar-chart.js?v=20260723.2"></script>
+  <script src="portal.js?v=20260723.2" defer></script>
 </head>
 <body>
   <header class="platform-header">
@@ -50,7 +50,7 @@
 
         <form class="login-form" id="teacherLoginPanel" autocomplete="on" hidden>
           <label for="teacherPin">老師密碼</label>
-          <input id="teacherPin" name="password" type="password" inputmode="numeric" autocomplete="current-password" minlength="8" maxlength="20" required>
+          <input id="teacherPin" name="password" type="password" autocomplete="current-password" autocapitalize="none" spellcheck="false" minlength="6" maxlength="80" required>
           <button class="primary-button" type="submit">進入老師後台</button>
         </form>
         <p class="form-message" id="loginMessage" role="status"></p>
