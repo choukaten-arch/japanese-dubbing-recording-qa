@@ -95,9 +95,22 @@ try {
   await ownShowcaseButton.click();
   await page.waitForFunction(() => {
     const player = [...portalState.showcasePlayers.values()].find((item) => item.showcase.isOwnGroup);
-    return player && !player.video.paused && player.audioElements.size > 0;
+    return player
+      && !player.video.paused
+      && player.audioBuffers.size > 0
+      && portalState.showcaseAudioContext?.state === "running";
   });
   assert(await page.locator(".showcase-card.is-own-group video").evaluate((video) => video.muted), "小組成果播放時原影片未靜音");
+  const showcaseAudioEngine = await page.evaluate(() => {
+    const player = [...portalState.showcasePlayers.values()].find((item) => item.showcase.isOwnGroup);
+    return {
+      legacyElements: Object.hasOwn(player, "audioElements"),
+      decodedBuffers: player.audioBuffers.size,
+      contextState: portalState.showcaseAudioContext?.state,
+    };
+  });
+  assert(!showcaseAudioEngine.legacyElements, "小組成果仍使用容易反覆暫停的多音訊播放器");
+  assert(showcaseAudioEngine.decodedBuffers > 0 && showcaseAudioEngine.contextState === "running", "小組成果錄音未預先解碼至穩定音訊時鐘");
   const showcaseTailBuffer = await page.evaluate(() => {
     const player = [...portalState.showcasePlayers.values()].find((item) => item.showcase.isOwnGroup);
     const segment = player.segments[0];
@@ -109,6 +122,21 @@ try {
   });
   assert(showcaseTailBuffer.tail >= 2, "小組成果播放沒有保留錄音句尾緩衝");
   assert(showcaseTailBuffer.coversRecording, "小組成果仍在實際錄音結束前切斷音檔");
+  const showcaseResync = await page.evaluate(async () => {
+    const player = [...portalState.showcasePlayers.values()].find((item) => item.showcase.isOwnGroup);
+    const generation = player.playbackGeneration;
+    player.video.dispatchEvent(new Event("waiting"));
+    const stoppedDuringBuffering = player.scheduledSources.size === 0 && player.waiting;
+    player.video.dispatchEvent(new Event("playing"));
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    return {
+      stoppedDuringBuffering,
+      generationAdvanced: player.playbackGeneration > generation,
+      resumedTimeline: !player.waiting && player.frame > 0,
+    };
+  });
+  assert(showcaseResync.stoppedDuringBuffering, "影片緩衝時沒有停止舊音軌");
+  assert(showcaseResync.generationAdvanced && showcaseResync.resumedTimeline, "影片恢復後沒有重建連續音訊時間軸");
   await ownShowcaseButton.click();
   await page.locator("#changePreference").click();
   await page.waitForFunction(() => document.querySelector("#preferenceDialog")?.open);
@@ -421,6 +449,18 @@ try {
     return bounds.top - shell.top <= 24;
   });
   assert(soundWordAtTop, "日文擬聲語沒有顯示在影片上緣");
+  const soundStageVisibility = await mobilePage.locator("#karaokeOverlay").evaluate((overlay) => {
+    const shell = overlay.parentElement.getBoundingClientRect();
+    const caption = overlay.querySelector(".karaoke-caption").getBoundingClientRect();
+    const guide = overlay.querySelector(".karaoke-guide").getBoundingClientRect();
+    const row = overlay.querySelector(".sound-beat-row").getBoundingClientRect();
+    return {
+      clearRatio: Math.max(0, guide.top - caption.bottom) / shell.height,
+      timelineHeight: row.height,
+    };
+  });
+  assert(soundStageVisibility.clearRatio >= 0.38, "音效提示仍遮住太多影片畫面");
+  assert(soundStageVisibility.timelineHeight <= 25, "音效清單沒有收成單列時間軸");
   const rangeBeatWords = await mobilePage.locator(".sound-beat.is-target").allTextContents();
   assert(rangeBeatWords.every((word) => /[ぁ-ヿ]/.test(word)), "持續音效節拍仍使用數字而非日文擬聲語");
   await mobilePage.waitForTimeout(700);

@@ -28,6 +28,8 @@ const state = {
   karaokeCharacters: [],
   karaokeSyncSamples: [],
   soundBeatElements: [],
+  soundBeatRowElement: null,
+  soundActiveBeatElement: null,
   soundEffectWordElement: null,
   soundEffectWords: [],
   soundDemoToken: 0,
@@ -529,6 +531,8 @@ function renderSoundEffectBeats(line) {
   row.style.setProperty("--sound-beat-columns", String(Math.min(6, beats.length)));
   state.soundEffectWords = words;
   state.soundEffectWordElement = wordDisplay;
+  state.soundBeatRowElement = row;
+  state.soundActiveBeatElement = null;
   state.soundBeatElements = beats.map((beat) => {
     const element = document.createElement(beat.target ? "button" : "span");
     if (beat.target) element.type = "button";
@@ -557,6 +561,8 @@ function renderKaraokeOverlay() {
   } else {
     const fragment = document.createDocumentFragment();
     state.soundBeatElements = [];
+    state.soundBeatRowElement = null;
+    state.soundActiveBeatElement = null;
     state.soundEffectWordElement = null;
     state.soundEffectWords = [];
     state.karaokeCharacters = [...line.japanese].map((character) => {
@@ -584,6 +590,8 @@ function hideKaraokeOverlay() {
   elements.karaokeTranslation.textContent = "";
   state.karaokeCharacters = [];
   state.soundBeatElements = [];
+  state.soundBeatRowElement = null;
+  state.soundActiveBeatElement = null;
   state.soundEffectWordElement = null;
   state.soundEffectWords = [];
 }
@@ -599,16 +607,27 @@ function updateSoundEffectBeatProgress(videoTime, line) {
   const time = Number(videoTime) || 0;
   const { cueStart, cueEnd, isRange } = soundCueWindow(line);
   const currentTargets = [];
+  const targetBeats = state.soundBeatElements.filter((beat) => beat.target);
+  const nextTarget = targetBeats.find((beat) => beat.start > time);
   state.soundBeatElements.forEach((beat) => {
     beat.element.classList.toggle("is-passed", time >= beat.end);
     const isCurrent = time >= beat.start && time < beat.end;
     beat.element.classList.toggle("is-current", isCurrent);
+    beat.element.classList.toggle("is-next", beat === nextTarget);
     if (isCurrent && beat.target) currentTargets.push(beat);
   });
+  const focusedBeat = currentTargets.at(-1) || nextTarget || targetBeats.at(-1);
+  if (focusedBeat?.element && focusedBeat.element !== state.soundActiveBeatElement) {
+    state.soundActiveBeatElement = focusedBeat.element;
+    const row = state.soundBeatRowElement;
+    if (row) {
+      const centeredLeft = focusedBeat.element.offsetLeft - (row.clientWidth - focusedBeat.element.offsetWidth) / 2;
+      row.scrollLeft = Math.max(0, centeredLeft);
+    }
+  }
   if (state.soundEffectWordElement) {
-    const targetBeats = state.soundBeatElements.filter((beat) => beat.target);
     const activeTarget = currentTargets.at(-1)
-      || targetBeats.find((beat) => beat.start > time)
+      || nextTarget
       || targetBeats.at(-1);
     const activeWord = activeTarget?.word || state.soundEffectWords[0];
     state.soundEffectWordElement.textContent = activeWord || "ドン";

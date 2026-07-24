@@ -14,6 +14,7 @@ const portalState = {
   showcases: [],
   showcasePlayers: new Map(),
   showcaseAudioCache: new Map(),
+  showcaseAudioContext: null,
   setupRequired: false,
   demo: new URLSearchParams(location.search).get("demo") === "1",
 };
@@ -851,11 +852,32 @@ function audioBlobFromBase64(base64, mimeType) {
   return new Blob([bytes], { type: mimeType || "audio/webm" });
 }
 
+function getShowcaseAudioContext() {
+  const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextConstructor) throw new Error("此瀏覽器不支援小組合成音訊。");
+  if (!portalState.showcaseAudioContext || portalState.showcaseAudioContext.state === "closed") {
+    portalState.showcaseAudioContext = new AudioContextConstructor({ latencyHint: "interactive" });
+  }
+  return portalState.showcaseAudioContext;
+}
+
+function stopShowcaseSources(player) {
+  if (!player) return;
+  player.playbackGeneration += 1;
+  player.scheduledSources.forEach((entry) => {
+    entry.source.onended = null;
+    try { entry.source.stop(); } catch {}
+    try { entry.source.disconnect(); } catch {}
+  });
+  player.scheduledSources.clear();
+}
+
 function stopShowcasePlayer(player) {
   if (!player) return;
   cancelAnimationFrame(player.frame);
   player.frame = 0;
-  player.audioElements.forEach((audio) => audio.pause());
+  stopShowcaseSources(player);
+  player.waiting = false;
   player.button.innerHTML = '<span aria-hidden="true">▶</span><span>播放合成</span>';
 }
 
@@ -872,7 +894,13 @@ async function loadShowcaseAudio(resultKey) {
   const request = platformRequest("groupShowcaseClip", {
     token: portalState.session.session.token,
     resultKey,
-  }).then((response) => URL.createObjectURL(audioBlobFromBase64(response.audioBase64, response.mimeType)))
+  }).then(async (response) => {
+    const context = getShowcaseAudioContext();
+    const blob = audioBlobFromBase64(response.audioBase64, response.mimeType);
+    const buffer = await context.decodeAudioData(await blob.arrayBuffer());
+    if (!Number.isFinite(buffer.duration) || buffer.duration <= 0) throw new Error("錄音內容無法播放。");
+    return buffer;
+  })
     .catch((error) => {
       portalState.showcaseAudioCache.delete(resultKey);
       throw error;
@@ -882,40 +910,20 @@ async function loadShowcaseAudio(resultKey) {
 }
 
 async function ensureShowcaseSegmentAudio(player, segment) {
-  if (player.audioElements.has(segment.resultKey)) return player.audioElements.get(segment.resultKey);
+  if (player.audioBuffers.has(segment.resultKey)) return player.audioBuffers.get(segment.resultKey);
   if (!player.audioPromises.has(segment.resultKey)) {
-    const request = loadShowcaseAudio(segment.resultKey).then((url) => {
-      const audio = new Audio(url);
-      audio.preload = "auto";
-      player.audioElements.set(segment.resultKey, audio);
-      const captureDuration = () => {
-        const audioDuration = Number(audio.duration);
-        if (!Number.isFinite(audioDuration) || audioDuration <= 0) return;
-        segment.audioDuration = audioDuration;
-        segment.playbackEnd = Math.min(player.duration, Math.max(segment.end, segment.start + audioDuration));
-      };
-      audio.addEventListener("loadedmetadata", captureDuration, { once: true });
-      audio.load();
-      return new Promise((resolve) => {
-        if (audio.readyState >= 2) {
-          captureDuration();
-          resolve(audio);
-          return;
-        }
-        const finish = () => {
-          clearTimeout(timeout);
-          audio.removeEventListener("loadeddata", finish);
-          captureDuration();
-          resolve(audio);
-        };
-        const timeout = setTimeout(finish, 3000);
-        audio.addEventListener("loadeddata", finish, { once: true });
-      });
-    }).then((audio) => {
+    const request = loadShowcaseAudio(segment.resultKey).then((buffer) => {
+      player.audioBuffers.set(segment.resultKey, buffer);
+      segment.audioDuration = buffer.duration;
+      segment.playbackEnd = Math.min(player.duration, Math.max(segment.end, segment.start + buffer.duration));
+      segment.loadError = false;
+      segment.retryAudioAt = 0;
       player.audioPromises.delete(segment.resultKey);
-      return audio;
+      return buffer;
     }).catch((error) => {
       player.audioPromises.delete(segment.resultKey);
+      segment.loadError = true;
+      segment.retryAudioAt = Date.now() + 5000;
       throw error;
     });
     player.audioPromises.set(segment.resultKey, request);
@@ -923,7 +931,7 @@ async function ensureShowcaseSegmentAudio(player, segment) {
   return player.audioPromises.get(segment.resultKey);
 }
 
-async function prepareShowcaseWindow(player, currentTime, lookAhead = 18) {
+async function prepareShowcaseWindow(player, currentTime, lookAhead = 24) {
   const upcoming = player.segments.filter((segment) => (segment.playbackEnd || segment.end) >= currentTime - 0.5 && segment.start <= currentTime + lookAhead);
   await Promise.allSettled(upcoming.map((segment) => ensureShowcaseSegmentAudio(player, segment)));
 }
@@ -932,28 +940,79 @@ function activeShowcaseSegments(player, time) {
   return player.segments.filter((segment) => time >= segment.start - 0.08 && time < (segment.playbackEnd || segment.end));
 }
 
+function scheduleShowcaseSegment(player, segment) {
+  if (player.scheduledSources.has(segment.resultKey)
+      || player.schedulePromises.has(segment.resultKey)
+      || player.finishedSources.get(segment.resultKey) === player.playbackGeneration
+      || Number(segment.retryAudioAt) > Date.now()) return;
+  const generation = player.playbackGeneration;
+  const request = ensureShowcaseSegmentAudio(player, segment).then((buffer) => {
+    if (generation !== player.playbackGeneration || player.video.paused || player.video.ended || player.waiting) return;
+    const videoTime = player.video.currentTime;
+    const playbackEnd = segment.playbackEnd || segment.end;
+    const playbackRate = Math.max(0.25, Math.min(4, Number(player.video.playbackRate) || 1));
+    const offset = Math.max(0, videoTime - segment.start);
+    const delay = Math.max(0, segment.start - videoTime);
+    if (videoTime >= playbackEnd || offset >= buffer.duration - 0.01) {
+      player.finishedSources.set(segment.resultKey, generation);
+      return;
+    }
+    if (delay > 0.8) return;
+
+    const context = getShowcaseAudioContext();
+    const source = context.createBufferSource();
+    const startAt = context.currentTime + (delay ? delay / playbackRate : 0.015);
+    source.buffer = buffer;
+    source.playbackRate.value = playbackRate;
+    source.connect(context.destination);
+    const entry = { source, segment, startAt, offset, playbackRate };
+    source.onended = () => {
+      if (player.scheduledSources.get(segment.resultKey) === entry) {
+        player.scheduledSources.delete(segment.resultKey);
+        player.finishedSources.set(segment.resultKey, generation);
+      }
+      try { source.disconnect(); } catch {}
+    };
+    player.scheduledSources.set(segment.resultKey, entry);
+    source.start(startAt, offset);
+  }).catch(() => {}).finally(() => {
+    if (player.schedulePromises.get(segment.resultKey) === request) {
+      player.schedulePromises.delete(segment.resultKey);
+    }
+  });
+  player.schedulePromises.set(segment.resultKey, request);
+}
+
+function correctShowcaseDrift(player, videoTime) {
+  const context = portalState.showcaseAudioContext;
+  if (!context || context.state !== "running" || context.currentTime - player.lastDriftCheck < 1) return;
+  player.lastDriftCheck = context.currentTime;
+  const entry = [...player.scheduledSources.values()].find((candidate) => (
+    context.currentTime >= candidate.startAt
+    && videoTime >= candidate.segment.start
+    && videoTime < (candidate.segment.playbackEnd || candidate.segment.end)
+  ));
+  if (!entry) return;
+  const audioOffset = entry.offset + Math.max(0, context.currentTime - entry.startAt) * entry.playbackRate;
+  const videoOffset = videoTime - entry.segment.start;
+  if (Math.abs(audioOffset - videoOffset) > 0.4) stopShowcaseSources(player);
+}
+
 function syncShowcasePlayer(player) {
-  if (player.video.paused || player.video.ended) return;
+  if (player.video.paused || player.video.ended || player.waiting) return;
   const time = player.video.currentTime;
   const active = activeShowcaseSegments(player, time);
-  const activeKeys = new Set(active.map((segment) => segment.resultKey));
-  player.audioElements.forEach((audio, resultKey) => {
-    if (!activeKeys.has(resultKey) && !audio.paused) audio.pause();
-  });
-  active.forEach((segment) => {
-    ensureShowcaseSegmentAudio(player, segment).then((audio) => {
-      if (player.video.paused || !activeShowcaseSegments(player, player.video.currentTime).some((item) => item.resultKey === segment.resultKey)) return;
-      const offset = Math.max(0, player.video.currentTime - segment.start);
-      if (Number.isFinite(audio.duration) && offset >= audio.duration) return;
-      if (Math.abs(audio.currentTime - offset) > 0.22) audio.currentTime = offset;
-      if (audio.paused) audio.play().catch(() => {});
-    }).catch(() => {});
-  });
+  player.segments
+    .filter((segment) => time < (segment.playbackEnd || segment.end) && segment.start <= time + 0.65)
+    .forEach((segment) => scheduleShowcaseSegment(player, segment));
+  correctShowcaseDrift(player, time);
   if (active.length) {
     const labels = active.map((segment) => segment.studentName
       ? `${segment.role}｜${segment.studentName}`
       : segment.role);
-    player.status.textContent = labels.join("＋");
+    player.status.textContent = active.some((segment) => segment.loadError)
+      ? "有錄音載入失敗，請暫停後再播放"
+      : labels.join("＋");
   } else {
     player.status.textContent = "目前區段尚無錄音";
   }
@@ -975,7 +1034,13 @@ async function toggleShowcasePlayback(showcaseId) {
   player.button.disabled = true;
   player.status.textContent = "正在載入目前片段";
   try {
-    await prepareShowcaseWindow(player, player.video.currentTime);
+    portalState.showcasePlayers.forEach((otherPlayer) => {
+      if (otherPlayer !== player && !otherPlayer.video.paused) otherPlayer.video.pause();
+    });
+    const context = getShowcaseAudioContext();
+    const resume = context.resume();
+    await Promise.all([resume, prepareShowcaseWindow(player, player.video.currentTime)]);
+    if (context.state !== "running") throw new Error("請再按一次播放以啟用聲音。");
     player.video.muted = true;
     await player.video.play();
   } catch (error) {
@@ -1047,20 +1112,61 @@ async function renderGroupShowcases(showcases, container) {
       frame: 0,
       preparing: false,
       prefetchAt: 0,
-      audioElements: new Map(),
+      waiting: false,
+      playbackGeneration: 0,
+      lastDriftCheck: 0,
+      audioBuffers: new Map(),
       audioPromises: new Map(),
+      scheduledSources: new Map(),
+      schedulePromises: new Map(),
+      finishedSources: new Map(),
     };
     portalState.showcasePlayers.set(showcase.showcaseId, player);
     button.addEventListener("click", () => toggleShowcasePlayback(showcase.showcaseId));
     video.addEventListener("play", () => {
       video.muted = true;
+      player.waiting = false;
+      getShowcaseAudioContext().resume().catch(() => {
+        status.textContent = "請再按一次播放以啟用聲音";
+      });
+      portalState.showcasePlayers.forEach((otherPlayer) => {
+        if (otherPlayer !== player && !otherPlayer.video.paused) otherPlayer.video.pause();
+      });
       button.innerHTML = '<span aria-hidden="true">Ⅱ</span><span>暫停</span>';
       cancelAnimationFrame(player.frame);
       player.frame = requestAnimationFrame(() => syncShowcasePlayer(player));
     });
     video.addEventListener("pause", () => stopShowcasePlayer(player));
-    video.addEventListener("seeking", () => player.audioElements.forEach((audio) => audio.pause()));
-    video.addEventListener("seeked", () => prepareShowcaseWindow(player, video.currentTime).catch(() => {}));
+    video.addEventListener("waiting", () => {
+      player.waiting = true;
+      stopShowcaseSources(player);
+      status.textContent = "影片緩衝中，聲音會自動接回";
+    });
+    video.addEventListener("playing", () => {
+      player.waiting = false;
+      cancelAnimationFrame(player.frame);
+      player.frame = requestAnimationFrame(() => syncShowcasePlayer(player));
+    });
+    video.addEventListener("seeking", () => {
+      player.waiting = true;
+      stopShowcaseSources(player);
+    });
+    video.addEventListener("seeked", () => {
+      player.waiting = false;
+      prepareShowcaseWindow(player, video.currentTime).then(() => {
+        if (!video.paused) {
+          cancelAnimationFrame(player.frame);
+          player.frame = requestAnimationFrame(() => syncShowcasePlayer(player));
+        }
+      }).catch(() => {});
+    });
+    video.addEventListener("ratechange", () => {
+      stopShowcaseSources(player);
+      if (!video.paused) {
+        cancelAnimationFrame(player.frame);
+        player.frame = requestAnimationFrame(() => syncShowcasePlayer(player));
+      }
+    });
     video.addEventListener("ended", () => { status.textContent = "本次驗收播放完成"; });
     video.addEventListener("volumechange", () => { video.muted = true; });
     container.append(article);

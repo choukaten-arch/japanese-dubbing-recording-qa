@@ -214,6 +214,9 @@ try {
       renderKaraokeOverlay();
       const buttons = [...document.querySelectorAll(".sound-beat.is-target")];
       const row = document.querySelector(".sound-beat-row");
+      const shell = document.querySelector(".video-shell")?.getBoundingClientRect();
+      const caption = document.querySelector(".sound-effect-mode .karaoke-caption")?.getBoundingClientRect();
+      const guide = document.querySelector(".sound-effect-mode .karaoke-guide")?.getBoundingClientRect();
       return {
         expected: line.soundEvents.length,
         rendered: buttons.length,
@@ -221,12 +224,15 @@ try {
         labelsComplete: buttons.every((button) => button.dataset.soundLabel
           && Number(button.dataset.demoEnd) > Number(button.dataset.demoStart)
           && button.getAttribute("aria-label")?.includes(button.textContent)),
-        overflow: row ? row.scrollWidth > row.clientWidth + 1 : true,
+        overflow: row ? row.scrollHeight > row.clientHeight + 1 : true,
+        rowHeight: row?.getBoundingClientRect().height || 0,
+        clearStageRatio: shell && caption && guide ? Math.max(0, guide.top - caption.bottom) / shell.height : 0,
       };
     }));
     assert(renderedSoundCues.every((cue) => cue.rendered === cue.expected), `${work.title} 有逐事件音效未顯示在卡啦 OK 節拍列`);
     assert(renderedSoundCues.every((cue) => cue.labelsComplete), `${work.title} 有音效示範按鈕缺少名稱或原片區間`);
-    assert(renderedSoundCues.every((cue) => !cue.overflow), `${work.title} 的音效節拍列出現文字溢位`);
+    assert(renderedSoundCues.every((cue) => !cue.overflow && cue.rowHeight <= 27), `${work.title} 的音效提示未維持單列時間軸`);
+    assert(renderedSoundCues.every((cue) => cue.clearStageRatio >= 0.42), `${work.title} 的音效提示遮住太多影片畫面`);
     await page.evaluate(() => {
       hideKaraokeOverlay();
       selectLine(0, false);
