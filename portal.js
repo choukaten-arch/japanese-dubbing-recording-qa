@@ -43,6 +43,7 @@ function cachePortalElements() {
     "loginMessage", "studentView", "studentDate", "studentTitle", "studentCompleted", "studentNotice",
     "studentPreferenceBar", "studentPreferencePoster", "studentPreferenceLabel", "changePreference",
     "studentPerformance", "studentRadar", "studentPracticedLines", "studentTotalAttempts", "studentTotalDuration",
+    "viewMyCompletedClips",
     "preferenceDialog", "preferenceForm", "preferenceClose", "preferenceWork", "preferenceRoles",
     "preferencePoster", "preferenceMessage", "classProgressSection", "classProgressUpdated", "classProgressGroups",
     "studentShowcaseSection", "studentShowcaseUpdated", "studentShowcaseList",
@@ -589,8 +590,18 @@ async function mockRequest(action, payload) {
   if (action === "teacherOverview") return mockTeacherOverview();
   if (action === "groupShowcases") return demoGroupShowcases(portalState.session?.account?.type === "teacher");
   if (action === "groupShowcaseClip") return { ok: true, resultKey: payload.resultKey, mimeType: "audio/wav", audioBase64: demoToneBase64() };
-  if (action === "studentReviewClip") return { ok: true, resultKey: payload.resultKey, mimeType: "audio/wav", audioBase64: demoToneBase64() };
-  if (action === "studentHistory") return mockStudentHistory(payload.studentId);
+  if (action === "studentReviewClip") {
+    if (portalState.session?.account?.type === "student" && payload.studentId !== portalState.session.account.studentId) {
+      throw new Error("只能查看自己的完成片段。");
+    }
+    return { ok: true, resultKey: payload.resultKey, mimeType: "audio/wav", audioBase64: demoToneBase64() };
+  }
+  if (action === "studentHistory") {
+    if (portalState.session?.account?.type === "student" && payload.studentId !== portalState.session.account.studentId) {
+      throw new Error("只能查看自己的完成片段。");
+    }
+    return mockStudentHistory(payload.studentId);
+  }
   if (action === "createAssignment") {
     const store = demoStore();
     const work = (window.QA_WORKS || []).find((item) => item.slug === payload.assignment.workSlug);
@@ -701,7 +712,7 @@ async function mockStudentHistory(studentId) {
   const profile = student.profile || { workSlug: "kiki", workTitle: "魔女宅急便", roles: ["老夫人"], role: "老夫人" };
   const data = await fetchWorkData(profile.workSlug);
   const demoLines = data.lines.filter((line) => profileRoles(profile).includes(line.role)).slice(0, 2);
-  const records = recent.length ? recent : demoLines.map((line, index) => ({
+  const records = recent.length || studentId === "demo" ? recent : demoLines.map((line, index) => ({
     studentId: student.studentId,
     studentName: student.name,
     workSlug: data.slug,
@@ -2017,7 +2028,10 @@ async function renderStudentReview(data) {
 }
 
 async function openStudentReview(studentId, button) {
-  if (!studentId || portalState.session?.account?.type !== "teacher") return;
+  const account = portalState.session?.account;
+  const allowed = account?.type === "teacher"
+    || (account?.type === "student" && String(account.studentId) === String(studentId));
+  if (!studentId || !allowed) return;
   setBusy(button, true, "載入中");
   try {
     const response = await platformRequest("studentHistory", {
@@ -2239,6 +2253,9 @@ function bindPortalEvents() {
   portalElements.studentLoginPanel.addEventListener("submit", handleStudentLogin);
   portalElements.teacherLoginPanel.addEventListener("submit", handleTeacherLogin);
   portalElements.changePreference.addEventListener("click", () => openPreferenceDialog(false));
+  portalElements.viewMyCompletedClips.addEventListener("click", (event) => {
+    openStudentReview(portalState.session?.account?.studentId, event.currentTarget);
+  });
   portalElements.preferenceWork.addEventListener("change", () => updatePreferenceRoles());
   portalElements.preferenceForm.addEventListener("submit", handlePreferenceSubmit);
   portalElements.preferenceClose.addEventListener("click", () => {

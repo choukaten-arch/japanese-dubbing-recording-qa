@@ -7,10 +7,10 @@
   <meta name="description" content="日語配音每日作業、逐句錄音與老師進度管理平台">
   <title>配音作業平台｜日語配音練習站</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="portal.css?v=20260724.3">
-  <script src="config.js?v=20260724.3"></script>
-  <script src="radar-chart.js?v=20260724.3"></script>
-  <script src="portal.js?v=20260724.3" defer></script>
+  <link rel="stylesheet" href="portal.css?v=20260724.4">
+  <script src="config.js?v=20260724.4"></script>
+  <script src="radar-chart.js?v=20260724.4"></script>
+  <script src="portal.js?v=20260724.4" defer></script>
 </head>
 <body>
   <header class="platform-header">
@@ -91,6 +91,11 @@
             <div><dt>累計練習</dt><dd id="studentTotalAttempts">0 次</dd></div>
             <div><dt>錄音時間</dt><dd id="studentTotalDuration">0 秒</dd></div>
           </dl>
+          <button class="completed-clips-button" id="viewMyCompletedClips" type="button">
+            <span class="completed-clips-button__icon" aria-hidden="true">▶</span>
+            <span>查看全部完成片段</span>
+            <span class="completed-clips-button__arrow" aria-hidden="true">›</span>
+          </button>
         </div>
         <canvas class="practice-radar" id="studentRadar" width="600" height="520" aria-label="重音、語調、語速、音量四面向雷達圖"></canvas>
       </section>

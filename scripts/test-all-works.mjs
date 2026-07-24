@@ -33,13 +33,19 @@ function cueRange(value) {
 }
 
 const appsScriptSource = await readFile(resolve(import.meta.dirname, "../apps-script/Code.gs"), "utf8");
-assert(appsScriptSource.includes('case "studentReviewClip": return studentReviewClip_('), "Apps Script 缺少教師逐句錄音讀取路由");
+assert(appsScriptSource.includes('case "studentReviewClip": return studentReviewClip_('), "Apps Script 缺少逐句錄音讀取路由");
 const studentReviewClipSource = appsScriptSource.slice(
   appsScriptSource.indexOf("function studentReviewClip_"),
   appsScriptSource.indexOf("function resultAudioPayload_"),
 );
-assert(studentReviewClipSource.includes('verifySession_(token, "teacher")'), "學生錄音讀取 API 沒有限定教師權限");
+const reviewIdentitySource = appsScriptSource.slice(
+  appsScriptSource.indexOf("function reviewStudentId_"),
+  appsScriptSource.indexOf("function recalibratePronunciationScores_"),
+);
+assert(studentReviewClipSource.includes("reviewStudentId_(token, studentIdInput)"), "學生錄音讀取 API 沒有套用本人權限檢查");
 assert(studentReviewClipSource.includes("normalizeStudentId_(item.student_id) === studentId"), "學生錄音讀取 API 沒有核對錄音所有人");
+assert(reviewIdentitySource.includes("verifyAnySession_(token)"), "完成片段權限沒有驗證登入工作階段");
+assert(reviewIdentitySource.includes("activeStudent_") && reviewIdentitySource.includes('fail_("FORBIDDEN"'), "學生完成片段沒有同時檢查帳號有效性與本人學號");
 const soundCatalogStart = appsScriptSource.indexOf("const SOUND_EFFECT_WORKS");
 const soundCatalogEnd = appsScriptSource.indexOf("\n\nfunction onOpen", soundCatalogStart);
 assert(soundCatalogStart >= 0 && soundCatalogEnd > soundCatalogStart, "Apps Script 缺少音效角色清單");

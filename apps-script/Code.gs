@@ -767,8 +767,7 @@ function groupShowcaseClip_(token, resultKeyInput) {
 }
 
 function studentReviewClip_(token, studentIdInput, resultKeyInput) {
-  verifySession_(token, "teacher");
-  const studentId = normalizeStudentId_(studentIdInput);
+  const studentId = reviewStudentId_(token, studentIdInput);
   const resultKey = cleanText_(resultKeyInput, 240);
   const row = readTable_(SHEETS.RESULTS).records.find((item) => (
     String(item.result_key) === resultKey
@@ -906,8 +905,7 @@ function teacherOverview_(token) {
 }
 
 function studentHistory_(token, studentIdInput) {
-  verifySession_(token, "teacher");
-  const studentId = normalizeStudentId_(studentIdInput);
+  const studentId = reviewStudentId_(token, studentIdInput);
   const student = readTable_(SHEETS.STUDENTS).records.find(
     (row) => normalizeStudentId_(row.student_id) === studentId,
   );
@@ -1022,6 +1020,21 @@ function studentHistory_(token, studentIdInput) {
       submittedAt: isoValue_(row.submitted_at),
     })),
   };
+}
+
+function reviewStudentId_(token, studentIdInput) {
+  const identity = verifyAnySession_(token);
+  const requestedStudentId = normalizeStudentId_(studentIdInput);
+  if (identity.type === "teacher") {
+    if (!requestedStudentId) fail_("STUDENT_NOT_FOUND", "找不到這個學號。");
+    return requestedStudentId;
+  }
+  const student = activeStudent_(normalizeStudentId_(identity.sub), identity.pinTag);
+  const ownStudentId = normalizeStudentId_(student.student_id);
+  if (requestedStudentId && requestedStudentId !== ownStudentId) {
+    fail_("FORBIDDEN", "只能查看自己的完成片段。");
+  }
+  return ownStudentId;
 }
 
 function recalibratePronunciationScores_(token, readingsInput) {

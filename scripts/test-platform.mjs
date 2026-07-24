@@ -84,6 +84,7 @@ try {
   assert((await page.locator("#selfPracticeList").innerText()).includes("琪琪"), "自主練習未顯示琪琪");
   assert((await page.locator("#selfPracticeList").innerText()).includes("老夫人"), "未發派作業的角色未顯示自主練習入口");
   assert(await page.locator("#studentRadar").isVisible(), "學生端未顯示四面向雷達圖");
+  assert(await page.locator("#viewMyCompletedClips").isVisible(), "學生端未顯示自己的完成片段入口");
   assert(await page.locator(".group-progress-block").count() >= 2, "學生端未顯示分組熟練度");
   assert(await page.locator(".group-member-list .is-current").count() === 1, "學生本人未在分組進度中標示");
   assert(await page.locator(".group-progress-block.is-own-group .group-member-list").count() === 1, "同組進度未顯示每位成員");
@@ -237,6 +238,30 @@ try {
   await page.goto(`${baseUrl}portal.html?demo=1`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => !document.querySelector("#studentView").hidden && document.querySelector("#taskList")?.textContent.includes("1 / 5 句達標"));
   assert((await page.locator("#taskList").innerText()).includes("1 / 5 句達標"), "返回任務頁後達標狀態未保留");
+  const selfReviewIsolation = await page.evaluate(async () => {
+    try {
+      await platformRequest("studentHistory", {
+        token: portalState.session.session.token,
+        studentId: "demo-02",
+      });
+      return false;
+    } catch (error) {
+      return String(error.message || "").includes("只能查看自己的完成片段");
+    }
+  });
+  assert(selfReviewIsolation, "學生登入後仍可要求查看其他學號的完成片段");
+  await page.locator("#viewMyCompletedClips").click();
+  await page.waitForFunction(() => document.querySelector("#clipReviewDialog")?.open
+    && document.querySelectorAll("#clipReviewList .clip-review-item").length > 0);
+  assert((await page.locator("#clipReviewTitle").innerText()).includes("測試學生"), "學生完成片段沒有顯示本人姓名");
+  assert(await page.locator("#clipReviewList .clip-review-item").count() === 1, "學生完成片段沒有依已保存逐句錄音列出");
+  await page.locator("#clipReviewCompare").click();
+  await page.waitForFunction(() => portalState.studentReview.mode === "compare"
+    && portalState.studentReview.audioBuffer?.duration > 0
+    && !document.querySelector("#clipReviewVideo")?.paused);
+  assert(await page.locator("#clipReviewVideo").evaluate((video) => video.muted), "學生回看自己的錄音時原片沒有靜音");
+  await page.screenshot({ path: `${outputDir}/student-completed-clips-desktop.png`, fullPage: true });
+  await page.locator("#clipReviewClose").click();
 
   const selfRole = page.locator(".self-practice-item").filter({ hasText: "老夫人" });
   await selfRole.locator("a").click();
@@ -408,7 +433,7 @@ try {
   assert(!teacherOverflow, "老師後台手機版出現水平溢位");
   await mobilePage.screenshot({ path: `${outputDir}/teacher-dashboard-mobile.png`, fullPage: true });
   await mobilePage.locator('.teacher-tab[data-tab="students"]').click();
-  await mobilePage.locator("#studentRows .student-review-button").first().click();
+  await mobilePage.locator('#studentRows .student-review-button[data-student-id="demo-02"]').click();
   await mobilePage.waitForFunction(() => document.querySelector("#clipReviewDialog")?.open
     && document.querySelectorAll("#clipReviewList .clip-review-item").length > 0);
   const mobileReviewLayout = await mobilePage.evaluate(() => {
