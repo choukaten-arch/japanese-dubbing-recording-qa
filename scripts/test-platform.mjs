@@ -73,6 +73,14 @@ try {
   await page.waitForFunction(() => !document.querySelector("#studentView").hidden && document.querySelectorAll(".task-item").length > 0 && document.querySelectorAll(".self-practice-item").length === 2 && document.querySelectorAll(".showcase-card").length >= 2);
   assert((await page.locator("#taskList").innerText()).includes("琪琪台詞練習"), "學生登入後未顯示指派作業");
   assert((await page.locator("#studentPreferenceLabel").innerText()).includes("魔女宅急便 · 琪琪、老夫人"), "學生複數選角沒有保留在任務頁");
+  assert(await page.locator("#changePreference").isVisible(), "一般學生應保留變更作品與角色功能");
+  await page.evaluate(() => {
+    renderStudentProfile({ ...portalState.session.account.profile, preferenceLocked: true });
+  });
+  assert(await page.locator("#changePreference").isHidden(), "老師固定拆角的學生仍顯示變更選角入口");
+  await page.evaluate(() => {
+    renderStudentProfile(portalState.session.account.profile);
+  });
   assert((await page.locator("#selfPracticeList").innerText()).includes("琪琪"), "自主練習未顯示琪琪");
   assert((await page.locator("#selfPracticeList").innerText()).includes("老夫人"), "未發派作業的角色未顯示自主練習入口");
   assert(await page.locator("#studentRadar").isVisible(), "學生端未顯示四面向雷達圖");

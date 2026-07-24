@@ -783,6 +783,7 @@ function renderStudentPerformance(progress) {
 
 function renderStudentProfile(profile) {
   portalElements.studentPreferenceBar.hidden = !profile;
+  portalElements.changePreference.hidden = Boolean(profile?.preferenceLocked);
   if (!profile) return;
   portalElements.studentPreferencePoster.src = posterUrl(profile.workSlug);
   portalElements.studentPreferencePoster.alt = profile.workTitle;

@@ -40,10 +40,53 @@ const soundCatalogContext = {};
 runInNewContext(`${appsScriptSource.slice(soundCatalogStart, soundCatalogEnd)}\nthis.soundWorks = SOUND_EFFECT_WORKS;`, soundCatalogContext);
 const backendSoundWorks = soundCatalogContext.soundWorks;
 const pronunciationContext = {};
+const specialRoleFixtures = [
+  {
+    studentId: "900001",
+    workSlug: "totoro",
+    workTitle: "龍貓",
+    sourceRole: "おばあちゃん",
+    role: "おばあちゃん（A 專用）",
+    lineIndices: [1, 3, 7, 8, 16, 17, 18, 24, 25, 26, 32, 34, 40, 46, 48],
+  },
+  {
+    studentId: "900002",
+    workSlug: "totoro",
+    workTitle: "龍貓",
+    sourceRole: "おばあちゃん",
+    role: "おばあちゃん（B 專用）",
+    lineIndices: [9, 11, 21, 22, 33, 52],
+  },
+];
 runInNewContext(
-  `${appsScriptSource}\nthis.pronunciationApi = { score: bestPronunciationAccuracy_ };`,
+  `${appsScriptSource}
+this.pronunciationApi = { score: bestPronunciationAccuracy_ };
+const specialRoleFixtures = ${JSON.stringify(specialRoleFixtures)};
+this.specialRoleApi = {
+  assignments: normalizeSpecialRoleAssignments_(specialRoleFixtures),
+  catalogRows: specialRoleCatalogRows_(specialRoleFixtures),
+};`,
   pronunciationContext,
 );
+const totoroData = JSON.parse(await readFile(resolve(import.meta.dirname, "../data/totoro.json"), "utf8"));
+const specialAssignments = pronunciationContext.specialRoleApi.assignments;
+const specialCatalogRows = pronunciationContext.specialRoleApi.catalogRows;
+const firstSplitLines = [...specialAssignments[0].lineIndices];
+const secondSplitLines = [...specialAssignments[1].lineIndices];
+const publicGrandmaLines = totoroData.lines
+  .filter((line) => line.role === "おばあちゃん")
+  .map((line) => line.index);
+const splitGrandmaLines = [...new Set([...firstSplitLines, ...secondSplitLines])].sort((left, right) => left - right);
+assert(JSON.stringify(firstSplitLines) === JSON.stringify([1, 3, 7, 8, 16, 17, 18, 24, 25, 26, 32, 34, 40, 46, 48]), "龍貓婆婆第一組逐句分配錯誤");
+assert(JSON.stringify(secondSplitLines) === JSON.stringify([9, 11, 21, 22, 33, 52]), "龍貓婆婆第二組螢光標記句分配錯誤");
+assert(firstSplitLines.every((line) => !secondSplitLines.includes(line)), "龍貓婆婆兩組逐句分配重疊");
+assert(JSON.stringify(splitGrandmaLines) === JSON.stringify(publicGrandmaLines), "龍貓婆婆拆分後沒有完整涵蓋 21 句");
+assert([25, 26].every((line) => firstSplitLines.includes(line) && !secondSplitLines.includes(line)), "照片中打叉的兩句仍在螢光標記組");
+assert(specialCatalogRows.every((row) => row.is_special_assignment
+  && row.total_lines === String(row.line_indices).split(",").length), "隱藏專用角色的完成度分母錯誤");
+assert(specialAssignments.every((assignment) => (
+  !totoroData.roles.some((role) => role.role === assignment.role)
+)), "隱藏專用角色不應出現在公開角色選單");
 
 function readingFromHtml(line) {
   return String(line.japaneseHtml || line.japanese || "")

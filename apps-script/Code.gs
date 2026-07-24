@@ -27,6 +27,7 @@ const RESULT_SCORE_HEADERS = Object.freeze([
 
 const ASSIGNMENT_GOAL_HEADERS = Object.freeze(["goal_mode", "target_percent", "target_score"]);
 const SOUND_EFFECT_LINE_BASE = 9001;
+const SPECIAL_ROLE_ASSIGNMENTS_PROPERTY = "SPECIAL_ROLE_ASSIGNMENTS_JSON";
 const SOUND_EFFECT_WORKS = Object.freeze([
   {
     workSlug: "kiki",
@@ -240,6 +241,7 @@ function route_(payload, event) {
     case "teacherOverview": return teacherOverview_(payload.token);
     case "studentHistory": return studentHistory_(payload.token, payload.studentId);
     case "upsertTeacherAccounts": return upsertTeacherAccounts_(payload.token, payload.accounts);
+    case "setSpecialRoleAssignments": return setSpecialRoleAssignments_(payload.token, payload.assignments);
     case "recalibratePronunciationScores": return recalibratePronunciationScores_(
       payload.token,
       payload.readings,
@@ -449,14 +451,19 @@ function studentTasks_(token) {
 
 function setStudentPreference_(token, workSlugInput, rolesInput) {
   const identity = verifySession_(token, "student");
-  activeStudent_(identity.sub, identity.pinTag);
+  const activeStudent = activeStudent_(identity.sub, identity.pinTag);
+  if (specialStudentRoleAssignment_(activeStudent)) {
+    fail_("PREFERENCE_LOCKED", "這個帳號的台詞已由老師固定分配，如需調整請聯絡老師。");
+  }
   const workSlug = cleanText_(workSlugInput, 80);
   const requestedRoles = Array.isArray(rolesInput) ? rolesInput : [rolesInput];
   const roles = [...new Set(requestedRoles.map((role) => cleanText_(role, 80)).filter(Boolean))];
   if (!roles.length) fail_("INVALID_PREFERENCE", "請至少選擇一個角色。");
   if (roles.length > 12) fail_("INVALID_PREFERENCE", "一次最多選擇 12 個角色。");
   const catalogs = workRoleCatalogs_().filter(
-    (row) => String(row.work_slug) === workSlug && roles.includes(String(row.role)),
+    (row) => !row.is_special_assignment
+      && String(row.work_slug) === workSlug
+      && roles.includes(String(row.role)),
   );
   if (catalogs.length !== roles.length) fail_("INVALID_PREFERENCE", "找不到其中一個作品或角色，請重新選擇。");
 
@@ -1087,6 +1094,51 @@ function upsertTeacherAccounts_(token, accountInputs) {
   }
 }
 
+function setSpecialRoleAssignments_(token, assignmentInputs) {
+  verifySession_(token, "teacher");
+  const assignments = normalizeSpecialRoleAssignments_(assignmentInputs);
+  const students = readTable_(SHEETS.STUDENTS).records;
+  const publicCatalogs = readTable_(SHEETS.WORK_ROLES).records;
+
+  assignments.forEach((assignment) => {
+    const student = students.find(
+      (row) => normalizeStudentId_(row.student_id) === assignment.studentId && isTrue_(row.active),
+    );
+    if (!student) fail_("STUDENT_NOT_FOUND", "固定分角名單中有不存在或已停用的學生。");
+
+    const sourceCatalog = publicCatalogs.find(
+      (row) => String(row.work_slug) === assignment.workSlug
+        && String(row.role) === assignment.sourceRole,
+    );
+    if (!sourceCatalog) fail_("INVALID_SOURCE_ROLE", "固定分角找不到原始作品或角色。");
+    const allowedLines = parseLineIndices_(sourceCatalog.line_indices);
+    if (!assignment.lineIndices.every((lineIndex) => allowedLines.includes(lineIndex))) {
+      fail_("INVALID_SPECIAL_LINES", "固定分角包含不屬於原始角色的台詞。");
+    }
+    if (publicCatalogs.some(
+      (row) => String(row.work_slug) === assignment.workSlug && String(row.role) === assignment.role,
+    )) {
+      fail_("SPECIAL_ROLE_VISIBLE", "固定分角名稱不可與一般角色相同。");
+    }
+    assignment.workTitle = String(sourceCatalog.work_title || assignment.workTitle || assignment.workSlug);
+  });
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    PropertiesService.getScriptProperties().setProperty(
+      SPECIAL_ROLE_ASSIGNMENTS_PROPERTY,
+      JSON.stringify(assignments),
+    );
+  } finally {
+    lock.releaseLock();
+  }
+  return {
+    configured: assignments.length,
+    totalLines: assignments.reduce((sum, assignment) => sum + assignment.lineIndices.length, 0),
+  };
+}
+
 function recalibrateScoreTable_(table, readings) {
   const overallColumn = table.indexes.overall_score;
   const accuracyColumn = table.indexes.text_accuracy;
@@ -1547,9 +1599,88 @@ function soundEffectCatalogRows_() {
   return rows;
 }
 
+function normalizeSpecialRoleAssignments_(assignmentInputs) {
+  if (!Array.isArray(assignmentInputs) || !assignmentInputs.length || assignmentInputs.length > 100) {
+    fail_("INVALID_SPECIAL_ASSIGNMENTS", "固定分角資料不完整。");
+  }
+
+  const studentIds = new Set();
+  const roleKeys = new Set();
+  const claimedLines = {};
+  return assignmentInputs.map((input) => {
+    const studentId = normalizeStudentId_(input && input.studentId);
+    const workSlug = cleanText_(input && input.workSlug, 80);
+    const workTitle = cleanText_(input && input.workTitle, 120);
+    const sourceRole = cleanText_(input && input.sourceRole, 80);
+    const role = cleanText_(input && input.role, 80);
+    const rawLines = Array.isArray(input && input.lineIndices)
+      ? input.lineIndices
+      : String(input && input.lineIndices || "").split(",");
+    const lineIndices = [...new Set(rawLines.map(Number).filter(
+      (lineIndex) => Number.isInteger(lineIndex) && lineIndex > 0 && lineIndex < SOUND_EFFECT_LINE_BASE,
+    ))].sort((left, right) => left - right);
+
+    if (!studentId || !workSlug || !sourceRole || !role || !lineIndices.length) {
+      fail_("INVALID_SPECIAL_ASSIGNMENTS", "固定分角資料缺少學生、作品、角色或台詞。");
+    }
+    if (studentIds.has(studentId)) fail_("DUPLICATE_SPECIAL_STUDENT", "同一位學生只能有一組固定分角。");
+    studentIds.add(studentId);
+
+    const roleKey = `${workSlug}|${role}`;
+    if (roleKeys.has(roleKey)) fail_("DUPLICATE_SPECIAL_ROLE", "同一作品的固定分角名稱不可重複。");
+    roleKeys.add(roleKey);
+
+    const sourceKey = `${workSlug}|${sourceRole}`;
+    if (!claimedLines[sourceKey]) claimedLines[sourceKey] = new Set();
+    lineIndices.forEach((lineIndex) => {
+      if (claimedLines[sourceKey].has(lineIndex)) {
+        fail_("OVERLAPPING_SPECIAL_LINES", "同一原始角色的固定分角台詞不可重疊。");
+      }
+      claimedLines[sourceKey].add(lineIndex);
+    });
+
+    return { studentId, workSlug, workTitle, sourceRole, role, lineIndices };
+  });
+}
+
+function specialStudentRoleAssignments_() {
+  const raw = PropertiesService.getScriptProperties().getProperty(SPECIAL_ROLE_ASSIGNMENTS_PROPERTY);
+  if (!raw) return [];
+  try {
+    return normalizeSpecialRoleAssignments_(JSON.parse(raw));
+  } catch (error) {
+    console.error(`Special role assignments could not be read: ${error}`);
+    return [];
+  }
+}
+
+function specialStudentRoleAssignment_(student) {
+  const studentId = normalizeStudentId_(student && student.student_id);
+  return specialStudentRoleAssignments_().find((assignment) => assignment.studentId === studentId) || null;
+}
+
+function specialRoleCatalogRows_(assignmentInputs) {
+  const assignments = assignmentInputs === undefined
+    ? specialStudentRoleAssignments_()
+    : normalizeSpecialRoleAssignments_(assignmentInputs);
+  return assignments.map((assignment) => {
+    return {
+      work_slug: assignment.workSlug,
+      work_title: assignment.workTitle,
+      role: assignment.role,
+      total_lines: assignment.lineIndices.length,
+      line_indices: assignment.lineIndices.join(","),
+      is_special_assignment: true,
+    };
+  });
+}
+
 function workRoleCatalogs_() {
   const rows = readTable_(SHEETS.WORK_ROLES).records.slice();
   const existing = new Set(rows.map((row) => `${row.work_slug}|${row.role}`));
+  specialRoleCatalogRows_().forEach((row) => {
+    if (!existing.has(`${row.work_slug}|${row.role}`)) rows.push(row);
+  });
   soundEffectCatalogRows_().forEach((row) => {
     if (!existing.has(`${row.work_slug}|${row.role}`)) rows.push(row);
   });
@@ -1557,6 +1688,18 @@ function workRoleCatalogs_() {
 }
 
 function studentProfile_(student) {
+  const specialAssignment = specialStudentRoleAssignment_(student);
+  if (specialAssignment) {
+    return {
+      groupName: String(student.group_name || "").trim(),
+      workSlug: specialAssignment.workSlug,
+      workTitle: specialAssignment.workTitle,
+      roles: [specialAssignment.role],
+      role: specialAssignment.role,
+      preferenceLocked: true,
+      updatedAt: isoValue_(student.preference_updated_at),
+    };
+  }
   const workSlug = String(student && student.selected_work_slug || "").trim();
   const roles = parseSelectedRoles_(student && student.selected_roles, student && student.selected_role);
   if (!workSlug || !roles.length) return null;
