@@ -151,6 +151,44 @@ try {
     assert(JSON.stringify(frontendSoundRoles) === JSON.stringify(backendSoundRoles), `${work.title} 前後端音效角清單不同步`);
     assert(data.lines.length === work.lines, `${work.title} 的資料行數錯誤`);
     assert(data.soundCues.length === work.soundEffects, `${work.title} 的音效場景數量錯誤`);
+    const dialogueCueAudit = await page.evaluate(() => state.data.lines
+      .filter((line) => !line.isSoundEffect)
+      .map((line) => {
+        const cue = lineCueBounds(line);
+        return {
+          index: line.index,
+          start: line.start,
+          end: line.end,
+          cueStart: cue.start,
+          cueEnd: cue.end,
+        };
+      }));
+    const invalidDialogueCues = dialogueCueAudit.filter((line) => (
+      line.cueStart < line.start
+      || line.cueEnd > line.end
+      || line.cueEnd <= line.cueStart
+    ));
+    assert(!invalidDialogueCues.length, `${work.title} 的台詞提示時間超出播放區間：${JSON.stringify(invalidDialogueCues)}`);
+    if (work.slug === "spirited-away") {
+      const hakuCue = await page.evaluate(() => {
+        const line = state.data.lines.find((candidate) => candidate.index === 54);
+        selectLine(state.data.lines.indexOf(line), false);
+        return {
+          start: line.start,
+          end: line.end,
+          cue: lineCueBounds(line),
+          displayedTime: document.querySelector("#selectedTime")?.textContent,
+        };
+      });
+      assert(
+        hakuCue.start === 269.18
+          && hakuCue.end === 270.82
+          && hakuCue.cue.start === 269.92
+          && hakuCue.cue.end === 270.7,
+        "白龍「名は何という？」的錄音緩衝與實際開口點未正確分離",
+      );
+      assert(hakuCue.displayedTime === "04:29.920 – 04:30.700", "白龍台詞頁沒有顯示實際開口時間");
+    }
     const pronunciationAudit = await page.evaluate(() => state.data.lines
       .filter((line) => !line.isSoundEffect)
       .map((line) => {

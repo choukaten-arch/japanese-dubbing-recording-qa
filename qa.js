@@ -75,6 +75,12 @@ function formatTime(seconds, millis = true) {
   return `${base}.${String(Math.round((safe % 1) * 1000)).padStart(3, "0")}`;
 }
 
+function lineCueBounds(line) {
+  const start = Number.isFinite(Number(line?.cueStart)) ? Number(line.cueStart) : Number(line?.start) || 0;
+  const end = Number.isFinite(Number(line?.cueEnd)) ? Number(line.cueEnd) : Number(line?.end) || start;
+  return { start, end: Math.max(start + 0.1, end) };
+}
+
 function currentLine() {
   return state.data.lines[state.selectedIndex];
 }
@@ -97,12 +103,13 @@ function renderLineList() {
   const fragment = document.createDocumentFragment();
   state.data.lines.forEach((line, index) => {
     const button = document.createElement("button");
+    const cue = lineCueBounds(line);
     button.type = "button";
     button.className = "script-line";
     button.dataset.index = String(index);
     button.innerHTML = `
       <span class="script-line__number">${escapeHtml(line.displayIndex || String(line.index).padStart(2, "0"))}</span>
-      <span class="script-line__time">${formatTime(line.start)}</span>
+      <span class="script-line__time">${formatTime(cue.start)}</span>
       <span class="script-line__content"><strong>${escapeHtml(line.role)}</strong><span lang="ja">${line.japaneseHtml}</span></span>
       <span class="script-line__select" aria-hidden="true">›</span>`;
     button.addEventListener("click", () => selectLine(index, true));
@@ -142,7 +149,8 @@ function selectLine(index, scroll = false) {
     ? `${line.displayIndex} · ${line.cueTime}`
     : `第 ${line.index} / ${state.data.lineCount} 句`;
   elements.selectedRole.textContent = line.role;
-  elements.selectedTime.textContent = `${formatTime(line.start)} – ${formatTime(line.end)}`;
+  const cue = lineCueBounds(line);
+  elements.selectedTime.textContent = `${formatTime(cue.start)} – ${formatTime(cue.end)}`;
   elements.selectedJapanese.innerHTML = line.japaneseHtml;
   elements.selectedTranslation.textContent = line.translation;
   elements.referenceVideo.pause();
@@ -693,12 +701,13 @@ function updateKaraokeProgress(videoTime) {
     updateSoundEffectBeatProgress(videoTime, line);
     return;
   }
-  const duration = Math.max(0.1, line.end - line.start);
-  const expectedProgress = Math.max(0, Math.min(1, (Number(videoTime) - line.start) / duration));
+  const cue = lineCueBounds(line);
+  const duration = Math.max(0.1, cue.end - cue.start);
+  const expectedProgress = Math.max(0, Math.min(1, (Number(videoTime) - cue.start) / duration));
   const coloredCount = Math.floor(expectedProgress * state.karaokeCharacters.length);
   state.karaokeCharacters.forEach((character, index) => character.classList.toggle("is-sung", index < coloredCount));
 
-  if (Number(videoTime) >= line.end) {
+  if (Number(videoTime) >= cue.end) {
     if (state.isReviewing) setKaraokeGuide("review", "收尾回看", 1, 1);
     else if (state.mediaRecorder?.state === "recording") setKaraokeGuide("complete", "收尾緩衝", 1, 1);
     return;
@@ -731,7 +740,8 @@ function captureKaraokeSyncSample() {
   const line = currentLine();
   const transcript = `${state.finalTranscript}${state.interimTranscript}`;
   if (!normalizeJapanesePronunciation(transcript)) return;
-  const expectedProgress = Math.max(0, Math.min(1, (elements.referenceVideo.currentTime - line.start) / Math.max(0.1, line.end - line.start)));
+  const cue = lineCueBounds(line);
+  const expectedProgress = Math.max(0, Math.min(1, (elements.referenceVideo.currentTime - cue.start) / Math.max(0.1, cue.end - cue.start)));
   const spokenProgress = japaneseTranscriptProgress(line, transcript);
   const previous = state.karaokeSyncSamples.at(-1);
   if (previous && Math.abs(previous.expectedProgress - expectedProgress) < 0.035) return;
@@ -955,7 +965,8 @@ function stopRecording() {
   if (state.mediaRecorder?.state !== "recording" || state.isStopping) return;
   state.isStopping = true;
   state.recordingDuration = (performance.now() - state.recordingStartedAt) / 1000;
-  state.recordingEndProgress = Math.max(0, Math.min(1, (elements.referenceVideo.currentTime - currentLine().start) / Math.max(0.1, currentLine().end - currentLine().start)));
+  const cue = lineCueBounds(currentLine());
+  state.recordingEndProgress = Math.max(0, Math.min(1, (elements.referenceVideo.currentTime - cue.start) / Math.max(0.1, cue.end - cue.start)));
   elements.referenceVideo.pause();
   elements.referenceVideo.controls = true;
   state.referenceStopAt = null;
@@ -996,7 +1007,8 @@ function finishRecording() {
   elements.startRecording.disabled = false;
   elements.evaluateRecording.disabled = false;
   elements.resetRecording.disabled = false;
-  const finalProgress = Math.max(0, Math.min(1, (elements.referenceVideo.currentTime - currentLine().start) / Math.max(0.1, currentLine().end - currentLine().start)));
+  const cue = lineCueBounds(currentLine());
+  const finalProgress = Math.max(0, Math.min(1, (elements.referenceVideo.currentTime - cue.start) / Math.max(0.1, cue.end - cue.start)));
   setKaraokeGuide("complete", "錄音完成", finalProgress, finalProgress);
   if (currentLine().isSoundEffect) elements.recognitionStatus.textContent = "音效錄製完成";
   else if (!elements.recognizedText.value.trim()) elements.recognitionStatus.textContent = "可手動輸入辨識結果";
@@ -1645,13 +1657,14 @@ async function localEvaluation() {
 
 async function apiEvaluation() {
   const line = currentLine();
+  const cue = lineCueBounds(line);
   const form = new FormData();
   form.append("audio", state.recordingBlob, `line-${line.index}.webm`);
   form.append("work", state.data.title);
   form.append("role", line.role);
   form.append("target", line.japanese);
-  form.append("start", String(line.start));
-  form.append("end", String(line.end));
+  form.append("start", String(cue.start));
+  form.append("end", String(cue.end));
   form.append("recordingDuration", String(state.recordingDuration));
   form.append("karaokeFollowScore", String(karaokeFollowScore() ?? ""));
   const response = await fetch(window.QA_CONFIG.evaluationApiUrl, { method: "POST", body: form });

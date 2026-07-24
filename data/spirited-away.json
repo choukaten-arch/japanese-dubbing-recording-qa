@@ -286,7 +286,7 @@
     },
     {
       "index": 24,
-      "start": 116.34,
+      "start": 115.8,
       "end": 124.9,
       "role": "湯婆婆",
       "japanese": "それとも一番つらい、きつい仕事を死ぬまでやらせてやろうか。",
@@ -576,8 +576,8 @@
     },
     {
       "index": 53,
-      "start": 268.68,
-      "end": 269.08,
+      "start": 268.34,
+      "end": 268.72,
       "role": "ハク",
       "japanese": "はい。",
       "japaneseHtml": "はい。",
@@ -588,6 +588,8 @@
       "index": 54,
       "start": 269.18,
       "end": 270.82,
+      "cueStart": 269.92,
+      "cueEnd": 270.7,
       "role": "ハク",
       "japanese": "名は何という？",
       "japaneseHtml": "<ruby>名<rt>な</rt></ruby>は<ruby>何<rt>なん</rt></ruby>という？",

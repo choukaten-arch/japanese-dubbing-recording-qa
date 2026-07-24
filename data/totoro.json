@@ -61,8 +61,8 @@
     },
     {
       "index": 3,
-      "start": 13.24,
-      "end": 15.2,
+      "start": 12.2,
+      "end": 14.8,
       "role": "おばあちゃん",
       "japanese": "アハハ、元気だねぇ。",
       "japaneseHtml": "アハハ、<ruby>元気<rt>げんき</rt></ruby>だねぇ。",
@@ -101,8 +101,8 @@
     },
     {
       "index": 7,
-      "start": 25.36,
-      "end": 26,
+      "start": 24.12,
+      "end": 25.84,
       "role": "おばあちゃん",
       "japanese": "はい、こんにちは。",
       "japaneseHtml": "はい、こんにちは。",
@@ -131,8 +131,8 @@
     },
     {
       "index": 10,
-      "start": 34.1,
-      "end": 36.16,
+      "start": 33.48,
+      "end": 35.36,
       "role": "お父さん",
       "japanese": "はは、これで十分ですよ。",
       "japaneseHtml": "はは、これで<ruby>十分<rt>じゅうぶん</rt></ruby>ですよ。",
@@ -561,8 +561,8 @@
     },
     {
       "index": 53,
-      "start": 264.92,
-      "end": 266.2,
+      "start": 264.5,
+      "end": 265.72,
       "role": "さつき",
       "japanese": "ご苦労さま。",
       "japaneseHtml": "ご<ruby>苦労<rt>くろう</rt></ruby>さま。",
