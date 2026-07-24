@@ -238,6 +238,7 @@ function route_(payload, event) {
     case "submitPracticeAttempt": return submitPracticeAttempt_(payload);
     case "groupShowcases": return groupShowcases_(payload.token);
     case "groupShowcaseClip": return groupShowcaseClip_(payload.token, payload.resultKey);
+    case "studentReviewClip": return studentReviewClip_(payload.token, payload.studentId, payload.resultKey);
     case "teacherOverview": return teacherOverview_(payload.token);
     case "studentHistory": return studentHistory_(payload.token, payload.studentId);
     case "upsertTeacherAccounts": return upsertTeacherAccounts_(payload.token, payload.accounts);
@@ -762,6 +763,22 @@ function groupShowcaseClip_(token, resultKeyInput) {
       || profile.workSlug !== String(row.work_slug) || !profile.roles.includes(String(row.role))) {
     fail_("CLIP_NOT_AVAILABLE", "這段錄音已不在目前的小組成果中。");
   }
+  return resultAudioPayload_(row, resultKey);
+}
+
+function studentReviewClip_(token, studentIdInput, resultKeyInput) {
+  verifySession_(token, "teacher");
+  const studentId = normalizeStudentId_(studentIdInput);
+  const resultKey = cleanText_(resultKeyInput, 240);
+  const row = readTable_(SHEETS.RESULTS).records.find((item) => (
+    String(item.result_key) === resultKey
+    && normalizeStudentId_(item.student_id) === studentId
+  ));
+  if (!row || !row.audio_file_id) fail_("CLIP_NOT_FOUND", "這段學生錄音目前不存在。");
+  return resultAudioPayload_(row, resultKey);
+}
+
+function resultAudioPayload_(row, resultKey) {
   let blob;
   try {
     blob = DriveApp.getFileById(String(row.audio_file_id)).getBlob();
@@ -965,6 +982,12 @@ function studentHistory_(token, studentIdInput) {
       growthPoints: scores.length > 1 ? roundOne_(scores[scores.length - 1] - scores[0]) : 0,
       totalDurationSec: roundOne_(line.attempts.reduce((sum, attempt) => sum + attempt.durationSec, 0)),
       latestAudioUrl: String(latest && latest.audio_url || ""),
+      resultKey: latest && latest.audio_file_id ? String(latest.result_key || "") : "",
+      latestRecordingDurationSec: latest
+        ? Math.max(0, Number(latest.recording_duration_sec) || 0)
+        : 0,
+      latestAspects: latest ? scoreAspectsFromRow_(latest) : {},
+      latestUpdatedAt: latest ? isoValue_(latest.updated_at || latest.submitted_at) : "",
     });
   }).sort((left, right) => left.workTitle.localeCompare(right.workTitle)
     || left.role.localeCompare(right.role)

@@ -294,6 +294,46 @@ try {
   await page.screenshot({ path: `${outputDir}/teacher-history-desktop.png`, fullPage: true });
   await page.locator("#historyClose").click();
 
+  const reviewButton = demoRow.locator(".student-review-button");
+  assert(await reviewButton.isVisible(), "學生姓名沒有提供完成片段檢視入口");
+  await reviewButton.click();
+  await page.waitForFunction(() => document.querySelector("#clipReviewDialog")?.open
+    && document.querySelectorAll("#clipReviewList .clip-review-item").length > 0);
+  assert((await page.locator("#clipReviewTitle").innerText()).includes("測試學生"), "完成片段檢視器沒有顯示學生姓名");
+  const reviewClipCount = await page.locator("#clipReviewList .clip-review-item").count();
+  assert(reviewClipCount >= 1, "完成片段檢視器沒有列出學生已保存的錄音");
+  assert((await page.locator("#clipReviewLineTitle").innerText()).includes("第"), "完成片段缺少作品、角色與句號");
+  assert((await page.locator("#clipReviewJapanese").innerText()).length > 5, "完成片段缺少日文台詞");
+  await page.locator("#clipReviewCompare").click();
+  await page.waitForFunction(() => {
+    const review = portalState.studentReview;
+    return review.mode === "compare"
+      && review.audioBuffer?.duration > 0
+      && !document.querySelector("#clipReviewVideo")?.paused;
+  });
+  const comparePlayback = await page.evaluate(() => {
+    const review = portalState.studentReview;
+    const clip = review.clips[review.selectedIndex];
+    const video = document.querySelector("#clipReviewVideo");
+    return {
+      muted: video.muted,
+      aligned: Math.abs(video.currentTime - clip.start) < 0.8,
+      audioCached: review.audioBuffer.duration > 0,
+    };
+  });
+  assert(comparePlayback.muted && comparePlayback.aligned && comparePlayback.audioCached, "學生錄音沒有貼齊原片台詞起點同步播放");
+  await page.locator("#clipReviewOriginal").click();
+  await page.waitForFunction(() => portalState.studentReview.mode === "original"
+    && !document.querySelector("#clipReviewVideo")?.paused);
+  assert(!(await page.locator("#clipReviewVideo").evaluate((video) => video.muted)), "切換原片原音後影片仍被靜音");
+  await page.locator("#clipReviewOriginal").click();
+  if (reviewClipCount > 1) {
+    await page.locator("#clipReviewNext").click();
+    assert((await page.locator("#clipReviewPosition").innerText()).startsWith("2 /"), "下一段按鈕沒有逐句切換完成片段");
+  }
+  await page.screenshot({ path: `${outputDir}/teacher-student-review-desktop.png`, fullPage: true });
+  await page.locator("#clipReviewClose").click();
+
   await page.locator('.teacher-tab[data-tab="assign"]').click();
   assert(await page.locator("#masteryGoalFields").isVisible(), "發派頁預設未顯示整體完成度模式");
   assert(await page.locator("#lineGoalFields").isHidden(), "整體完成度模式不應同時顯示逐句欄位");
@@ -367,6 +407,26 @@ try {
   const teacherOverflow = await mobilePage.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
   assert(!teacherOverflow, "老師後台手機版出現水平溢位");
   await mobilePage.screenshot({ path: `${outputDir}/teacher-dashboard-mobile.png`, fullPage: true });
+  await mobilePage.locator('.teacher-tab[data-tab="students"]').click();
+  await mobilePage.locator("#studentRows .student-review-button").first().click();
+  await mobilePage.waitForFunction(() => document.querySelector("#clipReviewDialog")?.open
+    && document.querySelectorAll("#clipReviewList .clip-review-item").length > 0);
+  const mobileReviewLayout = await mobilePage.evaluate(() => {
+    const dialog = document.querySelector("#clipReviewDialog");
+    const video = document.querySelector("#clipReviewVideo");
+    const list = document.querySelector("#clipReviewList");
+    return {
+      noPageOverflow: document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+      dialogFits: dialog.getBoundingClientRect().left >= 0
+        && dialog.getBoundingClientRect().right <= innerWidth + 1,
+      videoFits: video.getBoundingClientRect().left >= dialog.getBoundingClientRect().left
+        && video.getBoundingClientRect().right <= dialog.getBoundingClientRect().right + 1,
+      horizontalClipList: getComputedStyle(list).display === "flex",
+    };
+  });
+  assert(Object.values(mobileReviewLayout).every(Boolean), "手機版完成片段檢視器出現溢位或無法橫向選句");
+  await mobilePage.screenshot({ path: `${outputDir}/teacher-student-review-mobile.png`, fullPage: true });
+  await mobilePage.locator("#clipReviewClose").click();
 
   await mobilePage.goto(`${baseUrl}index.html?work=kiki`, { waitUntil: "domcontentloaded" });
   await mobilePage.waitForFunction(() => document.querySelectorAll(".script-line").length > 0);
@@ -502,7 +562,7 @@ try {
   await mobile.close();
 
   if (errors.length) throw new Error(errors.join("\n"));
-  process.stdout.write("Platform passed group showcase privacy and playback, sound-effect roles, karaoke recording, delay-free scoring, assignments, history, desktop, and mobile checks.\n");
+  process.stdout.write("Platform passed student clip review, group showcase privacy and playback, sound-effect roles, karaoke recording, delay-free scoring, assignments, history, desktop, and mobile checks.\n");
 } finally {
   await browser.close();
 }

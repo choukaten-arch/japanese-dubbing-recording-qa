@@ -15,6 +15,21 @@ const portalState = {
   showcasePlayers: new Map(),
   showcaseAudioCache: new Map(),
   showcaseAudioContext: null,
+  studentReviewAudioCache: new Map(),
+  studentReview: {
+    data: null,
+    clips: [],
+    selectedIndex: -1,
+    mode: "",
+    source: null,
+    sourceStartedAt: 0,
+    sourceOffset: 0,
+    frame: 0,
+    stopAt: 0,
+    waiting: false,
+    generation: 0,
+    playRequest: 0,
+  },
   setupRequired: false,
   demo: new URLSearchParams(location.search).get("demo") === "1",
 };
@@ -41,6 +56,11 @@ function cachePortalElements() {
     "studentCountLabel", "studentImportForm", "studentImportText", "resetExistingPins", "studentRows", "knownGroups",
     "historyDialog", "historyClose", "historyStudentMeta", "historyTitle", "historyMastery", "historyLines",
     "historyAttempts", "historyDuration", "historyGrowth", "historyTrend", "historyLineRows",
+    "clipReviewDialog", "clipReviewClose", "clipReviewStudentMeta", "clipReviewTitle", "clipReviewCount",
+    "clipReviewContent", "clipReviewList", "clipReviewVideo", "clipReviewStatus", "clipReviewPosition",
+    "clipReviewScore", "clipReviewLineTitle", "clipReviewJapanese", "clipReviewTranslation",
+    "clipReviewAccent", "clipReviewIntonation", "clipReviewSpeed", "clipReviewVolume",
+    "clipReviewPrevious", "clipReviewCompare", "clipReviewOriginal", "clipReviewNext", "clipReviewEmpty",
     "credentialDialog", "credentialContent", "downloadCredentials", "printCredentials", "toast",
   ].forEach((id) => { portalElements[id] = document.getElementById(id); });
 }
@@ -138,7 +158,12 @@ function sortedMembersByMastery(members) {
   }).map(({ member }) => member);
 }
 
-function renderMemberRanking(members, { showScores = false, currentId = "", listClass = "" } = {}) {
+function renderMemberRanking(members, {
+  showScores = false,
+  currentId = "",
+  listClass = "",
+  reviewable = false,
+} = {}) {
   const orderedMembers = sortedMembersByMastery(members);
   if (!orderedMembers.length) return "";
   const classes = ["member-rank-list", listClass].filter(Boolean).join(" ");
@@ -149,9 +174,12 @@ function renderMemberRanking(members, { showScores = false, currentId = "", list
       && Number.isFinite(Number(member.masteryPercent));
     const score = hasScore ? masteryText(member.masteryPercent) : "";
     const accessibleLabel = `${member.name}，${tierLabel}${hasScore ? `，完成度 ${score}` : ""}`;
+    const name = reviewable && member.studentId
+      ? `<button class="member-rank-name student-review-button" type="button" data-student-id="${escapePortalHtml(member.studentId)}" aria-label="檢視${escapePortalHtml(member.name)}的完成片段">${escapePortalHtml(member.name)}</button>`
+      : `<span class="member-rank-name">${escapePortalHtml(member.name)}</span>`;
     return `<li class="member-rank-item is-tier-${tier}${member.studentId === currentId ? " is-current" : ""}" aria-label="${escapePortalHtml(accessibleLabel)}" title="${escapePortalHtml(accessibleLabel)}">
       <span class="member-rank-position" aria-hidden="true">${index + 1}</span>
-      <span class="member-rank-name">${escapePortalHtml(member.name)}</span>
+      ${name}
       ${hasScore ? `<span class="member-rank-score">${score}</span>` : ""}
     </li>`;
   }).join("")}</ol>`;
@@ -188,6 +216,7 @@ function saveSession(value) {
 
 function clearSession() {
   clearShowcasePlayers();
+  stopStudentReviewPlayback();
   portalState.session = null;
   localStorage.removeItem(platformConfig.sessionKey);
   localStorage.removeItem(platformConfig.taskKey);
@@ -423,7 +452,7 @@ function demoGroupProgress() {
 
 function demoToneBase64() {
   const sampleRate = 8000;
-  const sampleCount = 1600;
+  const sampleCount = 9600;
   const bytes = new Uint8Array(44 + sampleCount * 2);
   const view = new DataView(bytes.buffer);
   const writeText = (offset, text) => [...text].forEach((character, index) => view.setUint8(offset + index, character.charCodeAt(0)));
@@ -560,6 +589,7 @@ async function mockRequest(action, payload) {
   if (action === "teacherOverview") return mockTeacherOverview();
   if (action === "groupShowcases") return demoGroupShowcases(portalState.session?.account?.type === "teacher");
   if (action === "groupShowcaseClip") return { ok: true, resultKey: payload.resultKey, mimeType: "audio/wav", audioBase64: demoToneBase64() };
+  if (action === "studentReviewClip") return { ok: true, resultKey: payload.resultKey, mimeType: "audio/wav", audioBase64: demoToneBase64() };
   if (action === "studentHistory") return mockStudentHistory(payload.studentId);
   if (action === "createAssignment") {
     const store = demoStore();
@@ -664,21 +694,71 @@ function mockTeacherOverview() {
   };
 }
 
-function mockStudentHistory(studentId) {
+async function mockStudentHistory(studentId) {
   const store = demoStore();
   const student = demoClassProgress().find((item) => item.studentId === studentId) || demoClassProgress()[0];
   const recent = store.value.recentResults.filter((item) => item.studentId === studentId || studentId === "demo");
+  const profile = student.profile || { workSlug: "kiki", workTitle: "魔女宅急便", roles: ["老夫人"], role: "老夫人" };
+  const data = await fetchWorkData(profile.workSlug);
+  const demoLines = data.lines.filter((line) => profileRoles(profile).includes(line.role)).slice(0, 2);
+  const records = recent.length ? recent : demoLines.map((line, index) => ({
+    studentId: student.studentId,
+    studentName: student.name,
+    workSlug: data.slug,
+    workTitle: data.title,
+    role: line.role,
+    lineIndex: line.index,
+    targetText: line.japanese,
+    score: 78 + index * 6,
+    attempts: 1,
+    durationSec: Math.max(1, line.end - line.start + 2),
+    aspects: { accent: 76 + index * 4, intonation: 74 + index * 5, speed: 82, volume: 80 + index * 3 },
+    updatedAt: new Date(Date.now() - index * 60000).toISOString(),
+  }));
   const byLine = new Map();
-  recent.slice().reverse().forEach((item) => {
-    const key = `${item.workTitle}|${item.role}|${item.lineIndex}`;
-    if (!byLine.has(key)) byLine.set(key, { workTitle: item.workTitle, role: item.role, lineIndex: item.lineIndex, targetText: item.targetText || "", attempts: [] });
-    byLine.get(key).attempts.push({ score: item.score, durationSec: Number(item.durationSec) || 0, submittedAt: item.updatedAt, attemptNumber: item.attempts });
+  records.slice().reverse().forEach((item) => {
+    const key = `${item.workSlug}|${item.role}|${item.lineIndex}`;
+    if (!byLine.has(key)) {
+      byLine.set(key, {
+        workSlug: item.workSlug,
+        workTitle: item.workTitle,
+        role: item.role,
+        lineIndex: item.lineIndex,
+        targetText: item.targetText || "",
+        resultKey: `demo-review-${student.studentId}-${item.workSlug}-${item.role}-${item.lineIndex}`,
+        attempts: [],
+      });
+    }
+    byLine.get(key).attempts.push({
+      score: item.score,
+      aspects: item.aspects || {},
+      durationSec: Number(item.durationSec) || 0,
+      submittedAt: item.updatedAt,
+      attemptNumber: item.attempts,
+    });
   });
   const lines = [...byLine.values()].map((line) => {
     const scores = line.attempts.map((attempt) => attempt.score);
-    return { ...line, latestScore: scores.at(-1) || 0, bestScore: scores.length ? Math.max(...scores) : 0, growthPoints: scores.length > 1 ? scores.at(-1) - scores[0] : 0, totalDurationSec: line.attempts.reduce((sum, attempt) => sum + attempt.durationSec, 0), latestAudioUrl: "" };
+    const latest = line.attempts.at(-1) || {};
+    return {
+      ...line,
+      latestScore: scores.at(-1) || 0,
+      bestScore: scores.length ? Math.max(...scores) : 0,
+      growthPoints: scores.length > 1 ? scores.at(-1) - scores[0] : 0,
+      totalDurationSec: line.attempts.reduce((sum, attempt) => sum + attempt.durationSec, 0),
+      latestRecordingDurationSec: Number(latest.durationSec) || 0,
+      latestAspects: latest.aspects || {},
+      latestUpdatedAt: latest.submittedAt || "",
+      latestAudioUrl: "",
+    };
   });
-  const timeline = recent.slice().reverse().slice(-40).map((item) => ({ score: item.score, durationSec: Number(item.durationSec) || 0, lineIndex: item.lineIndex, submittedAt: item.updatedAt }));
+  const timeline = records.slice().reverse().slice(-40).map((item) => ({
+    score: item.score,
+    aspects: item.aspects || {},
+    durationSec: Number(item.durationSec) || 0,
+    lineIndex: item.lineIndex,
+    submittedAt: item.updatedAt,
+  }));
   return {
     student: { ...student, profile: student.profile },
     summary: { masteryPercent: student.masteryPercent, practicedLines: student.practicedLines, totalLines: student.totalLines, totalAttempts: student.totalAttempts, totalDurationSec: student.totalDurationSec, growthPoints: timeline.length > 1 ? timeline.at(-1).score - timeline[0].score : 0, practiceDays: timeline.length ? 1 : 0 },
@@ -1056,7 +1136,11 @@ function showcaseMemberList(showcase) {
   if (!showcase.members?.length) return "";
   const showScores = showcase.canSeeMemberScores
     ?? (showcase.isOwnGroup || portalState.session?.account?.type === "teacher");
-  return renderMemberRanking(showcase.members, { showScores, listClass: "showcase-member-list" });
+  return renderMemberRanking(showcase.members, {
+    showScores,
+    listClass: "showcase-member-list",
+    reviewable: portalState.session?.account?.type === "teacher",
+  });
 }
 
 async function renderGroupShowcases(showcases, container) {
@@ -1548,7 +1632,7 @@ function renderGroupRows(groups) {
     <td>${group.practicedLines} / ${group.totalLines}</td>
     <td>${group.totalAttempts}</td>
     <td>${escapePortalHtml(displayDuration(group.totalDurationSec))}</td>
-    <td class="group-members">${renderMemberRanking(group.students || [], { showScores: true, listClass: "teacher-member-list" })}</td>
+    <td class="group-members">${renderMemberRanking(group.students || [], { showScores: true, listClass: "teacher-member-list", reviewable: true })}</td>
   </tr>`).join("") : '<tr><td colspan="7">尚未設定學生組別。</td></tr>';
 }
 
@@ -1577,7 +1661,7 @@ function renderAssignmentRows(assignments) {
 
 function renderRecentRows(results) {
   portalElements.recentResultRows.innerHTML = results.length ? results.map((result) => `<tr>
-    <td><strong>${escapePortalHtml(result.studentName)}</strong><br>${escapePortalHtml(result.studentId)}</td>
+    <td><button class="student-review-button" type="button" data-student-id="${escapePortalHtml(result.studentId)}" aria-label="檢視${escapePortalHtml(result.studentName)}的完成片段">${escapePortalHtml(result.studentName)}</button><br>${escapePortalHtml(result.studentId)}</td>
     <td>${escapePortalHtml(result.workTitle)}<br>${escapePortalHtml(result.role)}</td>
     <td>第 ${result.lineIndex} 句</td>
     <td class="score-cell">${result.score}</td>
@@ -1594,7 +1678,7 @@ function renderStudentRows(students) {
   portalElements.studentRows.innerHTML = students.length ? students.map((student) => `<tr>
     <td>${escapePortalHtml(student.seatNo)}</td>
     <td>${escapePortalHtml(student.studentId)}</td>
-    <td><strong>${escapePortalHtml(student.name)}</strong></td>
+    <td><button class="student-review-button" type="button" data-student-id="${escapePortalHtml(student.studentId)}" aria-label="檢視${escapePortalHtml(student.name)}的完成片段">${escapePortalHtml(student.name)}</button></td>
     <td><div class="group-editor"><input class="group-name-input" aria-label="${escapePortalHtml(student.name)}的組別" data-id="${escapePortalHtml(student.studentId)}" value="${escapePortalHtml(student.groupName || "")}" list="knownGroups" maxlength="40"><button class="row-button save-group-button" type="button" data-id="${escapePortalHtml(student.studentId)}">儲存</button></div></td>
     <td>${escapePortalHtml(student.profile?.workTitle || "尚未選擇")}</td>
     <td>${escapePortalHtml(profileRoleLabel(student.profile))}</td>
@@ -1679,6 +1763,12 @@ async function handleStudentRowClick(event) {
   }
 }
 
+function handleTeacherStudentReviewClick(event) {
+  const button = event.target.closest(".student-review-button[data-student-id]");
+  if (!button || !portalElements.teacherView.contains(button)) return;
+  openStudentReview(button.dataset.studentId, button);
+}
+
 function renderStudentHistory(data) {
   const { student, summary } = data;
   portalElements.historyStudentMeta.textContent = `${student.groupName || "未分組"} · ${student.studentId}`;
@@ -1710,6 +1800,356 @@ function renderStudentHistory(data) {
       <td>${line.latestAudioUrl ? `<a href="${escapePortalHtml(line.latestAudioUrl)}" target="_blank" rel="noopener">播放</a>` : "—"}</td>
     </tr>`;
   }).join("") : '<tr><td colspan="7">尚無逐句練習紀錄。</td></tr>';
+}
+
+function formatReviewTime(value) {
+  const seconds = Math.max(0, Number(value) || 0);
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds - minutes * 60;
+  return `${String(minutes).padStart(2, "0")}:${remainder.toFixed(2).padStart(5, "0")}`;
+}
+
+function currentStudentReviewClip() {
+  return portalState.studentReview.clips[portalState.studentReview.selectedIndex] || null;
+}
+
+function stopStudentReviewSource() {
+  const review = portalState.studentReview;
+  review.generation += 1;
+  if (review.source) {
+    review.source.onended = null;
+    try { review.source.stop(); } catch {}
+    try { review.source.disconnect(); } catch {}
+  }
+  review.source = null;
+  review.sourceStartedAt = 0;
+  review.sourceOffset = 0;
+}
+
+function updateStudentReviewButtons() {
+  if (!portalElements.clipReviewCompare) return;
+  const review = portalState.studentReview;
+  const clip = currentStudentReviewClip();
+  const playing = Boolean(clip && portalElements.clipReviewVideo && !portalElements.clipReviewVideo.paused);
+  portalElements.clipReviewPrevious.disabled = !clip || review.selectedIndex <= 0;
+  portalElements.clipReviewNext.disabled = !clip || review.selectedIndex >= review.clips.length - 1;
+  portalElements.clipReviewCompare.disabled = !clip;
+  portalElements.clipReviewOriginal.disabled = !clip;
+  portalElements.clipReviewCompare.innerHTML = playing && review.mode === "compare"
+    ? '<span aria-hidden="true">Ⅱ</span><span>暫停同步</span>'
+    : '<span aria-hidden="true">▶</span><span>學生錄音同步</span>';
+  portalElements.clipReviewOriginal.innerHTML = playing && review.mode === "original"
+    ? '<span aria-hidden="true">Ⅱ</span><span>暫停原片</span>'
+    : '<span aria-hidden="true">♪</span><span>原片原音</span>';
+}
+
+function stopStudentReviewPlayback({ resetMode = false } = {}) {
+  const review = portalState.studentReview;
+  review.playRequest += 1;
+  cancelAnimationFrame(review.frame);
+  review.frame = 0;
+  stopStudentReviewSource();
+  portalElements.clipReviewVideo?.pause();
+  review.waiting = false;
+  if (resetMode) review.mode = "";
+  updateStudentReviewButtons();
+}
+
+async function loadStudentReviewAudio(clip) {
+  const cacheKey = `${clip.studentId}|${clip.resultKey}`;
+  if (portalState.studentReviewAudioCache.has(cacheKey)) {
+    return portalState.studentReviewAudioCache.get(cacheKey);
+  }
+  while (portalState.studentReviewAudioCache.size >= 12) {
+    portalState.studentReviewAudioCache.delete(portalState.studentReviewAudioCache.keys().next().value);
+  }
+  const request = platformRequest("studentReviewClip", {
+    token: portalState.session.session.token,
+    studentId: clip.studentId,
+    resultKey: clip.resultKey,
+  }).then(async (response) => {
+    const context = getShowcaseAudioContext();
+    const blob = audioBlobFromBase64(response.audioBase64, response.mimeType);
+    const buffer = await context.decodeAudioData(await blob.arrayBuffer());
+    if (!Number.isFinite(buffer.duration) || buffer.duration <= 0) throw new Error("學生錄音內容無法播放。");
+    return buffer;
+  }).catch((error) => {
+    portalState.studentReviewAudioCache.delete(cacheKey);
+    throw error;
+  });
+  portalState.studentReviewAudioCache.set(cacheKey, request);
+  return request;
+}
+
+async function buildStudentReviewClips(data) {
+  const candidates = (data.lines || []).filter((line) => line.resultKey);
+  const slugs = [...new Set(candidates.map((line) => line.workSlug).filter(Boolean))];
+  const workEntries = await Promise.all(slugs.map(async (slug) => [slug, await fetchWorkData(slug)]));
+  const works = new Map(workEntries);
+  const workOrder = new Map((window.QA_WORKS || []).map((work, index) => [work.slug, index]));
+  const postRoll = Number(window.QA_RECORDING_TIMING?.postRollSeconds) || 0;
+  return candidates.map((historyLine) => {
+    const dataForWork = works.get(historyLine.workSlug);
+    const line = dataForWork?.lines.find((candidate) => Number(candidate.index) === Number(historyLine.lineIndex));
+    if (!dataForWork || !line) return null;
+    const duration = Number(dataForWork.duration) || Infinity;
+    const recordingDuration = Math.max(0, Number(historyLine.latestRecordingDurationSec) || 0);
+    const sourceEnd = Math.min(duration, Number(line.end) || Number(line.start) || 0);
+    const compareEnd = Math.min(duration, Math.max(
+      sourceEnd + postRoll,
+      Number(line.start) + recordingDuration,
+    ));
+    return {
+      ...historyLine,
+      studentId: data.student.studentId,
+      line,
+      workData: dataForWork,
+      start: Number(line.start) || 0,
+      sourceEnd,
+      compareEnd,
+      videoUrl: new URL(dataForWork.video, window.QA_CONFIG.productionSiteBase).href,
+      posterUrl: new URL(dataForWork.poster, window.QA_CONFIG.productionSiteBase).href,
+    };
+  }).filter(Boolean).sort((left, right) => (
+    (workOrder.get(left.workSlug) ?? 999) - (workOrder.get(right.workSlug) ?? 999)
+    || left.start - right.start
+    || left.role.localeCompare(right.role)
+  ));
+}
+
+async function seekStudentReviewVideo(clip) {
+  const video = portalElements.clipReviewVideo;
+  if (video.readyState < 1) {
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(resolve, 3000);
+      const ready = () => {
+        clearTimeout(timeout);
+        video.removeEventListener("error", failed);
+        resolve();
+      };
+      const failed = () => {
+        clearTimeout(timeout);
+        video.removeEventListener("loadedmetadata", ready);
+        reject(new Error("原片目前無法載入。"));
+      };
+      video.addEventListener("loadedmetadata", ready, { once: true });
+      video.addEventListener("error", failed, { once: true });
+    });
+  }
+  if (currentStudentReviewClip() !== clip) return false;
+  if (Math.abs(video.currentTime - clip.start) <= 0.04) return true;
+  await new Promise((resolve) => {
+    const timeout = setTimeout(resolve, 1200);
+    const done = () => {
+      clearTimeout(timeout);
+      resolve();
+    };
+    video.addEventListener("seeked", done, { once: true });
+    try {
+      video.currentTime = clip.start;
+    } catch {
+      done();
+    }
+  });
+  return currentStudentReviewClip() === clip;
+}
+
+function selectStudentReviewClip(index) {
+  const review = portalState.studentReview;
+  const clip = review.clips[index];
+  if (!clip) return;
+  stopStudentReviewPlayback({ resetMode: true });
+  review.selectedIndex = index;
+  review.stopAt = clip.sourceEnd;
+
+  portalElements.clipReviewList.querySelectorAll(".clip-review-item").forEach((button) => {
+    const active = Number(button.dataset.reviewIndex) === index;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-current", active ? "true" : "false");
+    if (active) button.scrollIntoView({ block: "nearest", inline: "nearest" });
+  });
+
+  const video = portalElements.clipReviewVideo;
+  if (video.src !== clip.videoUrl) {
+    video.src = clip.videoUrl;
+    video.poster = clip.posterUrl;
+    video.load();
+  }
+  video.muted = false;
+  seekStudentReviewVideo(clip).catch((error) => {
+    if (currentStudentReviewClip() === clip) portalElements.clipReviewStatus.textContent = error.message;
+  });
+
+  portalElements.clipReviewPosition.textContent = `${index + 1} / ${review.clips.length} · ${formatReviewTime(clip.start)}–${formatReviewTime(clip.sourceEnd)}`;
+  portalElements.clipReviewScore.textContent = `${Math.round(Number(clip.latestScore) || 0)} 分`;
+  portalElements.clipReviewLineTitle.textContent = `${clip.workTitle} · ${clip.role} · 第 ${clip.lineIndex} 句`;
+  portalElements.clipReviewJapanese.innerHTML = clip.line.japaneseHtml || escapePortalHtml(clip.targetText || clip.line.japanese || "—");
+  portalElements.clipReviewTranslation.textContent = clip.line.translation || "—";
+  const aspects = clip.latestAspects || {};
+  portalElements.clipReviewAccent.textContent = Number.isFinite(Number(aspects.accent)) ? Math.round(Number(aspects.accent)) : "—";
+  portalElements.clipReviewIntonation.textContent = Number.isFinite(Number(aspects.intonation)) ? Math.round(Number(aspects.intonation)) : "—";
+  portalElements.clipReviewSpeed.textContent = Number.isFinite(Number(aspects.speed)) ? Math.round(Number(aspects.speed)) : "—";
+  portalElements.clipReviewVolume.textContent = Number.isFinite(Number(aspects.volume)) ? Math.round(Number(aspects.volume)) : "—";
+  portalElements.clipReviewStatus.textContent = `最後更新 ${displayDateTime(clip.latestUpdatedAt)} · 可播放學生錄音或原片`;
+  updateStudentReviewButtons();
+}
+
+async function renderStudentReview(data) {
+  stopStudentReviewPlayback({ resetMode: true });
+  const clips = await buildStudentReviewClips(data);
+  portalState.studentReview.data = data;
+  portalState.studentReview.clips = clips;
+  portalState.studentReview.selectedIndex = -1;
+  portalElements.clipReviewStudentMeta.textContent = `${data.student.groupName || "未分組"} · ${data.student.studentId}`;
+  portalElements.clipReviewTitle.textContent = `${data.student.name}的完成片段`;
+  portalElements.clipReviewCount.textContent = `${clips.length} 段`;
+  portalElements.clipReviewContent.hidden = clips.length === 0;
+  portalElements.clipReviewEmpty.hidden = clips.length > 0;
+  portalElements.clipReviewList.innerHTML = clips.map((clip, index) => `<li>
+    <button class="clip-review-item" type="button" data-review-index="${index}">
+      <span class="clip-review-item__meta">${escapePortalHtml(clip.workTitle)} · ${escapePortalHtml(clip.role)} · 第 ${clip.lineIndex} 句</span>
+      <strong class="clip-review-item__score">${Math.round(Number(clip.latestScore) || 0)}</strong>
+      <span class="clip-review-item__text" lang="ja">${escapePortalHtml(clip.targetText || clip.line.japanese || "—")}</span>
+      <span class="clip-review-item__time">${escapePortalHtml(displayDateTime(clip.latestUpdatedAt))}</span>
+    </button>
+  </li>`).join("");
+  if (clips.length) selectStudentReviewClip(0);
+}
+
+async function openStudentReview(studentId, button) {
+  if (!studentId || portalState.session?.account?.type !== "teacher") return;
+  setBusy(button, true, "載入中");
+  try {
+    const response = await platformRequest("studentHistory", {
+      token: portalState.session.session.token,
+      studentId,
+    });
+    await renderStudentReview(response);
+    portalElements.clipReviewDialog.showModal();
+  } catch (error) {
+    handleSessionError(error);
+    showToast(error.message);
+  } finally {
+    setBusy(button, false);
+  }
+}
+
+function scheduleStudentReviewSource() {
+  const review = portalState.studentReview;
+  const clip = currentStudentReviewClip();
+  const video = portalElements.clipReviewVideo;
+  const buffer = review.audioBuffer;
+  if (!clip || !buffer || review.mode !== "compare" || video.paused || review.waiting || review.source) return;
+  const offset = Math.max(0, video.currentTime - clip.start);
+  if (offset >= buffer.duration - 0.01) return;
+  const context = getShowcaseAudioContext();
+  const generation = review.generation;
+  const source = context.createBufferSource();
+  source.buffer = buffer;
+  source.playbackRate.value = Math.max(0.25, Math.min(4, Number(video.playbackRate) || 1));
+  source.connect(context.destination);
+  review.source = source;
+  review.sourceStartedAt = context.currentTime + 0.018;
+  review.sourceOffset = offset;
+  source.onended = () => {
+    if (review.generation === generation && review.source === source) review.source = null;
+    try { source.disconnect(); } catch {}
+  };
+  source.start(review.sourceStartedAt, offset);
+}
+
+function syncStudentReviewPlayback() {
+  const review = portalState.studentReview;
+  const video = portalElements.clipReviewVideo;
+  const clip = currentStudentReviewClip();
+  if (!clip || video.paused || video.ended) return;
+  if (video.currentTime >= review.stopAt - 0.02) {
+    video.pause();
+    video.currentTime = Math.min(review.stopAt, Number(clip.workData.duration) || review.stopAt);
+    portalElements.clipReviewStatus.textContent = review.mode === "compare" ? "學生錄音片段播放完成" : "原片片段播放完成";
+    return;
+  }
+  if (review.mode === "compare") {
+    scheduleStudentReviewSource();
+    const context = portalState.showcaseAudioContext;
+    if (context?.state === "running" && review.source) {
+      const audioOffset = review.sourceOffset + Math.max(0, context.currentTime - review.sourceStartedAt)
+        * Math.max(0.25, Math.min(4, Number(video.playbackRate) || 1));
+      const videoOffset = video.currentTime - clip.start;
+      if (Math.abs(audioOffset - videoOffset) > 0.35) {
+        stopStudentReviewSource();
+        scheduleStudentReviewSource();
+      }
+    }
+  }
+  review.frame = requestAnimationFrame(syncStudentReviewPlayback);
+}
+
+async function toggleStudentReviewPlayback(mode) {
+  const review = portalState.studentReview;
+  const clip = currentStudentReviewClip();
+  const video = portalElements.clipReviewVideo;
+  if (!clip || !video) return;
+  if (!video.paused && review.mode === mode) {
+    video.pause();
+    return;
+  }
+  const canResume = video.paused
+    && review.mode === mode
+    && video.currentTime >= clip.start
+    && video.currentTime < review.stopAt - 0.05;
+  if (!video.paused) video.pause();
+  stopStudentReviewSource();
+  cancelAnimationFrame(review.frame);
+  review.frame = 0;
+  const playRequest = ++review.playRequest;
+  review.mode = mode;
+  review.waiting = false;
+
+  try {
+    if (!canResume && !await seekStudentReviewVideo(clip)) return;
+    if (playRequest !== review.playRequest || currentStudentReviewClip() !== clip || review.mode !== mode) return;
+    if (mode === "compare") {
+      portalElements.clipReviewStatus.textContent = "正在載入學生錄音";
+      review.audioBuffer = await loadStudentReviewAudio(clip);
+      if (playRequest !== review.playRequest || currentStudentReviewClip() !== clip || review.mode !== mode) return;
+      clip.compareEnd = Math.min(
+        Number(clip.workData.duration) || Infinity,
+        Math.max(clip.compareEnd, clip.start + review.audioBuffer.duration),
+      );
+      review.stopAt = clip.compareEnd;
+      const context = getShowcaseAudioContext();
+      await context.resume();
+      if (playRequest !== review.playRequest || currentStudentReviewClip() !== clip || review.mode !== mode) return;
+      if (context.state !== "running") throw new Error("請再按一次以啟用聲音。");
+      video.muted = true;
+      portalElements.clipReviewStatus.textContent = "學生錄音同步播放中";
+    } else {
+      review.audioBuffer = null;
+      review.stopAt = clip.sourceEnd;
+      video.muted = false;
+      video.volume = 1;
+      portalElements.clipReviewStatus.textContent = "原片原音播放中";
+    }
+    await video.play();
+    if (mode === "compare") scheduleStudentReviewSource();
+    cancelAnimationFrame(review.frame);
+    review.frame = requestAnimationFrame(syncStudentReviewPlayback);
+  } catch (error) {
+    stopStudentReviewPlayback();
+    portalElements.clipReviewStatus.textContent = error.message || "目前無法播放這段錄音";
+  }
+  updateStudentReviewButtons();
+}
+
+function closeStudentReview() {
+  stopStudentReviewPlayback({ resetMode: true });
+  portalElements.clipReviewDialog.close();
+  portalElements.clipReviewVideo.removeAttribute("src");
+  portalElements.clipReviewVideo.load();
+  portalState.studentReview.data = null;
+  portalState.studentReview.clips = [];
+  portalState.studentReview.selectedIndex = -1;
 }
 
 function parseStudentImport(value) {
@@ -1808,6 +2248,63 @@ function bindPortalEvents() {
     if (portalState.setupRequired) event.preventDefault();
   });
   portalElements.historyClose.addEventListener("click", () => portalElements.historyDialog.close());
+  portalElements.clipReviewClose.addEventListener("click", closeStudentReview);
+  portalElements.clipReviewDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeStudentReview();
+  });
+  portalElements.clipReviewList.addEventListener("click", (event) => {
+    const button = event.target.closest(".clip-review-item[data-review-index]");
+    if (button) selectStudentReviewClip(Number(button.dataset.reviewIndex));
+  });
+  portalElements.clipReviewPrevious.addEventListener("click", () => selectStudentReviewClip(portalState.studentReview.selectedIndex - 1));
+  portalElements.clipReviewNext.addEventListener("click", () => selectStudentReviewClip(portalState.studentReview.selectedIndex + 1));
+  portalElements.clipReviewCompare.addEventListener("click", () => toggleStudentReviewPlayback("compare"));
+  portalElements.clipReviewOriginal.addEventListener("click", () => toggleStudentReviewPlayback("original"));
+  portalElements.clipReviewVideo.addEventListener("play", () => {
+    const review = portalState.studentReview;
+    const clip = currentStudentReviewClip();
+    if (!clip) {
+      portalElements.clipReviewVideo.pause();
+      return;
+    }
+    if (!review.mode) {
+      review.mode = "original";
+      review.stopAt = clip.sourceEnd;
+      portalElements.clipReviewVideo.muted = false;
+      portalElements.clipReviewStatus.textContent = "原片原音播放中";
+    }
+    review.waiting = false;
+    if (review.mode === "compare") scheduleStudentReviewSource();
+    cancelAnimationFrame(review.frame);
+    review.frame = requestAnimationFrame(syncStudentReviewPlayback);
+    updateStudentReviewButtons();
+  });
+  portalElements.clipReviewVideo.addEventListener("pause", () => {
+    cancelAnimationFrame(portalState.studentReview.frame);
+    portalState.studentReview.frame = 0;
+    stopStudentReviewSource();
+    updateStudentReviewButtons();
+  });
+  portalElements.clipReviewVideo.addEventListener("waiting", () => {
+    portalState.studentReview.waiting = true;
+    stopStudentReviewSource();
+    portalElements.clipReviewStatus.textContent = "影片緩衝中，聲音會自動接回";
+  });
+  portalElements.clipReviewVideo.addEventListener("playing", () => {
+    portalState.studentReview.waiting = false;
+    if (portalState.studentReview.mode === "compare") scheduleStudentReviewSource();
+  });
+  portalElements.clipReviewVideo.addEventListener("seeking", stopStudentReviewSource);
+  portalElements.clipReviewVideo.addEventListener("seeked", () => {
+    if (!portalElements.clipReviewVideo.paused && portalState.studentReview.mode === "compare") scheduleStudentReviewSource();
+  });
+  portalElements.clipReviewVideo.addEventListener("ratechange", () => {
+    if (!portalElements.clipReviewVideo.paused && portalState.studentReview.mode === "compare") {
+      stopStudentReviewSource();
+      scheduleStudentReviewSource();
+    }
+  });
   portalElements.logoutButton.addEventListener("click", () => {
     clearSession();
     location.replace(`portal.html${portalState.demo ? "?demo=1" : ""}`);
@@ -1824,6 +2321,7 @@ function bindPortalEvents() {
   });
   portalElements.assignmentForm.addEventListener("submit", handleAssignmentSubmit);
   portalElements.assignmentRows.addEventListener("click", handleAssignmentRowClick);
+  portalElements.teacherView.addEventListener("click", handleTeacherStudentReviewClick);
   portalElements.studentRows.addEventListener("click", handleStudentRowClick);
   portalElements.studentImportForm.addEventListener("submit", handleStudentImport);
   portalElements.refreshTeacher.addEventListener("click", refreshTeacherData);

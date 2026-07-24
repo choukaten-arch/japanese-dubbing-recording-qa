@@ -7,10 +7,10 @@
   <meta name="description" content="日語配音每日作業、逐句錄音與老師進度管理平台">
   <title>配音作業平台｜日語配音練習站</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="portal.css?v=20260724.2">
-  <script src="config.js?v=20260724.2"></script>
-  <script src="radar-chart.js?v=20260724.2"></script>
-  <script src="portal.js?v=20260724.2" defer></script>
+  <link rel="stylesheet" href="portal.css?v=20260724.3">
+  <script src="config.js?v=20260724.3"></script>
+  <script src="radar-chart.js?v=20260724.3"></script>
+  <script src="portal.js?v=20260724.3" defer></script>
 </head>
 <body>
   <header class="platform-header">
@@ -251,6 +251,55 @@
         <div class="section-heading"><div><h2 id="historyLinesTitle">逐句歷史</h2></div></div>
         <div class="table-shell"><table><thead><tr><th>作品／角色</th><th>句次與台詞</th><th>歷次分數</th><th>次數</th><th>錄音時數</th><th>成長</th><th>最新錄音</th></tr></thead><tbody id="historyLineRows"></tbody></table></div>
       </section>
+    </div>
+  </dialog>
+
+  <dialog class="clip-review-dialog" id="clipReviewDialog" aria-labelledby="clipReviewTitle">
+    <header class="dialog-heading">
+      <div>
+        <p class="eyebrow" id="clipReviewStudentMeta">完成片段</p>
+        <h2 id="clipReviewTitle">學生錄音對照</h2>
+      </div>
+      <div class="dialog-heading-actions">
+        <span id="clipReviewCount">0 段</span>
+        <button id="clipReviewClose" type="button" aria-label="關閉">×</button>
+      </div>
+    </header>
+    <div class="clip-review-content" id="clipReviewContent">
+      <aside class="clip-review-sidebar" aria-label="已完成片段">
+        <ol class="clip-review-list" id="clipReviewList"></ol>
+      </aside>
+      <section class="clip-review-stage" aria-labelledby="clipReviewLineTitle">
+        <div class="clip-review-video-shell">
+          <video id="clipReviewVideo" playsinline preload="metadata" controls></video>
+          <div class="clip-review-status" id="clipReviewStatus" role="status">選擇片段後開始檢視</div>
+        </div>
+        <div class="clip-review-copy">
+          <div class="clip-review-line-meta">
+            <span id="clipReviewPosition">—</span>
+            <strong id="clipReviewScore">—</strong>
+          </div>
+          <h3 id="clipReviewLineTitle">尚未選擇片段</h3>
+          <p class="clip-review-japanese" id="clipReviewJapanese" lang="ja">—</p>
+          <p class="clip-review-translation" id="clipReviewTranslation">—</p>
+          <dl class="clip-review-aspects" aria-label="本句四面向成績">
+            <div><dt>重音</dt><dd id="clipReviewAccent">—</dd></div>
+            <div><dt>語調</dt><dd id="clipReviewIntonation">—</dd></div>
+            <div><dt>語速</dt><dd id="clipReviewSpeed">—</dd></div>
+            <div><dt>音量</dt><dd id="clipReviewVolume">—</dd></div>
+          </dl>
+        </div>
+        <div class="clip-review-controls">
+          <button class="quiet-button" id="clipReviewPrevious" type="button" aria-label="上一段"><span aria-hidden="true">⏮</span><span>上一段</span></button>
+          <button class="primary-button" id="clipReviewCompare" type="button"><span aria-hidden="true">▶</span><span>學生錄音同步</span></button>
+          <button class="secondary-button" id="clipReviewOriginal" type="button"><span aria-hidden="true">♪</span><span>原片原音</span></button>
+          <button class="quiet-button" id="clipReviewNext" type="button" aria-label="下一段"><span>下一段</span><span aria-hidden="true">⏭</span></button>
+        </div>
+      </section>
+    </div>
+    <div class="clip-review-empty" id="clipReviewEmpty" hidden>
+      <strong>尚無可檢視的完成片段</strong>
+      <span>學生完成並保存錄音後會顯示在這裡。</span>
     </div>
   </dialog>
 

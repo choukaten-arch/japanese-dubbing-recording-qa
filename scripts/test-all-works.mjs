@@ -33,6 +33,13 @@ function cueRange(value) {
 }
 
 const appsScriptSource = await readFile(resolve(import.meta.dirname, "../apps-script/Code.gs"), "utf8");
+assert(appsScriptSource.includes('case "studentReviewClip": return studentReviewClip_('), "Apps Script 缺少教師逐句錄音讀取路由");
+const studentReviewClipSource = appsScriptSource.slice(
+  appsScriptSource.indexOf("function studentReviewClip_"),
+  appsScriptSource.indexOf("function resultAudioPayload_"),
+);
+assert(studentReviewClipSource.includes('verifySession_(token, "teacher")'), "學生錄音讀取 API 沒有限定教師權限");
+assert(studentReviewClipSource.includes("normalizeStudentId_(item.student_id) === studentId"), "學生錄音讀取 API 沒有核對錄音所有人");
 const soundCatalogStart = appsScriptSource.indexOf("const SOUND_EFFECT_WORKS");
 const soundCatalogEnd = appsScriptSource.indexOf("\n\nfunction onOpen", soundCatalogStart);
 assert(soundCatalogStart >= 0 && soundCatalogEnd > soundCatalogStart, "Apps Script 缺少音效角色清單");
