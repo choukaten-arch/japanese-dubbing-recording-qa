@@ -158,6 +158,14 @@ function bridgeDemoSelfPractice() {
 
 function bridgeMockRequest(action, payload) {
   if (action === "studentTasks") return Promise.resolve({ tasks: bridgeDemoTasks(), selfPractice: bridgeDemoSelfPractice() });
+  if (action === "aiTranscribe") {
+    return Promise.resolve({
+      ok: true,
+      configured: true,
+      transcript: payload.targetText || payload.targetReading || "",
+      model: "demo-ai-transcribe",
+    });
+  }
   if (action === "studentReviewClip") {
     if (payload.studentId !== "demo") return Promise.reject(new Error("只能查看自己的完成片段。"));
     const store = bridgeDemoStore();
@@ -252,7 +260,7 @@ function insertAssignmentBar() {
   const badge = document.querySelector(".qa-badge");
   if (badge) badge.textContent = practice ? "自主練習" : "每日要求";
   const privacy = document.querySelector(".privacy-note");
-  if (privacy) privacy.textContent = "評分後可比較並選擇採用版本";
+  if (privacy) privacy.textContent = "評分時使用 AI 辨識；完成後可比較並選擇採用版本";
   const scriptHeading = document.getElementById("scriptHeading");
   if (scriptHeading) scriptHeading.textContent = practice ? `${bridgeState.task.role}的台詞` : "本次指定台詞";
 }
@@ -352,6 +360,28 @@ async function blobToBase64(blob) {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + size));
   }
   return btoa(binary);
+}
+
+if (bridgeParams.get("public") !== "1") {
+  window.QA_AI_TRANSCRIBE = async ({ recordingBlob, line, workTitle }) => {
+    if (!recordingBlob || line?.isSoundEffect) return null;
+    if (!bridgeState.stored?.session?.token || bridgeState.stored?.account?.type !== "student") {
+      const error = new Error("AI 精準辨識需要學生登入。");
+      error.code = "AI_LOGIN_REQUIRED";
+      throw error;
+    }
+    return bridgeRequest("aiTranscribe", {
+      token: bridgeState.stored.session.token,
+      workSlug: bridgeState.data?.slug || bridgeState.task?.workSlug || "",
+      workTitle: workTitle || bridgeState.data?.title || bridgeState.task?.workTitle || "",
+      role: line.role,
+      lineIndex: line.index,
+      targetText: line.japanese,
+      targetReading: typeof japaneseReadingForLine === "function" ? japaneseReadingForLine(line) : line.japanese,
+      mimeType: recordingBlob.type || "audio/webm",
+      audioBase64: await blobToBase64(recordingBlob),
+    });
+  };
 }
 
 function bridgeAudioBlobFromBase64(base64, mimeType) {

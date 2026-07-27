@@ -11,6 +11,9 @@ const SHEETS = Object.freeze({
 const LOGIN_LIMIT = 5;
 const LOGIN_LOCK_SECONDS = 10 * 60;
 const TEACHER_ACCOUNTS_PROPERTY = "TEACHER_ACCOUNTS_JSON";
+const OPENAI_API_KEY_PROPERTY = "OPENAI_API_KEY";
+const OPENAI_TRANSCRIBE_MODEL_PROPERTY = "OPENAI_TRANSCRIBE_MODEL";
+const DEFAULT_OPENAI_TRANSCRIBE_MODEL = "gpt-4o-transcribe";
 const MAX_AUDIO_BYTES = 6 * 1024 * 1024;
 const ALLOWED_AUDIO_TYPES = Object.freeze(["audio/webm", "audio/mp4", "audio/ogg"]);
 const HISTORY_HEADERS = Object.freeze([
@@ -118,6 +121,7 @@ function onOpen() {
     .addItem("初始化平台", "setupPlatform")
     .addItem("重設老師密碼", "resetTeacherPin")
     .addSeparator()
+    .addItem("設定 AI 語音辨識", "configureOpenAiApiKey")
     .addItem("檢查平台設定", "showPlatformStatus")
     .addToUi();
 }
@@ -186,15 +190,43 @@ function resetTeacherPin() {
   return pin;
 }
 
+function configureOpenAiApiKey() {
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.prompt(
+    "設定 AI 語音辨識",
+    "請貼上 OpenAI API Key。金鑰只會儲存在 Apps Script 安全屬性，不會寫入試算表或網站。\n\n輸入 REMOVE 可停用 AI 辨識。",
+    ui.ButtonSet.OK_CANCEL,
+  );
+  if (response.getSelectedButton() !== ui.Button.OK) return { updated: false };
+  const value = String(response.getResponseText() || "").trim();
+  const properties = PropertiesService.getScriptProperties();
+  if (value.toUpperCase() === "REMOVE") {
+    properties.deleteProperty(OPENAI_API_KEY_PROPERTY);
+    ui.alert("AI 語音辨識已停用。");
+    return { updated: true, configured: false };
+  }
+  if (!/^sk-[A-Za-z0-9_-]{20,}$/.test(value)) {
+    ui.alert("API Key 格式不正確，未變更原有設定。");
+    return { updated: false };
+  }
+  properties.setProperty(OPENAI_API_KEY_PROPERTY, value);
+  if (!properties.getProperty(OPENAI_TRANSCRIBE_MODEL_PROPERTY)) {
+    properties.setProperty(OPENAI_TRANSCRIBE_MODEL_PROPERTY, DEFAULT_OPENAI_TRANSCRIBE_MODEL);
+  }
+  ui.alert("AI 語音辨識已安全啟用。");
+  return { updated: true, configured: true };
+}
+
 function showPlatformStatus() {
   const properties = PropertiesService.getScriptProperties();
   const spreadsheetId = properties.getProperty("SPREADSHEET_ID");
   const folderId = properties.getProperty("RECORDING_FOLDER_ID");
+  const aiConfigured = Boolean(properties.getProperty(OPENAI_API_KEY_PROPERTY));
   const serviceUrl = ScriptApp.getService().getUrl() || "尚未部署 Web App";
   const ready = Boolean(spreadsheetId && folderId && properties.getProperty("TEACHER_PIN_HASH") && properties.getProperty("SESSION_SECRET"));
   SpreadsheetApp.getUi().alert(
     "平台設定狀態",
-    `狀態：${ready ? "已完成" : "尚未完成"}\n資料表：${spreadsheetId ? "已連結" : "未連結"}\n錄音資料夾：${folderId ? "已連結" : "未連結"}\nWeb App：${serviceUrl}`,
+    `狀態：${ready ? "已完成" : "尚未完成"}\n資料表：${spreadsheetId ? "已連結" : "未連結"}\n錄音資料夾：${folderId ? "已連結" : "未連結"}\nAI 語音辨識：${aiConfigured ? "已啟用" : "未設定"}\nWeb App：${serviceUrl}`,
     SpreadsheetApp.getUi().ButtonSet.OK,
   );
 }
@@ -206,6 +238,7 @@ function doGet(e) {
     ok: true,
     service: "japanese-dubbing-assignment-platform",
     configured: isConfigured_(),
+    aiRecognitionConfigured: isAiRecognitionConfigured_(),
     time: new Date().toISOString(),
   });
 }
@@ -225,7 +258,11 @@ function route_(payload, event) {
   const action = String(payload.action || "").trim();
   const userAgent = cleanText_(payload.userAgent, 500);
   switch (action) {
-    case "health": return { configured: isConfigured_(), time: new Date().toISOString() };
+    case "health": return {
+      configured: isConfigured_(),
+      aiRecognitionConfigured: isAiRecognitionConfigured_(),
+      time: new Date().toISOString(),
+    };
     case "studentLogin": return studentLogin_(payload.studentId, payload.pin, userAgent);
     case "teacherLogin": return teacherLogin_(payload.pin, userAgent);
     case "studentTasks": return studentTasks_(payload.token);
@@ -236,6 +273,7 @@ function route_(payload, event) {
     );
     case "submitAttempt": return submitAttempt_(payload);
     case "submitPracticeAttempt": return submitPracticeAttempt_(payload);
+    case "aiTranscribe": return aiTranscribe_(payload);
     case "groupShowcases": return groupShowcases_(payload.token);
     case "groupShowcaseClip": return groupShowcaseClip_(payload.token, payload.resultKey);
     case "studentReviewClip": return studentReviewClip_(payload.token, payload.studentId, payload.resultKey);
@@ -1616,6 +1654,114 @@ function updateAssignmentStatus_(token, assignmentIdInput, statusInput) {
   if (!assignment) fail_("ASSIGNMENT_NOT_FOUND", "找不到這份作業。");
   writeRecord_(table, assignment.__row, { status });
   return { assignmentId, status };
+}
+
+function isAiRecognitionConfigured_() {
+  return Boolean(PropertiesService.getScriptProperties().getProperty(OPENAI_API_KEY_PROPERTY));
+}
+
+function aiTranscribe_(payload) {
+  const identity = verifySession_(payload.token, "student");
+  const student = activeStudent_(identity.sub, identity.pinTag);
+  const profile = studentProfile_(student);
+  if (!profile) fail_("PROFILE_REQUIRED", "請先選擇配音作品與角色。");
+
+  const workSlug = cleanText_(payload.workSlug, 80);
+  const role = cleanText_(payload.role, 80);
+  const lineIndex = Math.floor(Number(payload.lineIndex));
+  if (!Number.isInteger(lineIndex) || lineIndex < 1 || lineIndex >= SOUND_EFFECT_LINE_BASE) {
+    fail_("INVALID_AI_LINE", "這一句無法使用 AI 語音辨識。");
+  }
+  if (workSlug !== profile.workSlug || !profile.roles.includes(role)) {
+    fail_("PROFILE_MISMATCH", "只能辨識目前所選作品與角色的台詞。");
+  }
+  const catalog = workRoleCatalogs_().find(
+    (row) => String(row.work_slug) === workSlug && String(row.role) === role,
+  );
+  if (!catalog || !parseLineIndices_(catalog.line_indices).includes(lineIndex)) {
+    fail_("INVALID_AI_LINE", "找不到這個角色的指定台詞。");
+  }
+
+  const properties = PropertiesService.getScriptProperties();
+  const apiKey = String(properties.getProperty(OPENAI_API_KEY_PROPERTY) || "").trim();
+  if (!apiKey) fail_("AI_NOT_CONFIGURED", "AI 精準辨識尚未啟用，本次將使用瀏覽器辨識。");
+  enforceAiRecognitionLimit_(identity.sub);
+
+  const mimeType = String(payload.mimeType || "").split(";")[0].trim().toLowerCase();
+  if (!ALLOWED_AUDIO_TYPES.includes(mimeType)) {
+    fail_("INVALID_AUDIO_TYPE", "錄音格式不支援，請改用 Chrome 或 Safari 再試。");
+  }
+  const base64 = String(payload.audioBase64 || "").replace(/^data:[^;]+;base64,/, "");
+  if (!base64) fail_("MISSING_AUDIO", "沒有收到錄音檔。");
+  let bytes;
+  try {
+    bytes = Utilities.base64Decode(base64);
+  } catch (error) {
+    fail_("INVALID_AUDIO", "錄音資料無法讀取。");
+  }
+  if (!bytes.length || bytes.length > MAX_AUDIO_BYTES) {
+    fail_("AUDIO_TOO_LARGE", "單句錄音不可超過 6 MB。");
+  }
+
+  const targetText = cleanText_(payload.targetText, 1000);
+  const targetReading = cleanText_(payload.targetReading, 1000);
+  const workTitle = cleanText_(payload.workTitle, 120);
+  const prompt = cleanText_(
+    `日語配音逐字轉寫。作品：${workTitle}。角色：${role}。`
+      + `台詞參考：${targetText}。讀音參考：${targetReading}。`
+      + "請忠實轉寫實際聽到的日語，不要補上錄音中沒有說出的字詞。",
+    1800,
+  );
+  const extension = mimeType === "audio/mp4" ? "m4a" : mimeType === "audio/ogg" ? "ogg" : "webm";
+  const audioBlob = Utilities.newBlob(bytes, mimeType, `line-${lineIndex}.${extension}`);
+  const model = cleanText_(
+    properties.getProperty(OPENAI_TRANSCRIBE_MODEL_PROPERTY),
+    100,
+  ) || DEFAULT_OPENAI_TRANSCRIBE_MODEL;
+  const response = UrlFetchApp.fetch("https://api.openai.com/v1/audio/transcriptions", {
+    method: "post",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    payload: {
+      file: audioBlob,
+      model,
+      language: "ja",
+      response_format: "json",
+      prompt,
+    },
+    muteHttpExceptions: true,
+    followRedirects: true,
+  });
+  const status = response.getResponseCode();
+  let data = {};
+  try {
+    data = JSON.parse(response.getContentText() || "{}");
+  } catch (error) {
+    data = {};
+  }
+  if (status === 401 || status === 403) {
+    fail_("AI_AUTH_FAILED", "AI 語音辨識金鑰無效，已改用瀏覽器辨識。");
+  }
+  if (status === 429) {
+    fail_("AI_BUSY", "AI 語音辨識目前繁忙，已改用瀏覽器辨識。");
+  }
+  if (status < 200 || status >= 300) {
+    fail_("AI_UNAVAILABLE", "AI 語音辨識暫時無法使用，已改用瀏覽器辨識。");
+  }
+  const transcript = cleanText_(data.text, 2000);
+  if (!transcript) fail_("AI_EMPTY_TRANSCRIPT", "AI 沒有辨識出可用台詞，已改用瀏覽器辨識。");
+  return {
+    configured: true,
+    transcript,
+    model,
+  };
+}
+
+function enforceAiRecognitionLimit_(studentId) {
+  const cache = CacheService.getScriptCache();
+  const key = `ai-transcribe:${normalizeStudentId_(studentId)}`;
+  const count = Math.max(0, Number(cache.get(key)) || 0);
+  if (count >= 60) fail_("AI_RATE_LIMIT", "AI 精準辨識使用次數較多，請十分鐘後再試。");
+  cache.put(key, String(count + 1), 600);
 }
 
 function saveLatestAudio_(input) {

@@ -54,6 +54,16 @@ assert(appsScriptSource.includes('"selected_as_current"'), "練習歷史缺少�
 assert(saveAttemptSource.includes("if (adopted)") && saveAttemptSource.includes("attempt_count: attemptCount"), "保留原錄音時沒有只累計練習次數");
 assert(saveAttemptSource.includes("selected_as_current: adopted"), "練習歷史沒有保存學生的錄音版本選擇");
 assert(saveAttemptSource.includes('String(existing.audio_url || "")'), "保留原錄音時沒有維持原本雲端檔案");
+assert(appsScriptSource.includes('case "aiTranscribe": return aiTranscribe_(payload);'), "Apps Script 缺少 AI 精準辨識路由");
+const aiTranscribeSource = appsScriptSource.slice(
+  appsScriptSource.indexOf("function aiTranscribe_"),
+  appsScriptSource.indexOf("function saveLatestAudio_"),
+);
+assert(aiTranscribeSource.includes('verifySession_(payload.token, "student")'), "AI 辨識沒有驗證學生登入");
+assert(aiTranscribeSource.includes("studentProfile_(student)") && aiTranscribeSource.includes("workRoleCatalogs_()"), "AI 辨識沒有核對學生所選作品與角色");
+assert(aiTranscribeSource.includes("enforceAiRecognitionLimit_"), "AI 辨識沒有學生使用頻率限制");
+assert(aiTranscribeSource.includes("https://api.openai.com/v1/audio/transcriptions"), "AI 辨識沒有使用 OpenAI 語音轉寫端點");
+assert(aiTranscribeSource.includes("OPENAI_API_KEY_PROPERTY") && !aiTranscribeSource.includes("sk-proj-"), "AI Key 沒有由伺服器安全屬性讀取");
 const soundCatalogStart = appsScriptSource.indexOf("const SOUND_EFFECT_WORKS");
 const soundCatalogEnd = appsScriptSource.indexOf("\n\nfunction onOpen", soundCatalogStart);
 assert(soundCatalogStart >= 0 && soundCatalogEnd > soundCatalogStart, "Apps Script 缺少音效角色清單");
@@ -192,6 +202,35 @@ try {
     monitor(page, `${work.slug} desktop`);
     await page.goto(`${baseUrl}?public=1&work=${work.slug}#line-1`, { waitUntil: "domcontentloaded" });
     await waitForWork(page, work);
+
+    if (work.slug === "kiki") {
+      const phraseBias = await page.evaluate(() => {
+        const originalRecognition = window.SpeechRecognition;
+        const originalWebkitRecognition = window.webkitSpeechRecognition;
+        const originalPhrase = window.SpeechRecognitionPhrase;
+        class FakeRecognition {
+          constructor() {
+            this.phrases = [];
+          }
+        }
+        class FakePhrase {
+          constructor(phrase, boost) {
+            this.phrase = phrase;
+            this.boost = boost;
+          }
+        }
+        window.SpeechRecognition = FakeRecognition;
+        window.webkitSpeechRecognition = undefined;
+        window.SpeechRecognitionPhrase = FakePhrase;
+        const recognition = createRecognition();
+        window.SpeechRecognition = originalRecognition;
+        window.webkitSpeechRecognition = originalWebkitRecognition;
+        window.SpeechRecognitionPhrase = originalPhrase;
+        return recognition.phrases.map((item) => ({ phrase: item.phrase, boost: item.boost }));
+      });
+      assert(phraseBias.length > 0, "瀏覽器語音辨識沒有加入本句台詞提示");
+      assert(phraseBias.every((item) => item.boost === 4), "台詞提示權重不正確");
+    }
 
     const data = await page.evaluate(async (slug) => (await (await fetch(`data/${slug}.json`)).json()), work.slug);
     const backendSoundWork = backendSoundWorks.find((item) => item.workSlug === work.slug);

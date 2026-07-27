@@ -207,6 +207,21 @@ try {
   assert(qaAssetVersions.every((version) => version === portalRelease), "逐句頁載入了不同版本的 CSS 或 JavaScript");
   assert((await page.locator(".assignment-context").innerText()).includes("琪琪"), "逐句頁缺少作業資訊");
   assert(await page.locator(".work-switcher:visible").count() === 0, "作業模式不應顯示作品切換列");
+  const aiDemoRecognition = await page.evaluate(async () => {
+    const line = currentLine();
+    const response = await window.QA_AI_TRANSCRIBE({
+      recordingBlob: new Blob(["demo-audio"], { type: "audio/webm" }),
+      line,
+      workTitle: state.data.title,
+    });
+    return {
+      transcript: response.transcript,
+      target: line.japanese,
+      model: response.model,
+    };
+  });
+  assert(aiDemoRecognition.transcript === aiDemoRecognition.target, "AI 精準辨識沒有回傳本句示範轉寫");
+  assert(aiDemoRecognition.model === "demo-ai-transcribe", "示範模式沒有走 AI 辨識接口");
 
   await page.locator(".script-line:visible").nth(1).click();
   await page.locator("#startRecording").click();
@@ -264,6 +279,7 @@ try {
   await page.locator("#recognizedText").fill(target);
   await page.locator("#evaluateRecording").click();
   await page.waitForFunction(() => document.querySelector("#cloudSyncStatus")?.classList.contains("is-saved"));
+  assert((await page.locator("#resultMode").innerText()).includes("AI 精準辨識"), "評分結果沒有標示 AI 精準辨識");
   assert((await page.locator("#cloudSyncStatus").innerText()).includes("已保存"), "逐句評分沒有保存狀態");
   assert((await page.locator("#bridgeProgressValue").innerText()).startsWith("1 / 5"), "作業完成進度未更新");
   const selectedLineIndex = await page.evaluate(() => currentLine().index);

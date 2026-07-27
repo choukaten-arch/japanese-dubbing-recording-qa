@@ -852,6 +852,19 @@ function createRecognition() {
   recognition.continuous = true;
   recognition.interimResults = true;
   recognition.maxAlternatives = 5;
+  try {
+    const Phrase = window.SpeechRecognitionPhrase;
+    if (Phrase && "phrases" in recognition) {
+      const hints = japaneseTargetDetails(currentLine()).forms
+        .map((value) => String(value || "").trim())
+        .filter(Boolean);
+      recognition.phrases = [...new Set(hints)]
+        .slice(0, 12)
+        .map((phrase) => new Phrase(phrase, 4));
+    }
+  } catch {
+    // Contextual biasing is experimental; normal recognition remains available.
+  }
   recognition.onresult = (event) => {
     let interim = "";
     for (let index = event.resultIndex; index < event.results.length; index += 1) {
@@ -1718,6 +1731,24 @@ async function localEvaluation() {
   };
 }
 
+async function aiTranscription() {
+  const line = currentLine();
+  if (line.isSoundEffect || typeof window.QA_AI_TRANSCRIBE !== "function") return null;
+  elements.recognitionStatus.textContent = "AI 精準辨識中";
+  const response = await window.QA_AI_TRANSCRIBE({
+    recordingBlob: state.recordingBlob,
+    line,
+    workTitle: state.data.title,
+  });
+  const transcript = String(response?.transcript || "").trim();
+  if (!transcript) return null;
+  state.finalTranscript = transcript;
+  state.interimTranscript = "";
+  elements.recognizedText.value = transcript;
+  elements.recognitionStatus.textContent = "AI 精準辨識完成";
+  return response;
+}
+
 async function apiEvaluation() {
   const line = currentLine();
   const cue = lineCueBounds(line);
@@ -1771,6 +1802,20 @@ async function evaluateRecording() {
   stopSyncedReview();
   elements.evaluateRecording.disabled = true;
   elements.evaluateRecording.textContent = "評分中";
+  let aiRecognition = null;
+  let aiError = null;
+  try {
+    aiRecognition = await aiTranscription();
+  } catch (error) {
+    aiError = error;
+    if (["AI_NOT_CONFIGURED", "AI_LOGIN_REQUIRED"].includes(error?.code)) {
+      elements.recognitionStatus.textContent = elements.recognizedText.value.trim()
+        ? "已取得辨識結果"
+        : "可手動輸入辨識結果";
+    } else {
+      elements.recognitionStatus.textContent = "AI 暫時無法使用，採用瀏覽器辨識";
+    }
+  }
   let result;
   if (window.QA_CONFIG.evaluationApiUrl) {
     try {
@@ -1781,6 +1826,12 @@ async function evaluateRecording() {
     }
   } else {
     result = await localEvaluation();
+  }
+  if (aiRecognition?.transcript) {
+    result.mode = "AI 精準辨識＋聲學評分";
+    result.issues.unshift("已使用 AI 重新辨識實際錄音，再與本句標準台詞比對。");
+  } else if (aiError && !["AI_NOT_CONFIGURED", "AI_LOGIN_REQUIRED"].includes(aiError.code)) {
+    result.issues.unshift("AI 精準辨識暫時無法使用，本次已自動採用瀏覽器辨識與聲學評分。");
   }
   renderResult(result);
   elements.evaluateRecording.disabled = false;
