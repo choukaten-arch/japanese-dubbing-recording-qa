@@ -46,6 +46,14 @@ assert(studentReviewClipSource.includes("reviewStudentId_(token, studentIdInput)
 assert(studentReviewClipSource.includes("normalizeStudentId_(item.student_id) === studentId"), "學生錄音讀取 API 沒有核對錄音所有人");
 assert(reviewIdentitySource.includes("verifyAnySession_(token)"), "完成片段權限沒有驗證登入工作階段");
 assert(reviewIdentitySource.includes("activeStudent_") && reviewIdentitySource.includes('fail_("FORBIDDEN"'), "學生完成片段沒有同時檢查帳號有效性與本人學號");
+const saveAttemptSource = appsScriptSource.slice(
+  appsScriptSource.indexOf("function saveAttemptRecord_"),
+  appsScriptSource.indexOf("function groupShowcases_"),
+);
+assert(appsScriptSource.includes('"selected_as_current"'), "練習歷史缺少是否採用本次錄音的欄位");
+assert(saveAttemptSource.includes("if (adopted)") && saveAttemptSource.includes("attempt_count: attemptCount"), "保留原錄音時沒有只累計練習次數");
+assert(saveAttemptSource.includes("selected_as_current: adopted"), "練習歷史沒有保存學生的錄音版本選擇");
+assert(saveAttemptSource.includes('String(existing.audio_url || "")'), "保留原錄音時沒有維持原本雲端檔案");
 const soundCatalogStart = appsScriptSource.indexOf("const SOUND_EFFECT_WORKS");
 const soundCatalogEnd = appsScriptSource.indexOf("\n\nfunction onOpen", soundCatalogStart);
 assert(soundCatalogStart >= 0 && soundCatalogEnd > soundCatalogStart, "Apps Script 缺少音效角色清單");
@@ -78,6 +86,9 @@ this.pronunciationApi = {
   missingRecognitionAccuracy: missingRecognitionAccuracyFromRow_,
   overallWithAccuracy: scoreOverallWithAccuracy_,
 };
+this.recordingSelectionApi = {
+  shouldAdopt: shouldAdoptAttempt_,
+};
 const specialRoleFixtures = ${JSON.stringify(specialRoleFixtures)};
 this.specialRoleApi = {
   assignments: normalizeSpecialRoleAssignments_(specialRoleFixtures),
@@ -103,6 +114,9 @@ assert(pronunciationContext.pronunciationApi.missingRecognitionAccuracy({
   speed_score: 55,
   volume_score: 30,
 }) === 0, "無聲或缺少發聲證據時不應取得辨識備援分數");
+assert(pronunciationContext.recordingSelectionApi.shouldAdopt({}, null), "第一份錄音應直接成為目前版本");
+assert(!pronunciationContext.recordingSelectionApi.shouldAdopt({ replaceCurrent: false }, { result_key: "existing" }), "學生選擇保留時仍覆蓋了原錄音");
+assert(pronunciationContext.recordingSelectionApi.shouldAdopt({ replaceCurrent: true }, { result_key: "existing" }), "學生選擇更換時沒有採用新錄音");
 const totoroData = JSON.parse(await readFile(resolve(import.meta.dirname, "../data/totoro.json"), "utf8"));
 const specialAssignments = pronunciationContext.specialRoleApi.assignments;
 const specialCatalogRows = pronunciationContext.specialRoleApi.catalogRows;

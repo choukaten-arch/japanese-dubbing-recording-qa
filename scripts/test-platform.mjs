@@ -266,6 +266,72 @@ try {
   await page.waitForFunction(() => document.querySelector("#cloudSyncStatus")?.classList.contains("is-saved"));
   assert((await page.locator("#cloudSyncStatus").innerText()).includes("已保存"), "逐句評分沒有保存狀態");
   assert((await page.locator("#bridgeProgressValue").innerText()).startsWith("1 / 5"), "作業完成進度未更新");
+  const selectedLineIndex = await page.evaluate(() => currentLine().index);
+  const firstAdoptedResult = await page.evaluate((lineIndex) => ({
+    score: bridgeState.task.lineResults[lineIndex].score,
+    attempts: bridgeState.task.lineResults[lineIndex].attempts,
+  }), selectedLineIndex);
+  await page.evaluate(() => {
+    const line = currentLine();
+    document.dispatchEvent(new CustomEvent("qa:evaluated", {
+      detail: {
+        result: {
+          overall: 35,
+          scores: { "台詞正確度": 30, "重音": 38, "語調": 36, "語速": 40, "音量": 45 },
+          aspects: { accent: 38, intonation: 36, speed: 40, volume: 45 },
+        },
+        line,
+        recordingBlob: state.recordingBlob,
+        recordingDuration: state.recordingDuration,
+        transcript: elements.recognizedText.value,
+      },
+    }));
+  });
+  await page.waitForFunction(() => {
+    const panel = document.querySelector("#recordingDecision");
+    const currentAudio = document.querySelector("#currentVersionAudio");
+    const candidateAudio = document.querySelector("#candidateVersionAudio");
+    return panel && !panel.hidden
+      && !document.querySelector("#keepCurrentRecording")?.disabled
+      && currentAudio?.src
+      && candidateAudio?.src;
+  });
+  assert((await page.locator("#recordingDecision").innerText()).includes("目前採用"), "錄音比較沒有顯示目前版本");
+  assert((await page.locator("#recordingDecision").innerText()).includes("這次錄音"), "錄音比較沒有顯示這次版本");
+  assert(await page.locator("#recordingDecision audio").count() === 2, "錄音比較沒有提供兩個版本的播放器");
+  assert(await page.locator("#recordingDecision .score-comparison-table tbody tr").count() === 6, "錄音比較缺少總分與五項分數差異");
+  assert(await page.locator("#recordingDecision .score-change.is-negative").count() >= 1, "較低的新錄音沒有標示扣分差異");
+  await page.locator("#keepCurrentRecording").click();
+  await page.waitForFunction(() => document.querySelector("#cloudSyncStatus")?.classList.contains("is-saved")
+    && document.querySelector("#cloudSyncStatus")?.textContent.includes("保留原本錄音"));
+  const keptResult = await page.evaluate((lineIndex) => bridgeState.task.lineResults[lineIndex], selectedLineIndex);
+  assert(keptResult.score === firstAdoptedResult.score, "選擇保留原本後，目前分數仍被較低錄音覆蓋");
+  assert(keptResult.attempts === firstAdoptedResult.attempts + 1, "選擇保留原本後，練習次數沒有累計");
+
+  await page.evaluate(() => {
+    const line = currentLine();
+    document.dispatchEvent(new CustomEvent("qa:evaluated", {
+      detail: {
+        result: {
+          overall: 99,
+          scores: { "台詞正確度": 99, "重音": 98, "語調": 99, "語速": 98, "音量": 99 },
+          aspects: { accent: 98, intonation: 99, speed: 98, volume: 99 },
+        },
+        line,
+        recordingBlob: state.recordingBlob,
+        recordingDuration: state.recordingDuration,
+        transcript: elements.recognizedText.value,
+      },
+    }));
+  });
+  await page.waitForFunction(() => !document.querySelector("#replaceCurrentRecording")?.disabled);
+  assert(await page.locator("#recordingDecision .score-change.is-positive").count() >= 1, "較高的新錄音沒有標示加分差異");
+  await page.locator("#replaceCurrentRecording").click();
+  await page.waitForFunction(() => document.querySelector("#cloudSyncStatus")?.classList.contains("is-saved")
+    && document.querySelector("#cloudSyncStatus")?.textContent.includes("已使用這次錄音"));
+  const replacedResult = await page.evaluate((lineIndex) => bridgeState.task.lineResults[lineIndex], selectedLineIndex);
+  assert(replacedResult.score === 99, "選擇使用這次錄音後，目前分數沒有更新");
+  assert(replacedResult.attempts === firstAdoptedResult.attempts + 2, "錄音版本比較後的總練習次數不正確");
   assert((await page.locator("#scoreRows").innerText()).includes("重音"), "評分明細缺少重音分數");
   assert((await page.locator("#scoreRows").innerText()).includes("語調"), "評分明細缺少語調分數");
   const speedScore = Number(await page.locator(".score-row").filter({ hasText: "語速" }).locator("strong").innerText());

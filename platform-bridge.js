@@ -10,6 +10,9 @@ const bridgeState = {
   data: null,
   syncing: false,
   lastAttempt: null,
+  pendingDecision: null,
+  comparisonUrls: [],
+  comparisonRequest: 0,
 };
 
 function readBridgeSession() {
@@ -84,6 +87,45 @@ function bridgeDemoSelfKey(workSlug, role) {
   return `${workSlug}|${role}`;
 }
 
+function bridgeDemoToneBase64() {
+  const sampleRate = 8000;
+  const sampleCount = 6400;
+  const bytes = new Uint8Array(44 + sampleCount * 2);
+  const view = new DataView(bytes.buffer);
+  const writeText = (offset, text) => [...text].forEach((character, index) => view.setUint8(offset + index, character.charCodeAt(0)));
+  writeText(0, "RIFF");
+  view.setUint32(4, bytes.length - 8, true);
+  writeText(8, "WAVEfmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeText(36, "data");
+  view.setUint32(40, sampleCount * 2, true);
+  for (let index = 0; index < sampleCount; index += 1) {
+    const fade = Math.min(1, index / 100, (sampleCount - index) / 100);
+    view.setInt16(44 + index * 2, Math.sin(index / sampleRate * Math.PI * 2 * 330) * 3600 * fade, true);
+  }
+  let binary = "";
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return btoa(binary);
+}
+
+function bridgeDemoResultByKey(store, resultKey) {
+  const maps = [
+    ...Object.values(store.value.lineResults || {}),
+    ...Object.values(store.value.selfResults || {}),
+  ];
+  for (const resultMap of maps) {
+    const result = Object.values(resultMap || {}).find((item) => item.resultKey === resultKey);
+    if (result) return result;
+  }
+  return null;
+}
+
 function bridgeDemoSelfPractice() {
   const store = bridgeDemoStore();
   const profile = store.value.profile;
@@ -116,6 +158,17 @@ function bridgeDemoSelfPractice() {
 
 function bridgeMockRequest(action, payload) {
   if (action === "studentTasks") return Promise.resolve({ tasks: bridgeDemoTasks(), selfPractice: bridgeDemoSelfPractice() });
+  if (action === "studentReviewClip") {
+    if (payload.studentId !== "demo") return Promise.reject(new Error("只能查看自己的完成片段。"));
+    const store = bridgeDemoStore();
+    const result = bridgeDemoResultByKey(store, payload.resultKey);
+    return Promise.resolve({
+      ok: true,
+      resultKey: payload.resultKey,
+      mimeType: result?.mimeType || "audio/wav",
+      audioBase64: result?.audioBase64 || bridgeDemoToneBase64(),
+    });
+  }
   if (!["submitAttempt", "submitPracticeAttempt"].includes(action)) return Promise.reject(new Error("示範模式不支援此操作。"));
   const store = bridgeDemoStore();
   const selfPractice = action === "submitPracticeAttempt";
@@ -127,7 +180,10 @@ function bridgeMockRequest(action, payload) {
     ? (store.value.selfResults[bridgeDemoSelfKey(payload.workSlug, payload.role)] ||= {})
     : (store.value.lineResults[payload.assignmentId] ||= {});
   const existing = resultMap[payload.lineIndex];
-  const result = {
+  const adopted = !existing || payload.replaceCurrent !== false;
+  const resultKey = `${assignment.assignmentId}|demo|${payload.lineIndex}`;
+  const candidate = {
+    resultKey,
     score: payload.overallScore,
     attempts: existing ? existing.attempts + 1 : 1,
     updatedAt: new Date().toISOString(),
@@ -138,8 +194,13 @@ function bridgeMockRequest(action, payload) {
       speed: payload.scores?.speed || 0,
       volume: payload.scores?.volume || 0,
     },
+    textAccuracy: payload.scores?.textAccuracy || 0,
+    mimeType: payload.mimeType || "audio/webm",
+    audioBase64: payload.audioBase64 || "",
   };
-  resultMap[payload.lineIndex] = result;
+  resultMap[payload.lineIndex] = adopted
+    ? candidate
+    : { ...existing, attempts: candidate.attempts };
   store.value.recentResults.unshift({
     assignmentId: assignment.assignmentId,
     studentId: "demo",
@@ -151,17 +212,18 @@ function bridgeMockRequest(action, payload) {
     lineIndex: payload.lineIndex,
     targetText: payload.targetText,
     score: payload.overallScore,
-    attempts: result.attempts,
+    attempts: candidate.attempts,
     durationSec: payload.recordingDuration,
-    aspects: result.aspects,
+    aspects: candidate.aspects,
     audioUrl: "",
-    updatedAt: result.updatedAt,
+    updatedAt: candidate.updatedAt,
+    selectedAsCurrent: adopted,
   });
   store.save();
   const task = selfPractice
     ? bridgeDemoSelfPractice().find((item) => item.role === payload.role)
     : bridgeDemoTasks().find((item) => item.assignmentId === payload.assignmentId);
-  return Promise.resolve({ saved: true, task });
+  return Promise.resolve({ saved: true, adopted, task });
 }
 
 async function resolveBridgeTask() {
@@ -190,7 +252,7 @@ function insertAssignmentBar() {
   const badge = document.querySelector(".qa-badge");
   if (badge) badge.textContent = practice ? "自主練習" : "每日要求";
   const privacy = document.querySelector(".privacy-note");
-  if (privacy) privacy.textContent = "評分後保存最新錄音";
+  if (privacy) privacy.textContent = "評分後可比較並選擇採用版本";
   const scriptHeading = document.getElementById("scriptHeading");
   if (scriptHeading) scriptHeading.textContent = practice ? `${bridgeState.task.role}的台詞` : "本次指定台詞";
 }
@@ -292,17 +354,182 @@ async function blobToBase64(blob) {
   return btoa(binary);
 }
 
+function bridgeAudioBlobFromBase64(base64, mimeType) {
+  const binary = atob(String(base64 || ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return new Blob([bytes], { type: mimeType || "audio/webm" });
+}
+
+function scoreSnapshotFromDetail(detail) {
+  const result = detail.result || {};
+  return {
+    overall: Number(result.overall) || 0,
+    textAccuracy: Number(result.scores?.["台詞正確度"] ?? result.scores?.textAccuracy) || 0,
+    accent: Number(result.aspects?.accent ?? result.scores?.["重音"]) || 0,
+    intonation: Number(result.aspects?.intonation ?? result.scores?.["語調"]) || 0,
+    speed: Number(result.aspects?.speed ?? result.scores?.["語速"] ?? result.scores?.["節奏長度"]) || 0,
+    volume: Number(result.aspects?.volume ?? result.scores?.["音量"] ?? result.scores?.["錄音品質"]) || 0,
+  };
+}
+
+function scoreSnapshotFromCurrent(result) {
+  return {
+    overall: Number(result?.score) || 0,
+    textAccuracy: Number.isFinite(Number(result?.textAccuracy)) ? Number(result.textAccuracy) : null,
+    accent: Number(result?.aspects?.accent) || 0,
+    intonation: Number(result?.aspects?.intonation) || 0,
+    speed: Number(result?.aspects?.speed) || 0,
+    volume: Number(result?.aspects?.volume) || 0,
+  };
+}
+
+function scoreDifferenceMarkup(current, candidate) {
+  if (!Number.isFinite(current) || !Number.isFinite(candidate)) return '<span class="score-change is-same">—</span>';
+  const difference = Math.round(candidate - current);
+  const className = difference > 0 ? "is-positive" : difference < 0 ? "is-negative" : "is-same";
+  const label = difference > 0 ? `+${difference}` : String(difference);
+  return `<span class="score-change ${className}">${label}</span>`;
+}
+
+function ensureAttemptComparison() {
+  let panel = document.getElementById("recordingDecision");
+  if (panel) return panel;
+  panel = document.createElement("section");
+  panel.className = "recording-decision";
+  panel.id = "recordingDecision";
+  panel.hidden = true;
+  panel.setAttribute("aria-labelledby", "recordingDecisionTitle");
+  document.getElementById("resultPanel")?.append(panel);
+  return panel;
+}
+
+function clearAttemptComparison() {
+  bridgeState.comparisonRequest += 1;
+  bridgeState.comparisonUrls.forEach((url) => URL.revokeObjectURL(url));
+  bridgeState.comparisonUrls = [];
+  bridgeState.pendingDecision = null;
+  const panel = document.getElementById("recordingDecision");
+  if (panel) {
+    panel.querySelectorAll("audio").forEach((audio) => audio.pause());
+    panel.hidden = true;
+    panel.replaceChildren();
+  }
+}
+
+function resultKeyForAttempt(detail, currentResult) {
+  if (currentResult?.resultKey) return currentResult.resultKey;
+  return `${bridgeState.task.assignmentId}|${bridgeState.stored.account.studentId}|${detail.line.index}`;
+}
+
+async function showAttemptComparison(detail, currentResult) {
+  if (bridgeState.syncing) return;
+  clearAttemptComparison();
+  const requestId = ++bridgeState.comparisonRequest;
+  const currentScores = scoreSnapshotFromCurrent(currentResult);
+  const candidateScores = scoreSnapshotFromDetail(detail);
+  bridgeState.pendingDecision = { detail, currentResult, requestId };
+  const metrics = [
+    ["總分", "overall"],
+    ["台詞正確度", "textAccuracy"],
+    ["重音", "accent"],
+    ["語調", "intonation"],
+    ["語速", "speed"],
+    ["音量", "volume"],
+  ];
+  const panel = ensureAttemptComparison();
+  panel.innerHTML = `
+    <header class="recording-decision-heading">
+      <span>錄音版本比較</span>
+      <h3 id="recordingDecisionTitle">要更換目前採用的錄音嗎？</h3>
+    </header>
+    <div class="recording-version-audio">
+      <section>
+        <strong>目前採用</strong>
+        <audio id="currentVersionAudio" controls preload="metadata" aria-label="播放目前採用的錄音"></audio>
+        <span id="currentVersionAudioStatus">正在載入目前錄音</span>
+      </section>
+      <section>
+        <strong>這次錄音</strong>
+        <audio id="candidateVersionAudio" controls preload="metadata" aria-label="播放這次錄音"></audio>
+        <span>剛完成的錄音</span>
+      </section>
+    </div>
+    <div class="score-comparison-wrap">
+      <table class="score-comparison-table">
+        <thead><tr><th scope="col">項目</th><th scope="col">目前</th><th scope="col">這次</th><th scope="col">差異</th></tr></thead>
+        <tbody>${metrics.map(([label, key]) => {
+          const current = currentScores[key];
+          const candidate = candidateScores[key];
+          return `<tr><th scope="row">${label}</th><td>${Number.isFinite(current) ? Math.round(current) : "—"}</td><td>${Math.round(candidate)}</td><td>${scoreDifferenceMarkup(current, candidate)}</td></tr>`;
+        }).join("")}</tbody>
+      </table>
+    </div>
+    <p class="recording-decision-note">不論是否更換，本次分數與練習時間都會記入歷史紀錄。</p>
+    <div class="recording-decision-actions">
+      <button class="recording-choice-button is-keep" id="keepCurrentRecording" type="button" disabled>保留目前錄音</button>
+      <button class="recording-choice-button is-replace" id="replaceCurrentRecording" type="button" disabled>使用這次錄音</button>
+    </div>`;
+  panel.hidden = false;
+  const candidateUrl = URL.createObjectURL(detail.recordingBlob);
+  bridgeState.comparisonUrls.push(candidateUrl);
+  panel.querySelector("#candidateVersionAudio").src = candidateUrl;
+  const keepButton = panel.querySelector("#keepCurrentRecording");
+  const replaceButton = panel.querySelector("#replaceCurrentRecording");
+  const choose = (replaceCurrent) => {
+    const pending = bridgeState.pendingDecision;
+    if (!pending || pending.requestId !== requestId) return;
+    const attempt = pending.detail;
+    clearAttemptComparison();
+    submitBridgeAttempt(attempt, replaceCurrent);
+  };
+  keepButton.addEventListener("click", () => choose(false));
+  replaceButton.addEventListener("click", () => choose(true));
+  renderSyncStatus("compare", "請先播放兩個版本、比較成績，再決定是否更換目前錄音");
+
+  try {
+    const response = await bridgeRequest("studentReviewClip", {
+      token: bridgeState.stored.session.token,
+      studentId: bridgeState.stored.account.studentId,
+      resultKey: resultKeyForAttempt(detail, currentResult),
+    });
+    if (bridgeState.pendingDecision?.requestId !== requestId) return;
+    const currentUrl = URL.createObjectURL(bridgeAudioBlobFromBase64(response.audioBase64, response.mimeType));
+    bridgeState.comparisonUrls.push(currentUrl);
+    panel.querySelector("#currentVersionAudio").src = currentUrl;
+    panel.querySelector("#currentVersionAudioStatus").textContent = "目前小組合成採用的錄音";
+  } catch {
+    if (bridgeState.pendingDecision?.requestId !== requestId) return;
+    panel.querySelector("#currentVersionAudioStatus").textContent = "目前錄音暫時無法載入，仍可依成績決定";
+  } finally {
+    if (bridgeState.pendingDecision?.requestId !== requestId) return;
+    keepButton.disabled = false;
+    replaceButton.disabled = false;
+    panel.querySelectorAll("audio").forEach((audio) => {
+      audio.addEventListener("play", () => {
+        panel.querySelectorAll("audio").forEach((other) => {
+          if (other !== audio) other.pause();
+        });
+      });
+    });
+    panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+}
+
 function nextIncompleteLine() {
   return bridgeState.task.lineIndices.find((index) => !bridgeLineAchieved(index));
 }
 
-async function submitBridgeAttempt(detail) {
+async function submitBridgeAttempt(detail, replaceCurrent = true) {
   if (bridgeState.syncing) return;
   bridgeState.syncing = true;
-  bridgeState.lastAttempt = detail;
-  renderSyncStatus("saving", "正在保存分數與最新錄音");
+  bridgeState.lastAttempt = { detail, replaceCurrent };
+  renderSyncStatus(
+    "saving",
+    replaceCurrent ? "正在保存這次錄音為目前版本" : "正在保留目前錄音並記錄這次練習",
+  );
   try {
-    const audioBase64 = await blobToBase64(detail.recordingBlob);
+    const audioBase64 = replaceCurrent ? await blobToBase64(detail.recordingBlob) : "";
     const result = detail.result;
     const response = await bridgeRequest(bridgeState.task.selfPractice ? "submitPracticeAttempt" : "submitAttempt", {
       token: bridgeState.stored.session.token,
@@ -321,7 +548,8 @@ async function submitBridgeAttempt(detail) {
         volume: result.aspects?.volume ?? result.scores?.["音量"] ?? result.scores?.["錄音品質"] ?? 0,
       },
       recordingDuration: detail.recordingDuration,
-      mimeType: detail.recordingBlob.type || "audio/webm",
+      replaceCurrent,
+      mimeType: replaceCurrent ? detail.recordingBlob.type || "audio/webm" : "",
       audioBase64,
     });
     if (response.task) bridgeState.task = response.task;
@@ -334,13 +562,19 @@ async function submitBridgeAttempt(detail) {
     if (lineButton) updateBridgeLineButton(lineButton, detail.line.index);
     renderBridgeProgress();
     const next = nextIncompleteLine();
+    const savedMessage = response.adopted === false
+      ? "已保留原本錄音；本次分數已加入練習歷史"
+      : (bridgeState.task.selfPractice ? "自主練習已保存" : "已保存；已使用這次錄音並更新老師後台");
     if (next) {
-      renderSyncStatus("saved", bridgeState.task.selfPractice ? "自主練習已保存" : "已保存到老師後台與雲端硬碟", {
+      renderSyncStatus("saved", savedMessage, {
         label: "前往下一句",
         handler: () => selectLine(lineListIndex(next), true),
       });
     } else {
-      renderSyncStatus("saved", bridgeState.task.selfPractice ? "這個角色的台詞皆已有練習紀錄" : "本次指定台詞已全部達標", {
+      const completeMessage = response.adopted === false
+        ? "已保留原本錄音；本次練習已記錄"
+        : (bridgeState.task.selfPractice ? "這個角色的台詞皆已有練習紀錄" : "本次指定台詞已全部達標");
+      renderSyncStatus("saved", completeMessage, {
         label: "返回練習首頁",
         handler: () => { location.href = `portal.html${isBridgeDemo() ? "?demo=1" : ""}`; },
       });
@@ -351,7 +585,10 @@ async function submitBridgeAttempt(detail) {
       location.replace("portal.html");
       return;
     }
-    renderSyncStatus("error", error.message, { label: "重試保存", handler: () => submitBridgeAttempt(bridgeState.lastAttempt) });
+    renderSyncStatus("error", error.message, {
+      label: "重試保存",
+      handler: () => submitBridgeAttempt(bridgeState.lastAttempt.detail, bridgeState.lastAttempt.replaceCurrent),
+    });
   } finally {
     bridgeState.syncing = false;
   }
@@ -397,6 +634,8 @@ if (bridgeParams.get("public") !== "1") {
   document.addEventListener("qa:ready", initializeAssignmentBridge);
   document.addEventListener("qa:evaluated", (event) => {
     if (!bridgeState.task || bridgeState.stored?.account?.type !== "student") return;
-    submitBridgeAttempt(event.detail);
+    const currentResult = bridgeState.task.lineResults?.[event.detail.line.index];
+    if (currentResult) showAttemptComparison(event.detail, currentResult);
+    else submitBridgeAttempt(event.detail, true);
   });
 }

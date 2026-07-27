@@ -18,7 +18,7 @@ const HISTORY_HEADERS = Object.freeze([
   "group_name", "work_slug", "work_title", "role", "line_index", "target_text", "transcript",
   "overall_score", "text_accuracy", "accent_score", "intonation_score", "speed_score", "volume_score",
   "timing_score", "audio_quality", "attempt_number",
-  "recording_duration_sec", "audio_url", "submitted_at",
+  "recording_duration_sec", "audio_url", "submitted_at", "selected_as_current",
 ]);
 
 const RESULT_SCORE_HEADERS = Object.freeze([
@@ -407,7 +407,9 @@ function studentTasks_(token) {
           const index = Number(row.line_index);
           if (!lineIndices.includes(index)) return;
           lineResults[index] = {
+            resultKey: String(row.result_key || ""),
             score: clampScore_(row.overall_score),
+            textAccuracy: clampScore_(row.text_accuracy),
             attempts: Math.max(1, Number(row.attempt_count) || 1),
             updatedAt: isoValue_(row.updated_at || row.submitted_at),
             achieved: targetScore === null || clampScore_(row.overall_score) >= targetScore,
@@ -535,7 +537,7 @@ function submitAttempt_(payload) {
   });
   const refreshed = studentTasks_(payload.token);
   const task = refreshed.tasks.find((item) => item.assignmentId === assignmentId);
-  return { saved: true, audioUrl: saved.audioUrl, task };
+  return { saved: true, adopted: saved.adopted, audioUrl: saved.audioUrl, task };
 }
 
 function submitPracticeAttempt_(payload) {
@@ -567,7 +569,11 @@ function submitPracticeAttempt_(payload) {
   });
   const refreshed = studentTasks_(payload.token);
   const task = refreshed.selfPractice.find((item) => item.role === role) || null;
-  return { saved: true, audioUrl: saved.audioUrl, task };
+  return { saved: true, adopted: saved.adopted, audioUrl: saved.audioUrl, task };
+}
+
+function shouldAdoptAttempt_(payload, existing) {
+  return !existing || payload.replaceCurrent !== false;
 }
 
 function saveAttemptRecord_(payload, identity, student, context) {
@@ -578,14 +584,6 @@ function saveAttemptRecord_(payload, identity, student, context) {
   const volumeScore = clampScore_(scores.volume === undefined ? scores.audioQuality : scores.volume);
   const recordingDuration = Math.max(0, Math.min(120, Number(payload.recordingDuration) || 0));
   const now = new Date();
-  const savedAudio = saveLatestAudio_({
-    assignmentId,
-    studentId: identity.sub,
-    lineIndex,
-    audioBase64: payload.audioBase64,
-    mimeType: payload.mimeType,
-    description: `${context.workTitle} / ${context.role} / 第 ${lineIndex} 句 / ${student.name}`,
-  });
 
   const spreadsheet = spreadsheet_();
   ensureSheetColumns_(spreadsheet, SHEETS.RESULTS, RESULT_SCORE_HEADERS);
@@ -601,7 +599,16 @@ function saveAttemptRecord_(payload, identity, student, context) {
     const previousDuration = existing
       ? Math.max(0, Number(existing.total_recording_duration_sec) || Number(existing.recording_duration_sec) || 0)
       : 0;
-    const values = {
+    const adopted = shouldAdoptAttempt_(payload, existing);
+    const savedAudio = adopted ? saveLatestAudio_({
+      assignmentId,
+      studentId: identity.sub,
+      lineIndex,
+      audioBase64: payload.audioBase64,
+      mimeType: payload.mimeType,
+      description: `${context.workTitle} / ${context.role} / 第 ${lineIndex} 句 / ${student.name}`,
+    }) : null;
+    const attemptValues = {
       result_key: resultKey,
       assignment_id: assignmentId,
       student_id: identity.sub,
@@ -624,12 +631,19 @@ function saveAttemptRecord_(payload, identity, student, context) {
       attempt_count: attemptCount,
       recording_duration_sec: recordingDuration,
       total_recording_duration_sec: previousDuration + recordingDuration,
-      audio_file_id: savedAudio.fileId,
-      audio_url: savedAudio.url,
+      audio_file_id: savedAudio ? savedAudio.fileId : "",
+      audio_url: savedAudio ? savedAudio.url : "",
       submitted_at: existing ? existing.submitted_at || now : now,
       updated_at: now,
     };
-    writeRecord_(table, existing ? existing.__row : null, values);
+    if (adopted) {
+      writeRecord_(table, existing ? existing.__row : null, attemptValues);
+    } else {
+      writeRecord_(table, existing.__row, {
+        attempt_count: attemptCount,
+        total_recording_duration_sec: previousDuration + recordingDuration,
+      });
+    }
     const historyTable = readTable_(SHEETS.HISTORY);
     writeRecord_(historyTable, null, {
       attempt_id: Utilities.getUuid(),
@@ -643,25 +657,29 @@ function saveAttemptRecord_(payload, identity, student, context) {
       work_title: context.workTitle,
       role: context.role,
       line_index: lineIndex,
-      target_text: values.target_text,
-      transcript: values.transcript,
-      overall_score: values.overall_score,
-      text_accuracy: values.text_accuracy,
-      accent_score: values.accent_score,
-      intonation_score: values.intonation_score,
-      speed_score: values.speed_score,
-      volume_score: values.volume_score,
-      timing_score: values.timing_score,
-      audio_quality: values.audio_quality,
+      target_text: attemptValues.target_text,
+      transcript: attemptValues.transcript,
+      overall_score: attemptValues.overall_score,
+      text_accuracy: attemptValues.text_accuracy,
+      accent_score: attemptValues.accent_score,
+      intonation_score: attemptValues.intonation_score,
+      speed_score: attemptValues.speed_score,
+      volume_score: attemptValues.volume_score,
+      timing_score: attemptValues.timing_score,
+      audio_quality: attemptValues.audio_quality,
       attempt_number: attemptCount,
       recording_duration_sec: recordingDuration,
-      audio_url: savedAudio.url,
+      audio_url: savedAudio ? savedAudio.url : "",
       submitted_at: now,
+      selected_as_current: adopted,
     });
+    return {
+      adopted,
+      audioUrl: adopted ? savedAudio.url : String(existing.audio_url || ""),
+    };
   } finally {
     lock.releaseLock();
   }
-  return { audioUrl: savedAudio.url };
 }
 
 function groupShowcases_(token) {
@@ -944,6 +962,9 @@ function studentHistory_(token, studentIdInput) {
       durationSec: Math.max(0, Number(row.recording_duration_sec) || 0),
       submittedAt: isoValue_(row.submitted_at),
       attemptNumber: Math.max(1, Number(row.attempt_number) || 1),
+      selectedAsCurrent: row.selected_as_current === "" || row.selected_as_current === undefined
+        ? null
+        : isTrue_(row.selected_as_current),
     });
   });
 
@@ -979,7 +1000,7 @@ function studentHistory_(token, studentIdInput) {
     const scores = line.attempts.map((attempt) => attempt.score);
     const latest = latestResults[key];
     return Object.assign(line, {
-      latestScore: scores.length ? scores[scores.length - 1] : 0,
+      latestScore: latest ? clampScore_(latest.overall_score) : (scores.length ? scores[scores.length - 1] : 0),
       bestScore: scores.length ? Math.max.apply(null, scores) : 0,
       growthPoints: scores.length > 1 ? roundOne_(scores[scores.length - 1] - scores[0]) : 0,
       totalDurationSec: roundOne_(line.attempts.reduce((sum, attempt) => sum + attempt.durationSec, 0)),
@@ -1980,7 +2001,9 @@ function buildSelfPractice_(student, studentResults, catalogs) {
     Object.keys(latestByLine).forEach((lineIndex) => {
       const row = latestByLine[lineIndex];
       lineResults[lineIndex] = {
+        resultKey: String(row.result_key || ""),
         score: clampScore_(row.overall_score),
+        textAccuracy: clampScore_(row.text_accuracy),
         attempts: matching.filter((item) => Number(item.line_index) === Number(lineIndex))
           .reduce((sum, item) => sum + Math.max(1, Number(item.attempt_count) || 1), 0),
         updatedAt: isoValue_(row.updated_at || row.submitted_at),

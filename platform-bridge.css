@@ -57,6 +57,7 @@
 }
 
 .cloud-sync-status.is-saving { border-left-color: #4b86b8; background: #eaf3fb; color: #2f566c; }
+.cloud-sync-status.is-compare { border-left-color: #d49b36; background: #fff7e5; color: #6d521f; }
 .cloud-sync-status.is-error { border-left-color: #e75e69; background: #fde8e8; color: #8b3329; }
 .cloud-sync-status button {
   min-height: 34px;
@@ -70,9 +71,99 @@
   cursor: pointer;
 }
 
+.recording-decision {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 2px solid #d8e4e5;
+}
+
+.recording-decision-heading { margin-bottom: 14px; }
+.recording-decision-heading span { color: #23747a; font-size: 12px; font-weight: 800; }
+.recording-decision-heading h3 { margin: 3px 0 0; color: #20323c; font-size: 19px; }
+
+.recording-version-audio {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.recording-version-audio section {
+  min-width: 0;
+  padding: 11px 12px;
+  border-left: 4px solid #6b9ea8;
+  background: #f2f8f8;
+}
+
+.recording-version-audio section:last-child {
+  border-left-color: #e75e69;
+  background: #fff5f3;
+}
+
+.recording-version-audio strong,
+.recording-version-audio span { display: block; }
+.recording-version-audio strong { margin-bottom: 7px; color: #20323c; font-size: 14px; }
+.recording-version-audio span { margin-top: 5px; color: #65736e; font-size: 11px; }
+.recording-version-audio audio { width: 100%; height: 38px; display: block; }
+
+.score-comparison-wrap {
+  margin-top: 15px;
+  overflow-x: auto;
+  border: 1px solid #d8e4e5;
+}
+
+.score-comparison-table {
+  width: 100%;
+  min-width: 430px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-comparison-table th,
+.score-comparison-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e2eaeb;
+  text-align: center;
+}
+
+.score-comparison-table thead th { background: #edf5f5; color: #4a625e; font-size: 11px; }
+.score-comparison-table tbody th { color: #344943; font-size: 12px; text-align: left; }
+.score-comparison-table tbody td { color: #263b43; font-size: 13px; font-weight: 800; }
+.score-comparison-table tbody tr:last-child > * { border-bottom: 0; }
+
+.score-change { display: inline-block; min-width: 30px; }
+.score-change.is-positive { color: #167153; }
+.score-change.is-negative { color: #c3464f; }
+.score-change.is-same { color: #71807b; }
+
+.recording-decision-note { margin: 11px 0 0; color: #65736e; font-size: 12px; }
+.recording-decision-actions {
+  margin-top: 13px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.recording-choice-button {
+  min-height: 43px;
+  padding: 8px 12px;
+  border: 1px solid #23747a;
+  border-radius: 6px;
+  background: #fff;
+  color: #21666b;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.recording-choice-button.is-replace { border-color: #e75e69; background: #e75e69; color: #fff; }
+.recording-choice-button:disabled { cursor: wait; opacity: 0.55; }
+
 @media (max-width: 720px) {
   .assignment-context { grid-template-columns: 1fr auto; gap: 12px; }
   .assignment-context__task { grid-column: 1 / -1; grid-row: 2; }
   .assignment-context__progress { grid-column: 2; grid-row: 1; }
   .cloud-sync-status { align-items: stretch; flex-direction: column; }
+  .recording-version-audio,
+  .recording-decision-actions { grid-template-columns: 1fr; }
 }
