@@ -953,6 +953,145 @@ function getShowcaseAudioContext() {
   return portalState.showcaseAudioContext;
 }
 
+function clampShowcaseValue(value, minimum, maximum) {
+  return Math.max(minimum, Math.min(maximum, Number(value) || 0));
+}
+
+function analyzeShowcaseBuffer(buffer) {
+  const sampleRate = Number(buffer?.sampleRate) || 0;
+  const length = Number(buffer?.length) || 0;
+  const channelCount = Math.max(0, Math.min(2, Number(buffer?.numberOfChannels) || 0));
+  const duration = Number(buffer?.duration) || (sampleRate ? length / sampleRate : 0);
+  if (!sampleRate || !length || !channelCount || typeof buffer.getChannelData !== "function") {
+    return { active: false, activeStart: 0, activeEnd: duration, rms: 0, peak: 0, noiseFloor: 0 };
+  }
+
+  const channels = Array.from({ length: channelCount }, (_, index) => buffer.getChannelData(index));
+  const frameSize = Math.max(128, Math.round(sampleRate * 0.02));
+  const frameLevels = [];
+  for (let frameStart = 0; frameStart < length; frameStart += frameSize) {
+    const frameEnd = Math.min(length, frameStart + frameSize);
+    let energy = 0;
+    let sampleCount = 0;
+    for (let sample = frameStart; sample < frameEnd; sample += 2) {
+      for (const channel of channels) {
+        const value = Number(channel[sample]) || 0;
+        energy += value * value;
+        sampleCount += 1;
+      }
+    }
+    frameLevels.push(sampleCount ? Math.sqrt(energy / sampleCount) : 0);
+  }
+
+  const smoothedLevels = frameLevels.map((level, index) => (
+    ((frameLevels[index - 1] ?? level) + level + (frameLevels[index + 1] ?? level)) / 3
+  ));
+  const sortedLevels = [...smoothedLevels].sort((left, right) => left - right);
+  const noiseFloor = sortedLevels[Math.floor(sortedLevels.length * 0.2)] || 0;
+  const loudestFrame = Math.max(0, ...smoothedLevels);
+  if (loudestFrame < 0.0012) {
+    return { active: false, activeStart: 0, activeEnd: duration, rms: 0, peak: 0, noiseFloor };
+  }
+
+  const threshold = Math.min(
+    loudestFrame * 0.45,
+    Math.max(0.0012, noiseFloor * 2.8, loudestFrame * 0.08),
+  );
+  const firstActiveFrame = smoothedLevels.findIndex((level) => level >= threshold);
+  let lastActiveFrame = -1;
+  for (let index = smoothedLevels.length - 1; index >= 0; index -= 1) {
+    if (smoothedLevels[index] >= threshold) {
+      lastActiveFrame = index;
+      break;
+    }
+  }
+  if (firstActiveFrame < 0 || lastActiveFrame < firstActiveFrame) {
+    return { active: false, activeStart: 0, activeEnd: duration, rms: 0, peak: 0, noiseFloor };
+  }
+
+  const activeStart = Math.max(0, firstActiveFrame * frameSize / sampleRate - 0.035);
+  const activeEnd = Math.min(duration, (lastActiveFrame + 1) * frameSize / sampleRate + 0.06);
+  const sampleStart = Math.max(0, Math.floor(activeStart * sampleRate));
+  const sampleEnd = Math.min(length, Math.ceil(activeEnd * sampleRate));
+  let energy = 0;
+  let peak = 0;
+  let sampleCount = 0;
+  for (let sample = sampleStart; sample < sampleEnd; sample += 1) {
+    for (const channel of channels) {
+      const value = Math.abs(Number(channel[sample]) || 0);
+      energy += value * value;
+      peak = Math.max(peak, value);
+      sampleCount += 1;
+    }
+  }
+  return {
+    active: true,
+    activeStart,
+    activeEnd,
+    rms: sampleCount ? Math.sqrt(energy / sampleCount) : 0,
+    peak,
+    noiseFloor,
+  };
+}
+
+function calibrateShowcaseSegment(segment, buffer) {
+  const analysis = analyzeShowcaseBuffer(buffer);
+  const mixStart = Number(segment.start) || 0;
+  const windowEnd = Math.max(mixStart + 0.08, Number(segment.windowEnd) || Number(segment.end) || mixStart + 0.08);
+  const availableDuration = windowEnd - mixStart;
+  const sourceOffset = analysis.active ? analysis.activeStart : 0;
+  const detectedDuration = analysis.active
+    ? Math.max(0.04, analysis.activeEnd - analysis.activeStart)
+    : Math.min(Number(buffer.duration) || 0, availableDuration);
+  const fitRate = clampShowcaseValue(detectedDuration / availableDuration, 1, 1.12);
+  const sourceDuration = Math.min(detectedDuration, availableDuration * fitRate);
+  let normalizationGain = 1;
+  if (analysis.active && analysis.rms > 0.0005) {
+    normalizationGain = 0.095 / analysis.rms;
+    if (analysis.peak > 0.0005) normalizationGain = Math.min(normalizationGain, 0.86 / analysis.peak);
+    normalizationGain = clampShowcaseValue(normalizationGain, 0.35, 2.4);
+  }
+
+  Object.assign(segment, {
+    audioDuration: Number(buffer.duration) || 0,
+    mixStart,
+    sourceOffset,
+    sourceDuration,
+    fitRate,
+    normalizationGain,
+    activeRms: analysis.rms,
+    activePeak: analysis.peak,
+    playbackEnd: Math.min(windowEnd, mixStart + sourceDuration / fitRate),
+    trimmedLeadingSeconds: sourceOffset,
+    trimmedTrailingSeconds: Math.max(0, (Number(buffer.duration) || 0) - sourceOffset - sourceDuration),
+  });
+  return segment;
+}
+
+function ensureShowcaseOutput(player) {
+  if (player.outputGain) return player.outputGain;
+  const context = getShowcaseAudioContext();
+  const outputGain = context.createGain();
+  outputGain.gain.value = 0.96;
+  const compressor = typeof context.createDynamicsCompressor === "function"
+    ? context.createDynamicsCompressor()
+    : null;
+  if (compressor) {
+    compressor.threshold.value = -14;
+    compressor.knee.value = 10;
+    compressor.ratio.value = 4;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.18;
+    outputGain.connect(compressor);
+    compressor.connect(context.destination);
+  } else {
+    outputGain.connect(context.destination);
+  }
+  player.outputGain = outputGain;
+  player.outputCompressor = compressor;
+  return outputGain;
+}
+
 function stopShowcaseSources(player) {
   if (!player) return;
   player.playbackGeneration += 1;
@@ -960,6 +1099,7 @@ function stopShowcaseSources(player) {
     entry.source.onended = null;
     try { entry.source.stop(); } catch {}
     try { entry.source.disconnect(); } catch {}
+    try { entry.gainNode?.disconnect(); } catch {}
   });
   player.scheduledSources.clear();
 }
@@ -977,6 +1117,8 @@ function clearShowcasePlayers() {
   portalState.showcasePlayers.forEach((player) => {
     player.video.pause();
     stopShowcasePlayer(player);
+    try { player.outputGain?.disconnect(); } catch {}
+    try { player.outputCompressor?.disconnect(); } catch {}
   });
   portalState.showcasePlayers.clear();
 }
@@ -1006,8 +1148,7 @@ async function ensureShowcaseSegmentAudio(player, segment) {
   if (!player.audioPromises.has(segment.resultKey)) {
     const request = loadShowcaseAudio(segment.resultKey).then((buffer) => {
       player.audioBuffers.set(segment.resultKey, buffer);
-      segment.audioDuration = buffer.duration;
-      segment.playbackEnd = Math.min(player.duration, Math.max(segment.end, segment.start + buffer.duration));
+      calibrateShowcaseSegment(segment, buffer);
       segment.loadError = false;
       segment.retryAudioAt = 0;
       player.audioPromises.delete(segment.resultKey);
@@ -1029,7 +1170,10 @@ async function prepareShowcaseWindow(player, currentTime, lookAhead = 24) {
 }
 
 function activeShowcaseSegments(player, time) {
-  return player.segments.filter((segment) => time >= segment.start - 0.08 && time < (segment.playbackEnd || segment.end));
+  return player.segments.filter((segment) => (
+    time >= (segment.mixStart ?? segment.start) - 0.08
+    && time < (segment.playbackEnd || segment.end)
+  ));
 }
 
 function scheduleShowcaseSegment(player, segment) {
@@ -1042,10 +1186,15 @@ function scheduleShowcaseSegment(player, segment) {
     if (generation !== player.playbackGeneration || player.video.paused || player.video.ended || player.waiting) return;
     const videoTime = player.video.currentTime;
     const playbackEnd = segment.playbackEnd || segment.end;
-    const playbackRate = Math.max(0.25, Math.min(4, Number(player.video.playbackRate) || 1));
-    const offset = Math.max(0, videoTime - segment.start);
-    const delay = Math.max(0, segment.start - videoTime);
-    if (videoTime >= playbackEnd || offset >= buffer.duration - 0.01) {
+    const mixStart = segment.mixStart ?? segment.start;
+    const fitRate = clampShowcaseValue(segment.fitRate || 1, 1, 1.12);
+    const videoPlaybackRate = clampShowcaseValue(player.video.playbackRate || 1, 0.25, 4);
+    const timelineOffset = Math.max(0, videoTime - mixStart);
+    const sourceStart = Number(segment.sourceOffset) || 0;
+    const sourceEnd = Math.min(buffer.duration, sourceStart + (Number(segment.sourceDuration) || buffer.duration));
+    const sourceOffset = sourceStart + timelineOffset * fitRate;
+    const delay = Math.max(0, mixStart - videoTime);
+    if (videoTime >= playbackEnd || sourceOffset >= sourceEnd - 0.01) {
       player.finishedSources.set(segment.resultKey, generation);
       return;
     }
@@ -1053,20 +1202,42 @@ function scheduleShowcaseSegment(player, segment) {
 
     const context = getShowcaseAudioContext();
     const source = context.createBufferSource();
-    const startAt = context.currentTime + (delay ? delay / playbackRate : 0.015);
+    const gainNode = context.createGain();
+    const startAt = context.currentTime + (delay ? delay / videoPlaybackRate : 0.015);
+    const sourceDuration = sourceEnd - sourceOffset;
+    const sourceRate = fitRate * videoPlaybackRate;
+    const outputDuration = sourceDuration / sourceRate;
+    const fadeIn = Math.min(0.025, outputDuration * 0.2);
+    const fadeOut = Math.min(0.075, outputDuration * 0.25);
+    const gain = clampShowcaseValue(segment.normalizationGain || 1, 0.35, 2.4);
     source.buffer = buffer;
-    source.playbackRate.value = playbackRate;
-    source.connect(context.destination);
-    const entry = { source, segment, startAt, offset, playbackRate };
+    source.playbackRate.value = sourceRate;
+    gainNode.gain.setValueAtTime(0, startAt);
+    gainNode.gain.linearRampToValueAtTime(gain, startAt + fadeIn);
+    gainNode.gain.setValueAtTime(gain, Math.max(startAt + fadeIn, startAt + outputDuration - fadeOut));
+    gainNode.gain.linearRampToValueAtTime(0, startAt + outputDuration);
+    source.connect(gainNode);
+    gainNode.connect(ensureShowcaseOutput(player));
+    const entry = {
+      source,
+      gainNode,
+      segment,
+      startAt,
+      sourceOffset,
+      sourceRate,
+      fitRate,
+      playbackRate: videoPlaybackRate,
+    };
     source.onended = () => {
       if (player.scheduledSources.get(segment.resultKey) === entry) {
         player.scheduledSources.delete(segment.resultKey);
         player.finishedSources.set(segment.resultKey, generation);
       }
       try { source.disconnect(); } catch {}
+      try { gainNode.disconnect(); } catch {}
     };
     player.scheduledSources.set(segment.resultKey, entry);
-    source.start(startAt, offset);
+    source.start(startAt, sourceOffset, sourceDuration);
   }).catch(() => {}).finally(() => {
     if (player.schedulePromises.get(segment.resultKey) === request) {
       player.schedulePromises.delete(segment.resultKey);
@@ -1085,9 +1256,10 @@ function correctShowcaseDrift(player, videoTime) {
     && videoTime < (candidate.segment.playbackEnd || candidate.segment.end)
   ));
   if (!entry) return;
-  const audioOffset = entry.offset + Math.max(0, context.currentTime - entry.startAt) * entry.playbackRate;
-  const videoOffset = videoTime - entry.segment.start;
-  if (Math.abs(audioOffset - videoOffset) > 0.4) stopShowcaseSources(player);
+  const audioOffset = entry.sourceOffset + Math.max(0, context.currentTime - entry.startAt) * entry.sourceRate;
+  const expectedOffset = (Number(entry.segment.sourceOffset) || 0)
+    + Math.max(0, videoTime - (entry.segment.mixStart ?? entry.segment.start)) * entry.fitRate;
+  if (Math.abs(audioOffset - expectedOffset) > 0.4) stopShowcaseSources(player);
 }
 
 function syncShowcasePlayer(player) {
@@ -1130,6 +1302,7 @@ async function toggleShowcasePlayback(showcaseId) {
       if (otherPlayer !== player && !otherPlayer.video.paused) otherPlayer.video.pause();
     });
     const context = getShowcaseAudioContext();
+    ensureShowcaseOutput(player);
     const resume = context.resume();
     await Promise.all([resume, prepareShowcaseWindow(player, player.video.currentTime)]);
     if (context.state !== "running") throw new Error("請再按一次播放以啟用聲音。");
@@ -1163,16 +1336,30 @@ async function renderGroupShowcases(showcases, container) {
   }
   for (const showcase of showcases) {
     const data = await fetchWorkData(showcase.workSlug);
-    const lineMap = new Map(data.lines.map((line) => [Number(line.index), line]));
+    const orderedLines = [...data.lines].sort((left, right) => left.start - right.start || left.index - right.index);
+    const lineMap = new Map(orderedLines.map((line, index) => [
+      Number(line.index),
+      { line, nextLine: orderedLines[index + 1] || null },
+    ]));
     const segments = (showcase.segments || []).map((segment) => {
-      const line = lineMap.get(Number(segment.lineIndex));
-      const postRoll = Number(window.QA_RECORDING_TIMING?.postRollSeconds) || 0;
+      const lineEntry = lineMap.get(Number(segment.lineIndex));
+      const line = lineEntry?.line;
+      const nextLine = lineEntry?.nextLine;
       const duration = Number(data.duration) || Infinity;
-      const expectedEnd = line ? Math.min(duration, line.end + postRoll) : 0;
-      const recordedEnd = line && Number(segment.recordingDuration) > 0
-        ? Math.min(duration, line.start + Number(segment.recordingDuration))
-        : expectedEnd;
-      return line ? { ...segment, start: line.start, end: Math.max(expectedEnd, recordedEnd) } : null;
+      if (!line) return null;
+      const nextCueBoundary = nextLine && nextLine.start >= line.end
+        ? Math.max(line.end, nextLine.start - 0.04)
+        : line.end;
+      const windowEnd = Math.min(duration, Math.max(line.end, Math.min(line.end + 0.35, nextCueBoundary)));
+      return {
+        ...segment,
+        start: line.start,
+        mixStart: line.start,
+        cueEnd: line.end,
+        windowEnd,
+        end: windowEnd,
+        playbackEnd: windowEnd,
+      };
     }).filter(Boolean).sort((left, right) => left.start - right.start);
     const article = document.createElement("article");
     article.className = `showcase-card${showcase.isOwnGroup ? " is-own-group" : ""}`;
@@ -1216,6 +1403,8 @@ async function renderGroupShowcases(showcases, container) {
       scheduledSources: new Map(),
       schedulePromises: new Map(),
       finishedSources: new Map(),
+      outputGain: null,
+      outputCompressor: null,
     };
     portalState.showcasePlayers.set(showcase.showcaseId, player);
     button.addEventListener("click", () => toggleShowcasePlayback(showcase.showcaseId));

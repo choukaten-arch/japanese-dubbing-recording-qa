@@ -107,6 +107,7 @@ try {
     return player
       && !player.video.paused
       && player.audioBuffers.size > 0
+      && player.scheduledSources.size > 0
       && portalState.showcaseAudioContext?.state === "running";
   });
   assert(await page.locator(".showcase-card.is-own-group video").evaluate((video) => video.muted), "小組成果播放時原影片未靜音");
@@ -116,21 +117,65 @@ try {
       legacyElements: Object.hasOwn(player, "audioElements"),
       decodedBuffers: player.audioBuffers.size,
       contextState: portalState.showcaseAudioContext?.state,
+      hasMasterGain: Boolean(player.outputGain),
+      hasLimiter: Boolean(player.outputCompressor),
+      hasClipGain: [...player.scheduledSources.values()].some((entry) => Boolean(entry.gainNode)),
     };
   });
   assert(!showcaseAudioEngine.legacyElements, "小組成果仍使用容易反覆暫停的多音訊播放器");
   assert(showcaseAudioEngine.decodedBuffers > 0 && showcaseAudioEngine.contextState === "running", "小組成果錄音未預先解碼至穩定音訊時鐘");
-  const showcaseTailBuffer = await page.evaluate(() => {
+  assert(showcaseAudioEngine.hasMasterGain && showcaseAudioEngine.hasLimiter && showcaseAudioEngine.hasClipGain, "小組成果未套用逐段音量校準與總輸出限幅");
+  const showcaseMixCalibration = await page.evaluate(() => {
     const player = [...portalState.showcasePlayers.values()].find((item) => item.showcase.isOwnGroup);
-    const segment = player.segments[0];
-    const line = portalState.workData.get(player.showcase.workSlug).lines.find((item) => Number(item.index) === Number(segment.lineIndex));
+    const calibrated = player.segments.filter((segment) => Number.isFinite(segment.audioDuration));
+    const noUnintendedOverlap = calibrated.every((segment, index) => {
+      const next = calibrated[index + 1];
+      if (!next || next.start < segment.cueEnd - 0.01) return true;
+      return segment.playbackEnd <= next.mixStart + 0.01;
+    });
     return {
-      tail: segment.end - line.end,
-      coversRecording: segment.end - segment.start >= Number(segment.recordingDuration) - 0.01,
+      count: calibrated.length,
+      noUnintendedOverlap,
+      recordingMetadataPreserved: calibrated.some((segment) => (
+        Number(segment.recordingDuration) > segment.cueEnd - segment.start + 2
+      )),
+      boundedToOriginalCue: calibrated.every((segment) => segment.playbackEnd <= segment.windowEnd + 0.001),
+      validGain: calibrated.every((segment) => segment.normalizationGain >= 0.35 && segment.normalizationGain <= 2.4),
+      validFitRate: calibrated.every((segment) => segment.fitRate >= 1 && segment.fitRate <= 1.12),
     };
   });
-  assert(showcaseTailBuffer.tail >= 2, "小組成果播放沒有保留錄音句尾緩衝");
-  assert(showcaseTailBuffer.coversRecording, "小組成果仍在實際錄音結束前切斷音檔");
+  assert(showcaseMixCalibration.count > 0, "小組成果沒有完成錄音校準");
+  assert(showcaseMixCalibration.recordingMetadataPreserved, "校準不應覆寫原始錄音長度資料");
+  assert(showcaseMixCalibration.boundedToOriginalCue && showcaseMixCalibration.noUnintendedOverlap, "小組成果仍有超出原片時間軸的非預期重疊");
+  assert(showcaseMixCalibration.validGain && showcaseMixCalibration.validFitRate, "小組成果音量或趕拍倍率超出安全範圍");
+  const syntheticCalibration = await page.evaluate(() => {
+    const sampleRate = 8000;
+    const samples = new Float32Array(sampleRate * 4);
+    for (let index = sampleRate * 0.5; index < sampleRate * 2.5; index += 1) {
+      samples[index] = Math.sin(index / sampleRate * Math.PI * 2 * 180) * 0.08;
+    }
+    const buffer = {
+      sampleRate,
+      length: samples.length,
+      duration: samples.length / sampleRate,
+      numberOfChannels: 1,
+      getChannelData: () => samples,
+    };
+    const segment = { start: 10, end: 11.6, windowEnd: 11.6 };
+    const analysis = analyzeShowcaseBuffer(buffer);
+    calibrateShowcaseSegment(segment, buffer);
+    return {
+      activeStart: analysis.activeStart,
+      activeEnd: analysis.activeEnd,
+      playbackEnd: segment.playbackEnd,
+      trimmedTrailingSeconds: segment.trimmedTrailingSeconds,
+      fitRate: segment.fitRate,
+    };
+  });
+  assert(syntheticCalibration.activeStart > 0.3 && syntheticCalibration.activeStart < 0.7, "合成音訊未正確去除錄音起始空白");
+  assert(syntheticCalibration.activeEnd > 2.3 && syntheticCalibration.activeEnd < 2.8, "合成音訊未正確偵測實際句尾");
+  assert(syntheticCalibration.trimmedTrailingSeconds > 1, "合成音訊未去除錄音尾端緩衝空白");
+  assert(syntheticCalibration.playbackEnd <= 11.601 && syntheticCalibration.fitRate <= 1.12, "較慢錄音未依原片台詞窗格安全校準");
   const showcaseResync = await page.evaluate(async () => {
     const player = [...portalState.showcasePlayers.values()].find((item) => item.showcase.isOwnGroup);
     const generation = player.playbackGeneration;
