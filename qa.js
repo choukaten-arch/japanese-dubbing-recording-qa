@@ -20,6 +20,8 @@ const state = {
   waveformSquares: 0,
   clippingSamples: 0,
   recognition: null,
+  recognitionRestartTimer: null,
+  recognitionRestartCount: 0,
   finalTranscript: "",
   interimTranscript: "",
   referenceStopAt: null,
@@ -868,8 +870,28 @@ function createRecognition() {
     captureKaraokeSyncSample();
     updateKaraokeProgress(elements.referenceVideo.currentTime);
   };
-  recognition.onerror = () => {
-    elements.recognitionStatus.textContent = "自動辨識未完成，可手動輸入";
+  recognition.onerror = (event) => {
+    const reason = String(event?.error || "");
+    if (reason === "not-allowed" || reason === "service-not-allowed") {
+      state.recognitionRestartCount = 4;
+      elements.recognitionStatus.textContent = "瀏覽器未開放語音辨識，將改用錄音完整度評分";
+      return;
+    }
+    elements.recognitionStatus.textContent = "語音辨識暫停，正在嘗試恢復";
+  };
+  recognition.onend = () => {
+    if (state.mediaRecorder?.state !== "recording" || state.isStopping || state.recognitionRestartCount >= 4) return;
+    clearTimeout(state.recognitionRestartTimer);
+    state.recognitionRestartCount += 1;
+    state.recognitionRestartTimer = setTimeout(() => {
+      if (state.mediaRecorder?.state !== "recording" || state.isStopping) return;
+      try {
+        recognition.start();
+        elements.recognitionStatus.textContent = "語音辨識已恢復";
+      } catch {
+        elements.recognitionStatus.textContent = "語音辨識未恢復，將改用錄音完整度評分";
+      }
+    }, 180);
   };
   return recognition;
 }
@@ -915,6 +937,7 @@ async function startRecording() {
 
     state.mediaRecorder.start(200);
 
+    state.recognitionRestartCount = 0;
     state.recognition = line.isSoundEffect ? null : createRecognition();
     try { state.recognition?.start(); } catch {}
 
@@ -970,6 +993,8 @@ function stopRecording() {
   elements.referenceVideo.pause();
   elements.referenceVideo.controls = true;
   state.referenceStopAt = null;
+  clearTimeout(state.recognitionRestartTimer);
+  state.recognitionRestartTimer = null;
   try { state.recognition?.stop(); } catch {}
   clearInterval(state.timerId);
   cancelAnimationFrame(state.waveformFrame);
@@ -1024,6 +1049,11 @@ function resetRecording() {
   state.recordingFinalizeTimer = null;
   clearInterval(state.timerId);
   cancelAnimationFrame(state.waveformFrame);
+  clearTimeout(state.recognitionRestartTimer);
+  state.recognitionRestartTimer = null;
+  try { state.recognition?.abort(); } catch {}
+  state.recognition = null;
+  state.recognitionRestartCount = 0;
   state.mediaStream?.getTracks().forEach((track) => track.stop());
   elements.referenceVideo.pause();
   elements.referenceVideo.muted = false;
@@ -1602,11 +1632,37 @@ async function localSoundEffectEvaluation() {
   };
 }
 
+function missingRecognitionAccuracy(aspects, audioFeatures) {
+  const accent = Math.max(0, Math.min(100, Number(aspects?.accent) || 0));
+  const intonation = Math.max(0, Math.min(100, Number(aspects?.intonation) || 0));
+  const speed = Math.max(0, Math.min(100, Number(aspects?.speed) || 0));
+  const volume = Math.max(0, Math.min(100, Number(aspects?.volume) || 0));
+  const rms = Math.max(0, Number(audioFeatures?.rms) || 0);
+  const activeRatio = Math.max(0, Number(audioFeatures?.activeRatio) || 0);
+  const voiceSpanRatio = Math.max(0, Number(audioFeatures?.voiceSpanRatio) || 0);
+  const voicedRatio = Math.max(0, Number(audioFeatures?.voicedRatio) || 0);
+  const hasVoiceEvidence = rms >= 0.008
+    && activeRatio >= 0.1
+    && voiceSpanRatio >= 0.28
+    && voicedRatio >= 0.1
+    && accent >= 45
+    && intonation >= 45
+    && speed >= 45
+    && volume >= 50;
+  if (!hasVoiceEvidence) return 0;
+  return Math.min(92, Math.round(
+    accent * 0.25
+    + intonation * 0.25
+    + speed * 0.35
+    + volume * 0.15,
+  ));
+}
+
 async function localEvaluation() {
   const line = currentLine();
   if (line.isSoundEffect) return localSoundEffectEvaluation();
   const comparison = compareJapaneseTranscript(line, elements.recognizedText.value);
-  const { target, actual, accuracy } = comparison;
+  const { target, actual } = comparison;
   const audioFeatures = await analyzeRecordingAudio();
   const rms = Math.max(audioFeatures.rms, state.waveformSamples ? Math.sqrt(state.waveformSquares / state.waveformSamples) : 0);
   const followScore = karaokeFollowScore();
@@ -1627,9 +1683,16 @@ async function localEvaluation() {
   const excessiveMovementPenalty = Math.max(0, audioFeatures.pitchMovement - 5) * 5;
   const intonation = Math.round(Math.max(30, Math.min(100, 36 + pitchPresence * 26 + movementStrength * 34 - excessiveMovementPenalty)));
   const aspects = { accent, intonation, speed: timing, volume: audio };
+  const accuracy = actual
+    ? comparison.accuracy
+    : missingRecognitionAccuracy(aspects, { ...audioFeatures, rms });
   const overall = Math.round(accuracy * 0.45 + accent * 0.12 + intonation * 0.13 + timing * 0.15 + audio * 0.15);
   const issues = [];
-  if (!actual) issues.push("沒有取得辨識文字，台詞正確度暫以 0 分計算。可手動輸入後重新評分。");
+  if (!actual && accuracy > 0) {
+    issues.push("瀏覽器沒有回傳辨識文字；本次改依實際發聲完整度、跟拍、重音、語調與音量估算，備援準確度最高 92 分。");
+  } else if (!actual) {
+    issues.push("沒有取得辨識文字，也沒有足夠的發聲證據；可檢查麥克風後重錄，或手動輸入辨識結果再評分。");
+  }
   else if (accuracy >= 96) issues.push("辨識台詞與標準台詞高度一致。");
   else if (accuracy >= 80) issues.push("有少量漏字、增字或辨識差異，請查看台詞比對標色。");
   else issues.push("台詞差異較多，建議逐段重聽示範後再錄一次。");
@@ -1650,8 +1713,8 @@ async function localEvaluation() {
     aspects,
     scores: { "台詞正確度": accuracy, "重音": accent, "語調": intonation, "語速": timing, "音量": audio },
     issues,
-    diffHtml: lcsDiff(target, actual),
-    mode: "瀏覽器練習指標",
+    diffHtml: actual ? lcsDiff(target, actual) : escapeHtml(line.japanese),
+    mode: actual ? "瀏覽器練習指標" : "瀏覽器練習指標（辨識備援）",
   };
 }
 

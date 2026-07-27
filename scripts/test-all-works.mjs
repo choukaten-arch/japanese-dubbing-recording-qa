@@ -73,7 +73,11 @@ const specialRoleFixtures = [
 ];
 runInNewContext(
   `${appsScriptSource}
-this.pronunciationApi = { score: bestPronunciationAccuracy_ };
+this.pronunciationApi = {
+  score: bestPronunciationAccuracy_,
+  missingRecognitionAccuracy: missingRecognitionAccuracyFromRow_,
+  overallWithAccuracy: scoreOverallWithAccuracy_,
+};
 const specialRoleFixtures = ${JSON.stringify(specialRoleFixtures)};
 this.specialRoleApi = {
   assignments: normalizeSpecialRoleAssignments_(specialRoleFixtures),
@@ -81,6 +85,24 @@ this.specialRoleApi = {
 };`,
   pronunciationContext,
 );
+const missingRecognitionFixture = {
+  accent_score: 100,
+  intonation_score: 96,
+  speed_score: 82,
+  volume_score: 95,
+};
+const restoredAccuracy = pronunciationContext.pronunciationApi.missingRecognitionAccuracy(missingRecognitionFixture);
+const restoredOverall = pronunciationContext.pronunciationApi.overallWithAccuracy(
+  missingRecognitionFixture,
+  restoredAccuracy,
+);
+assert(restoredAccuracy === 92 && restoredOverall === 92, "辨識未回傳文字時沒有依明確發聲證據恢復合理分數");
+assert(pronunciationContext.pronunciationApi.missingRecognitionAccuracy({
+  accent_score: 30,
+  intonation_score: 30,
+  speed_score: 55,
+  volume_score: 30,
+}) === 0, "無聲或缺少發聲證據時不應取得辨識備援分數");
 const totoroData = JSON.parse(await readFile(resolve(import.meta.dirname, "../data/totoro.json"), "utf8"));
 const specialAssignments = pronunciationContext.specialRoleApi.assignments;
 const specialCatalogRows = pronunciationContext.specialRoleApi.catalogRows;

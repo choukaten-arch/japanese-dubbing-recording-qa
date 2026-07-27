@@ -247,6 +247,10 @@ function route_(payload, event) {
       payload.token,
       payload.readings,
     );
+    case "recalibrateMissingRecognitionScores": return recalibrateMissingRecognitionScores_(
+      payload.token,
+      payload.studentIds,
+    );
     case "upsertStudents": return upsertStudents_(payload.token, payload.students, Boolean(payload.resetExisting));
     case "setStudentPins": return setStudentPins_(payload.token, payload.updates);
     case "resetStudentPin": return resetStudentPin_(payload.token, payload.studentId);
@@ -1070,6 +1074,31 @@ function recalibratePronunciationScores_(token, readingsInput) {
   }
 }
 
+function recalibrateMissingRecognitionScores_(token, studentIdInputs) {
+  verifySession_(token, "teacher");
+  if (!Array.isArray(studentIdInputs) || !studentIdInputs.length || studentIdInputs.length > 50) {
+    fail_("INVALID_STUDENTS", "請指定要修復的學生學號。");
+  }
+  const studentIds = new Set(studentIdInputs.map(normalizeStudentId_).filter(Boolean));
+  if (!studentIds.size) fail_("INVALID_STUDENTS", "沒有可使用的學生學號。");
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const results = recalibrateMissingRecognitionScoreTable_(readTable_(SHEETS.RESULTS), studentIds);
+    const history = recalibrateMissingRecognitionScoreTable_(readTable_(SHEETS.HISTORY), studentIds);
+    return {
+      recalibration: {
+        results,
+        history,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function upsertTeacherAccounts_(token, accountInputs) {
   verifySession_(token, "teacher");
   if (!Array.isArray(accountInputs) || !accountInputs.length || accountInputs.length > 20) {
@@ -1232,6 +1261,106 @@ function recalibrateScoreTable_(table, readings) {
     students: [...updatedStudents].filter(Boolean).length,
     accuracyPointsRestored: Math.round(accuracyPointsRestored * 10) / 10,
     overallPointsRestored: Math.round(overallPointsRestored * 10) / 10,
+  };
+}
+
+function missingRecognitionAccuracyFromRow_(row) {
+  const accent = scoreValueFromRow_(row, "accent_score", null) || 0;
+  const intonation = scoreValueFromRow_(row, "intonation_score", null) || 0;
+  const speed = scoreValueFromRow_(row, "speed_score", "timing_score") || 0;
+  const volume = scoreValueFromRow_(row, "volume_score", "audio_quality") || 0;
+  const hasVoiceEvidence = accent >= 45 && intonation >= 45 && speed >= 45 && volume >= 50;
+  if (!hasVoiceEvidence) return 0;
+  return Math.min(92, Math.round(
+    accent * 0.25
+    + intonation * 0.25
+    + speed * 0.35
+    + volume * 0.15,
+  ));
+}
+
+function scoreOverallWithAccuracy_(row, accuracy) {
+  const accent = scoreValueFromRow_(row, "accent_score", null) || 0;
+  const intonation = scoreValueFromRow_(row, "intonation_score", null) || 0;
+  const speed = scoreValueFromRow_(row, "speed_score", "timing_score") || 0;
+  const volume = scoreValueFromRow_(row, "volume_score", "audio_quality") || 0;
+  return clampScore_(Math.round(
+    clampScore_(accuracy) * 0.45
+    + accent * 0.12
+    + intonation * 0.13
+    + speed * 0.15
+    + volume * 0.15,
+  ));
+}
+
+function recalibrateMissingRecognitionScoreTable_(table, studentIds) {
+  const overallColumn = table.indexes.overall_score;
+  const accuracyColumn = table.indexes.text_accuracy;
+  if (overallColumn === undefined || accuracyColumn === undefined) {
+    fail_("MISSING_COLUMN", `${table.sheet.getName()} 缺少分數欄位。`);
+  }
+
+  const rowCount = Math.max(0, table.sheet.getLastRow() - 1);
+  if (!rowCount) {
+    return { examined: 0, updated: 0, students: 0, accuracyPointsRestored: 0, overallPointsRestored: 0, changes: [] };
+  }
+
+  const overallValues = table.sheet.getRange(2, overallColumn + 1, rowCount, 1).getValues();
+  const accuracyValues = table.sheet.getRange(2, accuracyColumn + 1, rowCount, 1).getValues();
+  const updatedStudents = new Set();
+  const changes = [];
+  let examined = 0;
+  let updated = 0;
+  let accuracyPointsRestored = 0;
+  let overallPointsRestored = 0;
+
+  table.records.forEach((row) => {
+    const studentId = normalizeStudentId_(row.student_id);
+    const lineIndex = Number(row.line_index);
+    if (!studentIds.has(studentId)
+      || !Number.isInteger(lineIndex)
+      || lineIndex < 1
+      || lineIndex >= SOUND_EFFECT_LINE_BASE
+      || cleanText_(row.transcript, 2000)) return;
+    examined += 1;
+
+    const oldAccuracy = clampScore_(row.text_accuracy);
+    const newAccuracy = Math.max(oldAccuracy, missingRecognitionAccuracyFromRow_(row));
+    if (newAccuracy <= oldAccuracy) return;
+    const oldOverall = clampScore_(row.overall_score);
+    const newOverall = Math.max(oldOverall, scoreOverallWithAccuracy_(row, newAccuracy));
+    const arrayIndex = row.__row - 2;
+    accuracyValues[arrayIndex][0] = newAccuracy;
+    overallValues[arrayIndex][0] = newOverall;
+    accuracyPointsRestored += newAccuracy - oldAccuracy;
+    overallPointsRestored += newOverall - oldOverall;
+    updatedStudents.add(studentId);
+    updated += 1;
+    if (changes.length < 100) {
+      changes.push({
+        studentId,
+        lineIndex,
+        attemptNumber: Math.max(1, Number(row.attempt_number || row.attempt_count) || 1),
+        oldAccuracy,
+        newAccuracy,
+        oldOverall,
+        newOverall,
+      });
+    }
+  });
+
+  if (updated) {
+    table.sheet.getRange(2, accuracyColumn + 1, rowCount, 1).setValues(accuracyValues);
+    table.sheet.getRange(2, overallColumn + 1, rowCount, 1).setValues(overallValues);
+    SpreadsheetApp.flush();
+  }
+  return {
+    examined,
+    updated,
+    students: [...updatedStudents].filter(Boolean).length,
+    accuracyPointsRestored: Math.round(accuracyPointsRestored * 10) / 10,
+    overallPointsRestored: Math.round(overallPointsRestored * 10) / 10,
+    changes,
   };
 }
 
