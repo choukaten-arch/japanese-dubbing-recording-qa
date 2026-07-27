@@ -6,12 +6,12 @@ const QA_WORKS = Object.freeze([
   { slug: "totoro", title: "龍貓", navTitle: "龍貓", lineCount: 54 },
 ]);
 
-const QA_RELEASE = "20260727.4";
+const QA_RELEASE = "20260727.5";
 const QA_RECORDING_TIMING = Object.freeze({
   previousCueMaxSeconds: 4,
   fallbackPreRollSeconds: 2.1,
-  postRollSeconds: 2,
-  encoderFlushMilliseconds: 400,
+  postRollSeconds: 3,
+  encoderFlushMilliseconds: 500,
 });
 const SOUND_EFFECT_LINE_BASE = 9001;
 

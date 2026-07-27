@@ -4,6 +4,10 @@ const platformConfig = window.PLATFORM_CONFIG || {
   taskKey: "dubbingPlatformActiveTaskV1",
 };
 
+const SHOWCASE_CLIP_GAP_SECONDS = 0.04;
+const SHOWCASE_MAX_FIT_RATE = 1.12;
+const SHOWCASE_SCHEDULE_LOOKAHEAD_SECONDS = 8;
+
 const portalState = {
   session: null,
   teacherData: null,
@@ -1010,7 +1014,7 @@ function analyzeShowcaseBuffer(buffer) {
   }
 
   const activeStart = Math.max(0, firstActiveFrame * frameSize / sampleRate - 0.035);
-  const activeEnd = Math.min(duration, (lastActiveFrame + 1) * frameSize / sampleRate + 0.06);
+  const activeEnd = Math.min(duration, (lastActiveFrame + 1) * frameSize / sampleRate + 0.16);
   const sampleStart = Math.max(0, Math.floor(activeStart * sampleRate));
   const sampleEnd = Math.min(length, Math.ceil(activeEnd * sampleRate));
   let energy = 0;
@@ -1034,17 +1038,52 @@ function analyzeShowcaseBuffer(buffer) {
   };
 }
 
+function reflowShowcaseTimeline(segments) {
+  let previousPlaybackEnd = Number.NEGATIVE_INFINITY;
+  segments.forEach((segment) => {
+    const baseStart = Number(segment.start) || 0;
+    const cueEnd = Math.max(baseStart + 0.08, Number(segment.cueEnd) || Number(segment.end) || baseStart + 0.08);
+    const hasDecodedAudio = Number.isFinite(Number(segment.sourceDuration))
+      && Number(segment.sourceDuration) > 0;
+    const sourceDuration = hasDecodedAudio
+      ? Number(segment.sourceDuration)
+      : Math.max(0.08, cueEnd - baseStart);
+    const mixStart = Math.max(
+      baseStart,
+      Number.isFinite(previousPlaybackEnd)
+        ? previousPlaybackEnd + SHOWCASE_CLIP_GAP_SECONDS
+        : baseStart,
+    );
+    const requestedWindowEnd = Number(segment.windowEnd);
+    const softWindowEnd = Number.isFinite(requestedWindowEnd)
+      ? Math.max(mixStart + 0.08, requestedWindowEnd)
+      : Math.max(mixStart + 0.08, cueEnd);
+    const availableDuration = Math.max(0.08, softWindowEnd - mixStart);
+    const fitRate = hasDecodedAudio
+      ? clampShowcaseValue(sourceDuration / availableDuration, 1, SHOWCASE_MAX_FIT_RATE)
+      : 1;
+    const playbackEnd = mixStart + sourceDuration / fitRate;
+
+    Object.assign(segment, {
+      mixStart,
+      fitRate,
+      playbackEnd,
+      timelineDelay: Math.max(0, mixStart - baseStart),
+      extendedPastCueSeconds: Math.max(0, playbackEnd - cueEnd),
+      activeSpeechTrimmedSeconds: 0,
+    });
+    previousPlaybackEnd = playbackEnd;
+  });
+  return segments;
+}
+
 function calibrateShowcaseSegment(segment, buffer) {
   const analysis = analyzeShowcaseBuffer(buffer);
-  const mixStart = Number(segment.start) || 0;
-  const windowEnd = Math.max(mixStart + 0.08, Number(segment.windowEnd) || Number(segment.end) || mixStart + 0.08);
-  const availableDuration = windowEnd - mixStart;
   const sourceOffset = analysis.active ? analysis.activeStart : 0;
-  const detectedDuration = analysis.active
-    ? Math.max(0.04, analysis.activeEnd - analysis.activeStart)
-    : Math.min(Number(buffer.duration) || 0, availableDuration);
-  const fitRate = clampShowcaseValue(detectedDuration / availableDuration, 1, 1.12);
-  const sourceDuration = Math.min(detectedDuration, availableDuration * fitRate);
+  const sourceEnd = analysis.active
+    ? Math.max(sourceOffset + 0.04, analysis.activeEnd)
+    : Number(buffer.duration) || 0;
+  const sourceDuration = Math.max(0.04, sourceEnd - sourceOffset);
   let normalizationGain = 1;
   if (analysis.active && analysis.rms > 0.0005) {
     normalizationGain = 0.095 / analysis.rms;
@@ -1054,17 +1093,15 @@ function calibrateShowcaseSegment(segment, buffer) {
 
   Object.assign(segment, {
     audioDuration: Number(buffer.duration) || 0,
-    mixStart,
     sourceOffset,
     sourceDuration,
-    fitRate,
     normalizationGain,
     activeRms: analysis.rms,
     activePeak: analysis.peak,
-    playbackEnd: Math.min(windowEnd, mixStart + sourceDuration / fitRate),
     trimmedLeadingSeconds: sourceOffset,
     trimmedTrailingSeconds: Math.max(0, (Number(buffer.duration) || 0) - sourceOffset - sourceDuration),
   });
+  reflowShowcaseTimeline([segment]);
   return segment;
 }
 
@@ -1149,6 +1186,7 @@ async function ensureShowcaseSegmentAudio(player, segment) {
     const request = loadShowcaseAudio(segment.resultKey).then((buffer) => {
       player.audioBuffers.set(segment.resultKey, buffer);
       calibrateShowcaseSegment(segment, buffer);
+      reflowShowcaseTimeline(player.segments);
       segment.loadError = false;
       segment.retryAudioAt = 0;
       player.audioPromises.delete(segment.resultKey);
@@ -1165,7 +1203,10 @@ async function ensureShowcaseSegmentAudio(player, segment) {
 }
 
 async function prepareShowcaseWindow(player, currentTime, lookAhead = 24) {
-  const upcoming = player.segments.filter((segment) => (segment.playbackEnd || segment.end) >= currentTime - 0.5 && segment.start <= currentTime + lookAhead);
+  const upcoming = player.segments.filter((segment) => (
+    (segment.playbackEnd || segment.end) >= currentTime - 0.5
+    && (segment.mixStart ?? segment.start) <= currentTime + lookAhead
+  ));
   await Promise.allSettled(upcoming.map((segment) => ensureShowcaseSegmentAudio(player, segment)));
 }
 
@@ -1187,7 +1228,7 @@ function scheduleShowcaseSegment(player, segment) {
     const videoTime = player.video.currentTime;
     const playbackEnd = segment.playbackEnd || segment.end;
     const mixStart = segment.mixStart ?? segment.start;
-    const fitRate = clampShowcaseValue(segment.fitRate || 1, 1, 1.12);
+    const fitRate = clampShowcaseValue(segment.fitRate || 1, 1, SHOWCASE_MAX_FIT_RATE);
     const videoPlaybackRate = clampShowcaseValue(player.video.playbackRate || 1, 0.25, 4);
     const timelineOffset = Math.max(0, videoTime - mixStart);
     const sourceStart = Number(segment.sourceOffset) || 0;
@@ -1198,7 +1239,7 @@ function scheduleShowcaseSegment(player, segment) {
       player.finishedSources.set(segment.resultKey, generation);
       return;
     }
-    if (delay > 0.8) return;
+    if (delay > SHOWCASE_SCHEDULE_LOOKAHEAD_SECONDS + 0.5) return;
 
     const context = getShowcaseAudioContext();
     const source = context.createBufferSource();
@@ -1235,6 +1276,11 @@ function scheduleShowcaseSegment(player, segment) {
       }
       try { source.disconnect(); } catch {}
       try { gainNode.disconnect(); } catch {}
+      if (player.video.ended && player.scheduledSources.size === 0) {
+        player.status.textContent = "本次驗收播放完成";
+        player.button.disabled = false;
+        player.button.innerHTML = '<span aria-hidden="true">▶</span><span>重新播放</span>';
+      }
     };
     player.scheduledSources.set(segment.resultKey, entry);
     source.start(startAt, sourceOffset, sourceDuration);
@@ -1252,7 +1298,7 @@ function correctShowcaseDrift(player, videoTime) {
   player.lastDriftCheck = context.currentTime;
   const entry = [...player.scheduledSources.values()].find((candidate) => (
     context.currentTime >= candidate.startAt
-    && videoTime >= candidate.segment.start
+    && videoTime >= (candidate.segment.mixStart ?? candidate.segment.start)
     && videoTime < (candidate.segment.playbackEnd || candidate.segment.end)
   ));
   if (!entry) return;
@@ -1267,7 +1313,10 @@ function syncShowcasePlayer(player) {
   const time = player.video.currentTime;
   const active = activeShowcaseSegments(player, time);
   player.segments
-    .filter((segment) => time < (segment.playbackEnd || segment.end) && segment.start <= time + 0.65)
+    .filter((segment) => (
+      time < (segment.playbackEnd || segment.end)
+      && (segment.mixStart ?? segment.start) <= time + SHOWCASE_SCHEDULE_LOOKAHEAD_SECONDS
+    ))
     .forEach((segment) => scheduleShowcaseSegment(player, segment));
   correctShowcaseDrift(player, time);
   if (active.length) {
@@ -1348,9 +1397,9 @@ async function renderGroupShowcases(showcases, container) {
       const duration = Number(data.duration) || Infinity;
       if (!line) return null;
       const nextCueBoundary = nextLine && nextLine.start >= line.end
-        ? Math.max(line.end, nextLine.start - 0.04)
-        : line.end;
-      const windowEnd = Math.min(duration, Math.max(line.end, Math.min(line.end + 0.35, nextCueBoundary)));
+        ? nextLine.start - SHOWCASE_CLIP_GAP_SECONDS
+        : nextLine ? line.end : duration;
+      const windowEnd = Math.min(duration, Math.max(line.end, nextCueBoundary));
       return {
         ...segment,
         start: line.start,
@@ -1361,6 +1410,7 @@ async function renderGroupShowcases(showcases, container) {
         playbackEnd: windowEnd,
       };
     }).filter(Boolean).sort((left, right) => left.start - right.start);
+    reflowShowcaseTimeline(segments);
     const article = document.createElement("article");
     article.className = `showcase-card${showcase.isOwnGroup ? " is-own-group" : ""}`;
     article.dataset.showcaseId = showcase.showcaseId;
@@ -1421,7 +1471,17 @@ async function renderGroupShowcases(showcases, container) {
       cancelAnimationFrame(player.frame);
       player.frame = requestAnimationFrame(() => syncShowcasePlayer(player));
     });
-    video.addEventListener("pause", () => stopShowcasePlayer(player));
+    video.addEventListener("pause", () => {
+      if (video.ended && player.scheduledSources.size > 0) {
+        cancelAnimationFrame(player.frame);
+        player.frame = 0;
+        player.status.textContent = "影片已到尾端，正在播放完整句尾";
+        player.button.disabled = true;
+        player.button.innerHTML = '<span aria-hidden="true">Ⅱ</span><span>句尾播放中</span>';
+        return;
+      }
+      stopShowcasePlayer(player);
+    });
     video.addEventListener("waiting", () => {
       player.waiting = true;
       stopShowcaseSources(player);
@@ -1452,7 +1512,14 @@ async function renderGroupShowcases(showcases, container) {
         player.frame = requestAnimationFrame(() => syncShowcasePlayer(player));
       }
     });
-    video.addEventListener("ended", () => { status.textContent = "本次驗收播放完成"; });
+    video.addEventListener("ended", () => {
+      if (player.scheduledSources.size > 0) {
+        status.textContent = "影片已到尾端，正在播放完整句尾";
+        button.disabled = true;
+      } else {
+        status.textContent = "本次驗收播放完成";
+      }
+    });
     video.addEventListener("volumechange", () => { video.muted = true; });
     container.append(article);
   }
