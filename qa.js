@@ -54,7 +54,7 @@ function cacheElements() {
     "karaokeOverlay", "karaokeJapanese", "karaokeTranslation", "karaokeGuide", "karaokeGuideLabel", "karaokeGuideBar",
     "startRecording", "stopRecording", "recordingReview", "recordingPlayback", "playSyncedReview", "recognizedText",
     "recognitionStatus", "evaluateRecording", "resetRecording", "resultPanel", "overallScore",
-    "resultMode", "performanceRadar", "scoreRows", "textDiff", "issueList", "searchLines", "roleFilter",
+    "resultMode", "syncWarning", "performanceRadar", "scoreRows", "textDiff", "issueList", "searchLines", "roleFilter",
     "visibleCount", "lineList", "fatalState",
   ].forEach((id) => { elements[id] = document.getElementById(id); });
 }
@@ -1098,6 +1098,11 @@ function resetRecording() {
   elements.evaluateRecording.disabled = true;
   elements.resetRecording.disabled = true;
   elements.resultPanel.hidden = true;
+  if (elements.syncWarning) {
+    elements.syncWarning.hidden = true;
+    elements.syncWarning.className = "sync-warning";
+    elements.syncWarning.replaceChildren();
+  }
   const line = state.data?.lines?.[state.selectedIndex];
   if (line?.isSoundEffect) {
     renderKaraokeOverlay();
@@ -1404,6 +1409,51 @@ function estimatePitch(samples, sampleRate) {
   return bestCorrelation >= 0.28 && bestLag ? sampleRate / bestLag : 0;
 }
 
+function recordingActivityEnvelope(channel, sampleRate) {
+  const duration = channel.length / Math.max(1, sampleRate);
+  const frameSize = Math.max(128, Math.round(sampleRate * 0.02));
+  const frameLevels = [];
+  for (let frameStart = 0; frameStart < channel.length; frameStart += frameSize) {
+    const frameEnd = Math.min(channel.length, frameStart + frameSize);
+    let energy = 0;
+    let sampleCount = 0;
+    for (let sample = frameStart; sample < frameEnd; sample += 2) {
+      const value = Number(channel[sample]) || 0;
+      energy += value * value;
+      sampleCount += 1;
+    }
+    frameLevels.push(sampleCount ? Math.sqrt(energy / sampleCount) : 0);
+  }
+  const smoothed = frameLevels.map((level, index) => (
+    ((frameLevels[index - 1] ?? level) + level + (frameLevels[index + 1] ?? level)) / 3
+  ));
+  const sorted = [...smoothed].sort((left, right) => left - right);
+  const noiseFloor = sorted[Math.floor(sorted.length * 0.2)] || 0;
+  const peakRms = Math.max(0, ...smoothed);
+  const threshold = peakRms < 0.0012
+    ? Number.POSITIVE_INFINITY
+    : Math.min(
+      peakRms * 0.45,
+      Math.max(0.0012, noiseFloor * 2.8, peakRms * 0.08),
+    );
+  const activity = smoothed.map((rms, index) => ({
+    start: index * frameSize / sampleRate,
+    end: Math.min(duration, (index + 1) * frameSize / sampleRate),
+    active: rms >= threshold,
+    rms,
+  }));
+  const activeIndexes = activity
+    .map((frame, index) => frame.active ? index : -1)
+    .filter((index) => index >= 0);
+  return {
+    bufferDuration: duration,
+    activeStartSec: activeIndexes.length ? Math.max(0, activity[activeIndexes[0]].start - 0.035) : null,
+    activeEndSec: activeIndexes.length ? Math.min(duration, activity[activeIndexes.at(-1)].end + 0.16) : null,
+    activeRatio: activity.length ? activeIndexes.length / activity.length : 0,
+    activity,
+  };
+}
+
 async function analyzeRecordingAudio() {
   const fallbackRms = state.waveformSamples ? Math.sqrt(state.waveformSquares / state.waveformSamples) : 0;
   const fallback = {
@@ -1416,6 +1466,7 @@ async function analyzeRecordingAudio() {
     activeEndSec: null,
     activeRatio: 0,
     activity: [],
+    bufferDuration: state.recordingDuration,
   };
   if (!state.recordingBlob || !window.AudioContext) return fallback;
   let context;
@@ -1424,6 +1475,7 @@ async function analyzeRecordingAudio() {
     const bytes = await state.recordingBlob.arrayBuffer();
     const buffer = await context.decodeAudioData(bytes.slice(0));
     const channel = buffer.getChannelData(0);
+    const fullActivity = recordingActivityEnvelope(channel, buffer.sampleRate);
     const line = currentLine();
     const targetSamples = Math.max(512, Math.ceil(Math.max(0.1, line.end - line.start) * buffer.sampleRate));
     const samples = channel.subarray(0, Math.min(channel.length, targetSamples));
@@ -1443,12 +1495,6 @@ async function analyzeRecordingAudio() {
     const peakRms = Math.max(...rmsValues, fallbackRms);
     const threshold = Math.max(0.006, peakRms * 0.16);
     const activeFrameIndexes = frames.map((item, index) => item.rms >= threshold ? index : -1).filter((index) => index >= 0);
-    const activity = frames.map((item) => ({
-      start: item.offset / buffer.sampleRate,
-      end: (item.offset + frameSize) / buffer.sampleRate,
-      active: item.rms >= threshold,
-      rms: item.rms,
-    }));
     const voiceSpanRatio = activeFrameIndexes.length
       ? (activeFrameIndexes.at(-1) - activeFrameIndexes[0] + 1) / frames.length
       : 0;
@@ -1462,10 +1508,12 @@ async function analyzeRecordingAudio() {
       rms: rmsValues.length ? Math.sqrt(rmsValues.reduce((sum, value) => sum + value * value, 0) / rmsValues.length) : fallbackRms,
       voicedRatio: frames.length ? pitches.length / frames.length : 0,
       voiceSpanRatio,
-      activeStartSec: activeFrameIndexes.length ? activity[activeFrameIndexes[0]].start : null,
-      activeEndSec: activeFrameIndexes.length ? activity[activeFrameIndexes.at(-1)].end : null,
+      activeStartSec: fullActivity.activeStartSec,
+      activeEndSec: fullActivity.activeEndSec,
       activeRatio: frames.length ? activeFrameIndexes.length / frames.length : 0,
-      activity,
+      fullActiveRatio: fullActivity.activeRatio,
+      activity: fullActivity.activity,
+      bufferDuration: fullActivity.bufferDuration,
       pitchRange: semitones.length > 2 ? percentile(semitones, 0.9) - percentile(semitones, 0.1) : 0,
       pitchMovement: movements.length ? movements.reduce((sum, value) => sum + value, 0) / movements.length : 0,
     };
@@ -1585,9 +1633,92 @@ function soundTimingMetrics(line, audioFeatures) {
   };
 }
 
-async function localSoundEffectEvaluation() {
+function activeSecondsAfter(activity, startSeconds) {
+  return (Array.isArray(activity) ? activity : []).reduce((total, frame) => {
+    if (!frame.active || Number(frame.end) <= startSeconds) return total;
+    return total + Math.max(0, Number(frame.end) - Math.max(startSeconds, Number(frame.start) || 0));
+  }, 0);
+}
+
+function recordingSyncDiagnostic(line, audioFeatures, soundTiming = null) {
+  const mandatory = [];
+  const review = [];
+  const cue = lineCueBounds(line);
+  const expectedDuration = Math.max(0.1, cue.end - cue.start);
+  const activeStart = audioFeatures?.activeStartSec !== null
+    && audioFeatures?.activeStartSec !== undefined
+    && Number.isFinite(Number(audioFeatures.activeStartSec))
+    ? Number(audioFeatures.activeStartSec)
+    : null;
+  const activeEnd = audioFeatures?.activeEndSec !== null
+    && audioFeatures?.activeEndSec !== undefined
+    && Number.isFinite(Number(audioFeatures.activeEndSec))
+    ? Number(audioFeatures.activeEndSec)
+    : null;
+  let onsetErrorSec = activeStart;
+  let overrunSec = activeEnd === null ? 0 : Math.max(0, activeEnd - expectedDuration);
+
+  if (line.isSoundEffect) {
+    const timing = soundTiming || soundTimingMetrics(line, audioFeatures);
+    onsetErrorSec = Number.isFinite(Number(timing.onsetError)) ? Number(timing.onsetError) : null;
+    overrunSec = 0;
+    if (timing.actualStart === null) {
+      mandatory.push("沒有偵測到可對齊的音效起音");
+    } else if (Math.abs(onsetErrorSec) > 0.8) {
+      mandatory.push(`音效第一拍比提示${onsetErrorSec > 0 ? "晚" : "早"} ${Math.abs(onsetErrorSec).toFixed(2)} 秒`);
+    } else if (Math.abs(onsetErrorSec) > 0.35) {
+      review.push(`音效第一拍比提示${onsetErrorSec > 0 ? "晚" : "早"} ${Math.abs(onsetErrorSec).toFixed(2)} 秒`);
+    }
+    if (timing.isRange && timing.coverageScore < 45) {
+      mandatory.push(`只命中 ${timing.hitBeats} / ${timing.beatCount} 個音效節拍`);
+    } else if (timing.isRange && timing.coverageScore < 65) {
+      review.push(`只命中 ${timing.hitBeats} / ${timing.beatCount} 個音效節拍`);
+    }
+    const reasons = [...new Set(mandatory.length ? mandatory : review)];
+    return {
+      status: mandatory.length ? "rerecord" : review.length ? "review" : "ok",
+      requiresRerecord: mandatory.length > 0,
+      reasons,
+      reason: reasons.join("；"),
+      onsetErrorSec,
+      overrunSec,
+      coverageScore: timing.coverageScore,
+      hitBeats: timing.hitBeats,
+      beatCount: timing.beatCount,
+    };
+  }
+
+  if (activeStart === null || activeEnd === null || Number(audioFeatures?.rms) < 0.003) {
+    mandatory.push("錄音中沒有偵測到足夠的人聲");
+  } else {
+    const lateLimit = Math.max(0.7, Math.min(0.95, expectedDuration * 0.25));
+    const reviewLateLimit = Math.max(0.4, Math.min(0.6, expectedDuration * 0.15));
+    if (activeStart > lateLimit) {
+      mandatory.push(`開口比台詞開始晚 ${activeStart.toFixed(2)} 秒`);
+    } else if (activeStart > reviewLateLimit) {
+      review.push(`開口比台詞開始晚 ${activeStart.toFixed(2)} 秒`);
+    }
+    const sustainedOverrun = activeSecondsAfter(audioFeatures.activity, expectedDuration + 0.65);
+    if (overrunSec > 0.8 && sustainedOverrun >= 0.12) {
+      mandatory.push(`句尾超出原台詞 ${overrunSec.toFixed(2)} 秒，會壓到下一句`);
+    } else if (overrunSec > 0.45 && sustainedOverrun >= 0.08) {
+      review.push(`句尾超出原台詞 ${overrunSec.toFixed(2)} 秒，請確認是否拖拍`);
+    }
+  }
+  const reasons = [...new Set(mandatory.length ? mandatory : review)];
+  return {
+    status: mandatory.length ? "rerecord" : review.length ? "review" : "ok",
+    requiresRerecord: mandatory.length > 0,
+    reasons,
+    reason: reasons.join("；"),
+    onsetErrorSec,
+    overrunSec,
+  };
+}
+
+async function localSoundEffectEvaluation(providedAudioFeatures = null) {
   const line = currentLine();
-  const audioFeatures = await analyzeRecordingAudio();
+  const audioFeatures = providedAudioFeatures || await analyzeRecordingAudio();
   const timing = soundTimingMetrics(line, audioFeatures);
   const rms = Math.max(audioFeatures.rms, state.waveformSamples ? Math.sqrt(state.waveformSquares / state.waveformSamples) : 0);
   const clipping = state.waveformSamples ? state.clippingSamples / state.waveformSamples : 0;
@@ -1642,6 +1773,7 @@ async function localSoundEffectEvaluation() {
     issues,
     diffHtml: escapeHtml(`${line.soundName}｜目標 ${targetLabel}｜${line.soundMethod}`),
     mode: "音效節拍評分",
+    syncDiagnostic: recordingSyncDiagnostic(line, audioFeatures, timing),
   };
 }
 
@@ -1671,12 +1803,12 @@ function missingRecognitionAccuracy(aspects, audioFeatures) {
   ));
 }
 
-async function localEvaluation() {
+async function localEvaluation(providedAudioFeatures = null) {
   const line = currentLine();
-  if (line.isSoundEffect) return localSoundEffectEvaluation();
+  if (line.isSoundEffect) return localSoundEffectEvaluation(providedAudioFeatures);
   const comparison = compareJapaneseTranscript(line, elements.recognizedText.value);
   const { target, actual } = comparison;
-  const audioFeatures = await analyzeRecordingAudio();
+  const audioFeatures = providedAudioFeatures || await analyzeRecordingAudio();
   const rms = Math.max(audioFeatures.rms, state.waveformSamples ? Math.sqrt(state.waveformSquares / state.waveformSamples) : 0);
   const followScore = karaokeFollowScore();
   const voiceSpanScore = rms < 0.008
@@ -1728,6 +1860,7 @@ async function localEvaluation() {
     issues,
     diffHtml: actual ? lcsDiff(target, actual) : escapeHtml(line.japanese),
     mode: actual ? "瀏覽器練習指標" : "瀏覽器練習指標（辨識備援）",
+    syncDiagnostic: recordingSyncDiagnostic(line, { ...audioFeatures, rms }),
   };
 }
 
@@ -1783,6 +1916,22 @@ function renderResult(result) {
     ? safeDiffHtml(result.diffHtml)
     : escapeHtml(elements.recognizedText.value);
   elements.issueList.innerHTML = (result.issues || []).map((issue) => `<li>${escapeHtml(issue)}</li>`).join("");
+  const sync = result.syncDiagnostic;
+  if (elements.syncWarning) {
+    elements.syncWarning.hidden = !sync || sync.status === "ok";
+    elements.syncWarning.className = `sync-warning${sync?.requiresRerecord ? " is-rerecord" : ""}`;
+    if (sync && sync.status !== "ok") {
+      const title = sync.requiresRerecord
+        ? "時間軸未通過，這次錄音不能採用"
+        : "時間軸需要再確認";
+      const instruction = sync.requiresRerecord
+        ? "請依影片與變色字幕重新錄音。"
+        : "仍可保存，但建議先搭配影片回看。";
+      elements.syncWarning.innerHTML = `<strong>${escapeHtml(title)}</strong>${escapeHtml(sync.reason || "錄音與提示時間有差異。")}。${escapeHtml(instruction)}`;
+    } else {
+      elements.syncWarning.replaceChildren();
+    }
+  }
   elements.resultPanel.hidden = false;
   window.drawPracticeRadar?.(elements.performanceRadar, aspects);
   elements.resultPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -1817,15 +1966,21 @@ async function evaluateRecording() {
     }
   }
   let result;
+  const syncFeatures = await analyzeRecordingAudio();
   if (window.QA_CONFIG.evaluationApiUrl) {
     try {
       result = await apiEvaluation();
     } catch {
-      result = await localEvaluation();
+      result = await localEvaluation(syncFeatures);
       result.issues.unshift("API 暫時無法使用，本次改用瀏覽器測試評分。");
     }
   } else {
-    result = await localEvaluation();
+    result = await localEvaluation(syncFeatures);
+  }
+  if (!result.syncDiagnostic) {
+    const line = currentLine();
+    const timing = line.isSoundEffect ? soundTimingMetrics(line, syncFeatures) : null;
+    result.syncDiagnostic = recordingSyncDiagnostic(line, syncFeatures, timing);
   }
   if (aiRecognition?.transcript) {
     result.mode = "AI 精準辨識＋聲學評分";

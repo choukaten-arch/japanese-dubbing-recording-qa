@@ -576,6 +576,26 @@ rt { color: #7a4c12; font-size: 0.52em; font-weight: 600; }
 
 .result-panel { padding: 18px 16px 20px; border-top: 4px solid var(--blue); background: linear-gradient(180deg, #fff, #fbfdff); }
 
+.sync-warning {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #e3c46c;
+  border-left: 5px solid #c58a22;
+  border-radius: 6px;
+  background: #fff7df;
+  color: #654b19;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.6;
+}
+.sync-warning.is-rerecord {
+  border-color: #e49a9f;
+  border-left-color: #c9424d;
+  background: #fff0f1;
+  color: #7b252d;
+}
+.sync-warning strong { display: block; margin-bottom: 2px; font-size: 16px; }
+
 .result-summary {
   display: flex;
   align-items: center;

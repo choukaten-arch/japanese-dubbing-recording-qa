@@ -966,7 +966,7 @@ function analyzeShowcaseBuffer(buffer) {
   const channelCount = Math.max(0, Math.min(2, Number(buffer?.numberOfChannels) || 0));
   const duration = Number(buffer?.duration) || (sampleRate ? length / sampleRate : 0);
   if (!sampleRate || !length || !channelCount || typeof buffer.getChannelData !== "function") {
-    return { active: false, activeStart: 0, activeEnd: duration, rms: 0, peak: 0, noiseFloor: 0 };
+    return { active: false, activeStart: 0, activeEnd: duration, rms: 0, peak: 0, noiseFloor: 0, activity: [] };
   }
 
   const channels = Array.from({ length: channelCount }, (_, index) => buffer.getChannelData(index));
@@ -993,7 +993,7 @@ function analyzeShowcaseBuffer(buffer) {
   const noiseFloor = sortedLevels[Math.floor(sortedLevels.length * 0.2)] || 0;
   const loudestFrame = Math.max(0, ...smoothedLevels);
   if (loudestFrame < 0.0012) {
-    return { active: false, activeStart: 0, activeEnd: duration, rms: 0, peak: 0, noiseFloor };
+    return { active: false, activeStart: 0, activeEnd: duration, rms: 0, peak: 0, noiseFloor, activity: [] };
   }
 
   const threshold = Math.min(
@@ -1009,7 +1009,7 @@ function analyzeShowcaseBuffer(buffer) {
     }
   }
   if (firstActiveFrame < 0 || lastActiveFrame < firstActiveFrame) {
-    return { active: false, activeStart: 0, activeEnd: duration, rms: 0, peak: 0, noiseFloor };
+    return { active: false, activeStart: 0, activeEnd: duration, rms: 0, peak: 0, noiseFloor, activity: [] };
   }
 
   const activeStart = Math.max(0, firstActiveFrame * frameSize / sampleRate - 0.035);
@@ -1034,13 +1034,94 @@ function analyzeShowcaseBuffer(buffer) {
     rms: sampleCount ? Math.sqrt(energy / sampleCount) : 0,
     peak,
     noiseFloor,
+    activity: smoothedLevels.map((rms, index) => ({
+      start: index * frameSize / sampleRate,
+      end: Math.min(duration, (index + 1) * frameSize / sampleRate),
+      active: rms >= threshold,
+    })),
   };
+}
+
+function showcaseActiveSecondsAfter(activity, startSeconds) {
+  return (Array.isArray(activity) ? activity : []).reduce((total, frame) => {
+    if (!frame.active || Number(frame.end) <= startSeconds) return total;
+    return total + Math.max(0, Number(frame.end) - Math.max(startSeconds, Number(frame.start) || 0));
+  }, 0);
+}
+
+function diagnoseShowcaseSegment(segment, analysis) {
+  const mandatory = [];
+  const review = [];
+  if (segment.syncStatus === "rerecord" || segment.requiresRerecord) {
+    mandatory.push(segment.syncReason || "先前的時間軸評分未通過");
+  } else if (segment.syncStatus === "review" && segment.syncReason) {
+    review.push(segment.syncReason);
+  }
+  const expectedDuration = Math.max(0.1, Number(segment.expectedDuration) || Number(segment.cueEnd) - Number(segment.start));
+  let onsetErrorSec = null;
+  let overrunSec = 0;
+  if (!analysis.active) {
+    mandatory.push(segment.isSoundEffect ? "錄音中沒有偵測到音效" : "錄音中沒有偵測到足夠的人聲");
+  } else if (segment.isSoundEffect) {
+    const expectedOnset = Math.max(0, Number(segment.expectedOnset) || 0);
+    onsetErrorSec = analysis.activeStart - expectedOnset;
+    if (Math.abs(onsetErrorSec) > 0.8) {
+      mandatory.push(`音效第一拍比提示${onsetErrorSec > 0 ? "晚" : "早"} ${Math.abs(onsetErrorSec).toFixed(2)} 秒`);
+    } else if (Math.abs(onsetErrorSec) > 0.35) {
+      review.push(`音效第一拍比提示${onsetErrorSec > 0 ? "晚" : "早"} ${Math.abs(onsetErrorSec).toFixed(2)} 秒`);
+    }
+    const events = Array.isArray(segment.expectedEvents) ? segment.expectedEvents : [];
+    if (events.length) {
+      const hitCount = events.filter((event) => analysis.activity.some((frame) => (
+        frame.active && Number(frame.end) >= event.start && Number(frame.start) <= event.end
+      ))).length;
+      const coverage = Math.round(hitCount / events.length * 100);
+      if (coverage < 45) mandatory.push(`只命中 ${hitCount} / ${events.length} 個音效事件`);
+      else if (coverage < 65) review.push(`只命中 ${hitCount} / ${events.length} 個音效事件`);
+    }
+  } else {
+    onsetErrorSec = analysis.activeStart;
+    overrunSec = Math.max(0, analysis.activeEnd - expectedDuration);
+    const lateLimit = Math.max(0.7, Math.min(0.95, expectedDuration * 0.25));
+    const reviewLateLimit = Math.max(0.4, Math.min(0.6, expectedDuration * 0.15));
+    if (analysis.activeStart > lateLimit) {
+      mandatory.push(`開口比台詞開始晚 ${analysis.activeStart.toFixed(2)} 秒`);
+    } else if (analysis.activeStart > reviewLateLimit) {
+      review.push(`開口比台詞開始晚 ${analysis.activeStart.toFixed(2)} 秒`);
+    }
+    const sustainedOverrun = showcaseActiveSecondsAfter(analysis.activity, expectedDuration + 0.65);
+    if (overrunSec > 0.8 && sustainedOverrun >= 0.12) {
+      mandatory.push(`句尾超出原台詞 ${overrunSec.toFixed(2)} 秒，會壓到下一句`);
+    } else if (overrunSec > 0.45 && sustainedOverrun >= 0.08) {
+      review.push(`句尾超出原台詞 ${overrunSec.toFixed(2)} 秒，請複核`);
+    }
+  }
+  const reasons = [...new Set(mandatory.length ? mandatory : review)];
+  Object.assign(segment, {
+    syncStatus: mandatory.length ? "rerecord" : review.length ? "review" : "ok",
+    syncReason: reasons.join("；"),
+    requiresRerecord: mandatory.length > 0,
+    syncOnsetErrorSec: onsetErrorSec,
+    syncOverrunSec: overrunSec,
+  });
+  return segment;
 }
 
 function reflowShowcaseTimeline(segments) {
   let previousVoicePlaybackEnd = Number.NEGATIVE_INFINITY;
   segments.forEach((segment) => {
     const baseStart = Number(segment.start) || 0;
+    if (segment.requiresRerecord) {
+      Object.assign(segment, {
+        mixStart: baseStart,
+        fitRate: 1,
+        playbackEnd: baseStart,
+        timelineDelay: 0,
+        extendedPastCueSeconds: 0,
+        activeSpeechTrimmedSeconds: 0,
+      });
+      return;
+    }
     const cueEnd = Math.max(baseStart + 0.08, Number(segment.cueEnd) || Number(segment.end) || baseStart + 0.08);
     const hasDecodedAudio = Number.isFinite(Number(segment.sourceDuration))
       && Number(segment.sourceDuration) > 0;
@@ -1096,6 +1177,7 @@ function calibrateShowcaseSegment(segment, buffer) {
     trimmedLeadingSeconds: 0,
     trimmedTrailingSeconds: Math.max(0, (Number(buffer.duration) || 0) - sourceOffset - sourceDuration),
   });
+  diagnoseShowcaseSegment(segment, analysis);
   reflowShowcaseTimeline([segment]);
   return segment;
 }
@@ -1182,6 +1264,7 @@ async function ensureShowcaseSegmentAudio(player, segment) {
       player.audioBuffers.set(segment.resultKey, buffer);
       calibrateShowcaseSegment(segment, buffer);
       reflowShowcaseTimeline(player.segments);
+      renderShowcaseSyncAlert(player);
       segment.loadError = false;
       segment.retryAudioAt = 0;
       player.audioPromises.delete(segment.resultKey);
@@ -1199,6 +1282,8 @@ async function ensureShowcaseSegmentAudio(player, segment) {
 
 async function prepareShowcaseWindow(player, currentTime, lookAhead = 24) {
   const upcoming = player.segments.filter((segment) => (
+    !segment.requiresRerecord
+    &&
     (segment.playbackEnd || segment.end) >= currentTime - 0.5
     && (segment.mixStart ?? segment.start) <= currentTime + lookAhead
   ));
@@ -1207,13 +1292,16 @@ async function prepareShowcaseWindow(player, currentTime, lookAhead = 24) {
 
 function activeShowcaseSegments(player, time) {
   return player.segments.filter((segment) => (
+    !segment.requiresRerecord
+    &&
     time >= (segment.mixStart ?? segment.start) - 0.08
     && time < (segment.playbackEnd || segment.end)
   ));
 }
 
 function scheduleShowcaseSegment(player, segment) {
-  if (player.scheduledSources.has(segment.resultKey)
+  if (segment.requiresRerecord
+      || player.scheduledSources.has(segment.resultKey)
       || player.schedulePromises.has(segment.resultKey)
       || player.finishedSources.get(segment.resultKey) === player.playbackGeneration
       || Number(segment.retryAudioAt) > Date.now()) return;
@@ -1369,6 +1457,27 @@ function showcaseMemberList(showcase) {
   });
 }
 
+function renderShowcaseSyncAlert(player) {
+  if (!player?.alert) return;
+  const mandatory = player.segments.filter((segment) => segment.requiresRerecord);
+  const review = player.segments.filter((segment) => !segment.requiresRerecord && segment.syncStatus === "review");
+  const flagged = mandatory.length ? mandatory : review;
+  player.alert.hidden = flagged.length === 0;
+  if (!flagged.length) {
+    player.alert.replaceChildren();
+    return;
+  }
+  const heading = mandatory.length
+    ? `${mandatory.length} 段時間軸未通過，已暫停加入合成`
+    : `${review.length} 段時間軸建議複核`;
+  const items = flagged.map((segment) => {
+    const student = segment.studentName ? `${segment.studentName} · ` : "";
+    return `<li><strong>${escapePortalHtml(student)}${escapePortalHtml(segment.role)} · 第 ${segment.lineIndex} 段</strong><span>${escapePortalHtml(segment.syncReason || "錄音與影片時間軸有差異")}</span></li>`;
+  }).join("");
+  player.alert.className = `showcase-sync-alert${mandatory.length ? " is-rerecord" : ""}`;
+  player.alert.innerHTML = `<div><strong>${escapePortalHtml(heading)}</strong><span>${mandatory.length ? "請由負責同學重新錄音；修正後會自動回到合成影片。" : "目前仍可播放，建議老師搭配原片確認。"}</span></div><ul>${items}</ul>`;
+}
+
 async function renderGroupShowcases(showcases, container) {
   clearShowcasePlayers();
   container.replaceChildren();
@@ -1393,6 +1502,10 @@ async function renderGroupShowcases(showcases, container) {
         ? nextLine.start - SHOWCASE_CLIP_GAP_SECONDS
         : nextLine ? line.end : duration;
       const windowEnd = Math.min(duration, Math.max(line.end, nextCueBoundary));
+      const expectedEvents = (Array.isArray(line.soundEvents) ? line.soundEvents : []).map((event) => ({
+        start: Math.max(0, Number(event.start) - Number(line.start)),
+        end: Math.max(0.1, Number(event.end) - Number(line.start)),
+      }));
       return {
         ...segment,
         start: line.start,
@@ -1402,6 +1515,11 @@ async function renderGroupShowcases(showcases, container) {
         end: windowEnd,
         playbackEnd: windowEnd,
         isSoundEffect: Boolean(line.isSoundEffect),
+        expectedDuration: Math.max(0.1, Number(line.end) - Number(line.start)),
+        expectedOnset: expectedEvents.length
+          ? expectedEvents[0].start
+          : Math.max(0, Number(line.cueStart ?? line.start) - Number(line.start)),
+        expectedEvents,
       };
     }).filter(Boolean).sort((left, right) => left.start - right.start);
     reflowShowcaseTimeline(segments);
@@ -1413,12 +1531,13 @@ async function renderGroupShowcases(showcases, container) {
         <div><span>${escapePortalHtml(showcase.groupName)}${showcase.isOwnGroup ? '<b class="own-group-label">我的組別</b>' : ""}</span><h3>${escapePortalHtml(showcase.workTitle)}</h3></div>
         <strong>${masteryText(showcase.completionRate)}</strong>
       </header>
+      <div class="showcase-sync-alert" role="alert" hidden></div>
       <div class="showcase-video-shell">
         <video muted playsinline preload="metadata" poster="${escapePortalHtml(posterUrl(showcase.workSlug))}"></video>
         <div class="showcase-now" role="status">${segments.length ? "準備播放" : "尚無錄音片段"}</div>
       </div>
       <div class="showcase-controls">
-        <button class="primary-button showcase-play-button" type="button" data-showcase-id="${escapePortalHtml(showcase.showcaseId)}" ${segments.length ? "" : "disabled"}><span aria-hidden="true">▶</span><span>播放合成</span></button>
+        <button class="primary-button showcase-play-button" type="button" data-showcase-id="${escapePortalHtml(showcase.showcaseId)}" ${segments.some((segment) => !segment.requiresRerecord) ? "" : "disabled"}><span aria-hidden="true">▶</span><span>播放合成</span></button>
         <span>${showcase.recordedSegments} / ${showcase.totalSegments} 段</span>
       </div>
       <div class="progress-track" aria-label="小組完成度 ${masteryText(showcase.completionRate)}"><span style="width:${Math.max(0, Math.min(100, Number(showcase.completionRate) || 0))}%"></span></div>
@@ -1426,6 +1545,7 @@ async function renderGroupShowcases(showcases, container) {
     const video = article.querySelector("video");
     const button = article.querySelector(".showcase-play-button");
     const status = article.querySelector(".showcase-now");
+    const alert = article.querySelector(".showcase-sync-alert");
     video.src = new URL(data.video, window.QA_CONFIG.productionSiteBase).href;
     video.muted = true;
     video.defaultPlaybackRate = 1;
@@ -1438,6 +1558,7 @@ async function renderGroupShowcases(showcases, container) {
       video,
       button,
       status,
+      alert,
       frame: 0,
       preparing: false,
       prefetchAt: 0,
@@ -1453,6 +1574,7 @@ async function renderGroupShowcases(showcases, container) {
       outputCompressor: null,
     };
     portalState.showcasePlayers.set(showcase.showcaseId, player);
+    renderShowcaseSyncAlert(player);
     button.addEventListener("click", () => toggleShowcasePlayback(showcase.showcaseId));
     video.addEventListener("play", () => {
       video.muted = true;
@@ -1634,6 +1756,7 @@ function renderStudentTasks(tasks) {
   tasks.forEach((task) => {
     const masteryGoal = task.goalMode === "mastery_target";
     const complete = masteryGoal ? Boolean(task.achieved) : task.completed >= task.requiredCount;
+    const rerecordCount = Object.values(task.lineResults || {}).filter((result) => result.requiresRerecord).length;
     const article = document.createElement("article");
     article.className = "task-item";
     const demoParam = portalState.demo ? "&demo=1" : "";
@@ -1654,18 +1777,20 @@ function renderStudentTasks(tasks) {
       actionLabel = complete ? "繼續精進" : "前往練習";
       actionHint = linkedTask ? `從 ${linkedTask.role} 開始` : "請先設定角色";
     } else {
-      const firstIncomplete = task.lineIndices.find((index) => !task.lineResults?.[index]?.achieved) || task.lineIndices[0];
+      const firstIncomplete = task.lineIndices.find((index) => task.lineResults?.[index]?.requiresRerecord)
+        || task.lineIndices.find((index) => !task.lineResults?.[index]?.achieved)
+        || task.lineIndices[0];
       href = `index.html?work=${encodeURIComponent(task.workSlug)}&assignment=${encodeURIComponent(task.assignmentId)}${demoParam}#line-${firstIncomplete}`;
       const scoreGoal = task.targetScore == null ? "完成指定句" : `每句至少 ${task.targetScore} 分`;
-      detail = `${task.workTitle} · ${task.role} · ${scoreGoal} · 截止 ${displayDate(task.dueDate)}`;
+      detail = `${task.workTitle} · ${task.role} · ${scoreGoal} · 截止 ${displayDate(task.dueDate)}${rerecordCount ? ` · ${rerecordCount} 句需重新錄音` : ""}`;
       progressLabel = `${task.completed} / ${task.requiredCount} 句達標`;
-      actionLabel = complete ? "再次練習" : task.completed ? "繼續練習" : "開始練習";
-      actionHint = complete ? "可重錄更新最後版本" : `尚餘 ${task.requiredCount - task.completed} 句`;
+      actionLabel = rerecordCount ? "前往重錄" : complete ? "再次練習" : task.completed ? "繼續練習" : "開始練習";
+      actionHint = rerecordCount ? "時間軸未通過" : complete ? "可重錄更新最後版本" : `尚餘 ${task.requiredCount - task.completed} 句`;
     }
     article.innerHTML = `
       <img class="task-poster" src="${escapePortalHtml(posterUrl(task.workSlug || portalState.session.account.profile?.workSlug))}" alt="${escapePortalHtml(task.workTitle || portalState.session.account.profile?.workTitle || "配音作品")}">
       <div class="task-content">
-        <div class="task-topline"><strong>${escapePortalHtml(task.title)}</strong><span class="task-role">${masteryGoal ? "整體完成度" : escapePortalHtml(task.role)}</span>${task.overdue && !complete ? '<span class="status-badge is-overdue">已到期</span>' : complete ? '<span class="status-badge">已達標</span>' : ""}</div>
+        <div class="task-topline"><strong>${escapePortalHtml(task.title)}</strong><span class="task-role">${masteryGoal ? "整體完成度" : escapePortalHtml(task.role)}</span>${rerecordCount ? `<span class="status-badge is-overdue">${rerecordCount} 句需重錄</span>` : task.overdue && !complete ? '<span class="status-badge is-overdue">已到期</span>' : complete ? '<span class="status-badge">已達標</span>' : ""}</div>
         <p>${escapePortalHtml(detail)}</p>
         <div class="progress-track" aria-label="完成率 ${task.completionRate}%"><span style="width:${Math.max(0, Math.min(100, task.completionRate))}%"></span></div>
         <div class="task-progress-label">${escapePortalHtml(progressLabel)}</div>
@@ -1679,6 +1804,8 @@ function renderStudentTasks(tasks) {
 }
 
 function nextPracticeLine(task) {
+  const rerecord = task.lineIndices.find((index) => task.lineResults?.[index]?.requiresRerecord);
+  if (rerecord) return rerecord;
   const unpracticed = task.lineIndices.find((index) => !task.lineResults?.[index]);
   if (unpracticed) return unpracticed;
   return task.lineIndices.slice().sort((left, right) => Number(task.lineResults?.[left]?.score || 0) - Number(task.lineResults?.[right]?.score || 0))[0]
@@ -1691,15 +1818,16 @@ function renderSelfPractice(practices) {
   portalElements.selfPracticeList.replaceChildren();
   practices.forEach((task) => {
     const next = nextPracticeLine(task);
+    const rerecordCount = Object.values(task.lineResults || {}).filter((result) => result.requiresRerecord).length;
     const demoParam = portalState.demo ? "&demo=1" : "";
     const article = document.createElement("article");
     article.className = "self-practice-item";
     article.innerHTML = `<div class="self-practice-copy">
       <h3>${escapePortalHtml(task.role)}</h3>
-      <p>${task.completed} / ${task.requiredCount} 句已練 · 熟練度 ${masteryText(task.masteryPercent)}</p>
+      <p>${task.completed} / ${task.requiredCount} 句已練 · 熟練度 ${masteryText(task.masteryPercent)}${rerecordCount ? ` · ${rerecordCount} 句需重新錄音` : ""}</p>
       <div class="progress-track" aria-label="熟練度 ${masteryText(task.masteryPercent)}"><span style="width:${Math.max(0, Math.min(100, Number(task.masteryPercent) || 0))}%"></span></div>
     </div>
-    <div class="self-practice-action"><a href="index.html?work=${encodeURIComponent(task.workSlug)}&practice=1&role=${encodeURIComponent(task.role)}${demoParam}#line-${next}">${task.completed ? "繼續練習" : "開始練習"}</a><span>第 ${next} 句</span></div>`;
+    <div class="self-practice-action"><a href="index.html?work=${encodeURIComponent(task.workSlug)}&practice=1&role=${encodeURIComponent(task.role)}${demoParam}#line-${next}">${rerecordCount ? "前往重錄" : task.completed ? "繼續練習" : "開始練習"}</a><span>第 ${next} 句${rerecordCount ? " · 時間軸未通過" : ""}</span></div>`;
     article.querySelector("a").addEventListener("click", () => {
       localStorage.setItem(platformConfig.taskKey, JSON.stringify(task));
     });
@@ -2059,9 +2187,14 @@ function renderStudentHistory(data) {
     const visible = attempts.slice(-10);
     const prefix = attempts.length > visible.length ? '<span>…</span>' : "";
     const growthClass = line.growthPoints > 0 ? "growth-positive" : line.growthPoints < 0 ? "growth-negative" : "";
+    const syncLabel = line.requiresRerecord
+      ? `<span class="history-sync-status is-rerecord">需重錄：${escapePortalHtml(line.syncReason || "時間軸未通過")}</span>`
+      : line.syncStatus === "review"
+        ? `<span class="history-sync-status">待複核：${escapePortalHtml(line.syncReason || "時間軸分數偏低")}</span>`
+        : "";
     return `<tr>
       <td>${escapePortalHtml(line.workTitle)}<br>${escapePortalHtml(line.role)}</td>
-      <td class="history-line-text"><strong>第 ${line.lineIndex} 句</strong><br><span lang="ja">${escapePortalHtml(line.targetText || "—")}</span></td>
+      <td class="history-line-text"><strong>第 ${line.lineIndex} 句</strong><br><span lang="ja">${escapePortalHtml(line.targetText || "—")}</span>${syncLabel}</td>
       <td><div class="score-trail">${prefix}${visible.map((attempt) => `<span title="${escapePortalHtml(displayDateTime(attempt.submittedAt))}">${attempt.score}</span>`).join("")}</div></td>
       <td>${attempts.length || 0}</td>
       <td>${escapePortalHtml(displayDuration(line.totalDurationSec))}</td>
@@ -2259,7 +2392,11 @@ function selectStudentReviewClip(index) {
   portalElements.clipReviewIntonation.textContent = Number.isFinite(Number(aspects.intonation)) ? Math.round(Number(aspects.intonation)) : "—";
   portalElements.clipReviewSpeed.textContent = Number.isFinite(Number(aspects.speed)) ? Math.round(Number(aspects.speed)) : "—";
   portalElements.clipReviewVolume.textContent = Number.isFinite(Number(aspects.volume)) ? Math.round(Number(aspects.volume)) : "—";
-  portalElements.clipReviewStatus.textContent = `最後更新 ${displayDateTime(clip.latestUpdatedAt)} · 可播放學生錄音或原片`;
+  portalElements.clipReviewStatus.textContent = clip.requiresRerecord
+    ? `需重新錄音：${clip.syncReason || "錄音與影片時間軸差異過大"}`
+    : clip.syncStatus === "review"
+      ? `時間軸待複核：${clip.syncReason || "建議搭配原片確認"}`
+      : `最後更新 ${displayDateTime(clip.latestUpdatedAt)} · 可播放學生錄音或原片`;
   updateStudentReviewButtons();
 }
 
@@ -2275,11 +2412,11 @@ async function renderStudentReview(data) {
   portalElements.clipReviewContent.hidden = clips.length === 0;
   portalElements.clipReviewEmpty.hidden = clips.length > 0;
   portalElements.clipReviewList.innerHTML = clips.map((clip, index) => `<li>
-    <button class="clip-review-item" type="button" data-review-index="${index}">
+    <button class="clip-review-item${clip.requiresRerecord ? " requires-rerecord" : clip.syncStatus === "review" ? " needs-review" : ""}" type="button" data-review-index="${index}">
       <span class="clip-review-item__meta">${escapePortalHtml(clip.workTitle)} · ${escapePortalHtml(clip.role)} · 第 ${clip.lineIndex} 句</span>
       <strong class="clip-review-item__score">${Math.round(Number(clip.latestScore) || 0)}</strong>
       <span class="clip-review-item__text" lang="ja">${escapePortalHtml(clip.targetText || clip.line.japanese || "—")}</span>
-      <span class="clip-review-item__time">${escapePortalHtml(displayDateTime(clip.latestUpdatedAt))}</span>
+      <span class="clip-review-item__time">${clip.requiresRerecord ? "需重新錄音" : clip.syncStatus === "review" ? "時間軸待複核" : escapePortalHtml(displayDateTime(clip.latestUpdatedAt))}</span>
     </button>
   </li>`).join("");
   if (clips.length) selectStudentReviewClip(0);

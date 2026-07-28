@@ -22,10 +22,12 @@ const HISTORY_HEADERS = Object.freeze([
   "overall_score", "text_accuracy", "accent_score", "intonation_score", "speed_score", "volume_score",
   "timing_score", "audio_quality", "attempt_number",
   "recording_duration_sec", "audio_url", "submitted_at", "selected_as_current",
+  "sync_status", "sync_reason", "sync_onset_error_sec", "sync_overrun_sec",
 ]);
 
 const RESULT_SCORE_HEADERS = Object.freeze([
   "total_recording_duration_sec", "accent_score", "intonation_score", "speed_score", "volume_score",
+  "sync_status", "sync_reason", "sync_onset_error_sec", "sync_overrun_sec",
 ]);
 
 const ASSIGNMENT_GOAL_HEADERS = Object.freeze(["goal_mode", "target_percent", "target_score"]);
@@ -444,14 +446,19 @@ function studentTasks_(token) {
         .forEach((row) => {
           const index = Number(row.line_index);
           if (!lineIndices.includes(index)) return;
+          const sync = syncRequirementFromRow_(row);
           lineResults[index] = {
             resultKey: String(row.result_key || ""),
             score: clampScore_(row.overall_score),
             textAccuracy: clampScore_(row.text_accuracy),
             attempts: Math.max(1, Number(row.attempt_count) || 1),
             updatedAt: isoValue_(row.updated_at || row.submitted_at),
-            achieved: targetScore === null || clampScore_(row.overall_score) >= targetScore,
+            achieved: !sync.requiresRerecord
+              && (targetScore === null || clampScore_(row.overall_score) >= targetScore),
             aspects: scoreAspectsFromRow_(row),
+            syncStatus: sync.syncStatus,
+            syncReason: sync.syncReason,
+            requiresRerecord: sync.requiresRerecord,
           };
         });
       const completed = Object.values(lineResults).filter((result) => result.achieved).length;
@@ -614,6 +621,52 @@ function shouldAdoptAttempt_(payload, existing) {
   return !existing || payload.replaceCurrent !== false;
 }
 
+function isSoundEffectResult_(row) {
+  return Number(row && row.line_index) >= SOUND_EFFECT_LINE_BASE
+    || String(row && row.role || "").indexOf("音效＿") === 0;
+}
+
+function syncRequirementFromRow_(row) {
+  const storedStatus = String(row && row.sync_status || "").trim().toLowerCase();
+  const speedScore = scoreValueFromRow_(row, "speed_score", "timing_score");
+  let status = ["ok", "review", "rerecord"].includes(storedStatus) ? storedStatus : "";
+  let reason = cleanText_(row && row.sync_reason, 500);
+  if (isSoundEffectResult_(row) && speedScore !== null && speedScore < 50) {
+    status = "rerecord";
+    if (!reason) reason = `音效節拍分數只有 ${speedScore} 分，與提示時間差異過大`;
+  } else if (!status && speedScore !== null && speedScore < 60) {
+    status = "review";
+    if (!reason) reason = `時間軸分數 ${speedScore} 分，建議搭配原片複核`;
+  }
+  if (!status) status = "ok";
+  const onsetValue = row && row.sync_onset_error_sec;
+  const overrunValue = row && row.sync_overrun_sec;
+  const onset = onsetValue === "" || onsetValue === null || onsetValue === undefined ? Number.NaN : Number(onsetValue);
+  const overrun = overrunValue === "" || overrunValue === null || overrunValue === undefined ? Number.NaN : Number(overrunValue);
+  return {
+    syncStatus: status,
+    syncReason: reason,
+    requiresRerecord: status === "rerecord",
+    syncOnsetErrorSec: Number.isFinite(onset) ? roundOne_(onset) : null,
+    syncOverrunSec: Number.isFinite(overrun) ? roundOne_(overrun) : null,
+  };
+}
+
+function syncDiagnosticFromPayload_(payload, context, lineIndex, speedScore) {
+  const diagnostic = payload && typeof payload.syncDiagnostic === "object"
+    ? payload.syncDiagnostic
+    : {};
+  return syncRequirementFromRow_({
+    role: context.role,
+    line_index: lineIndex,
+    speed_score: speedScore,
+    sync_status: diagnostic.requiresRerecord ? "rerecord" : diagnostic.status,
+    sync_reason: diagnostic.reason,
+    sync_onset_error_sec: diagnostic.onsetErrorSec,
+    sync_overrun_sec: diagnostic.overrunSec,
+  });
+}
+
 function saveAttemptRecord_(payload, identity, student, context) {
   const assignmentId = context.assignmentId;
   const lineIndex = Math.floor(Number(payload.lineIndex));
@@ -621,6 +674,7 @@ function saveAttemptRecord_(payload, identity, student, context) {
   const speedScore = clampScore_(scores.speed === undefined ? scores.timing : scores.speed);
   const volumeScore = clampScore_(scores.volume === undefined ? scores.audioQuality : scores.volume);
   const recordingDuration = Math.max(0, Math.min(120, Number(payload.recordingDuration) || 0));
+  const sync = syncDiagnosticFromPayload_(payload, context, lineIndex, speedScore);
   const now = new Date();
 
   const spreadsheet = spreadsheet_();
@@ -638,6 +692,9 @@ function saveAttemptRecord_(payload, identity, student, context) {
       ? Math.max(0, Number(existing.total_recording_duration_sec) || Number(existing.recording_duration_sec) || 0)
       : 0;
     const adopted = shouldAdoptAttempt_(payload, existing);
+    if (adopted && sync.requiresRerecord) {
+      fail_("SYNC_RERECORD_REQUIRED", `${sync.syncReason || "錄音與影片時間軸差異過大"}；請重新錄音後再保存。`);
+    }
     const savedAudio = adopted ? saveLatestAudio_({
       assignmentId,
       studentId: identity.sub,
@@ -671,6 +728,10 @@ function saveAttemptRecord_(payload, identity, student, context) {
       total_recording_duration_sec: previousDuration + recordingDuration,
       audio_file_id: savedAudio ? savedAudio.fileId : "",
       audio_url: savedAudio ? savedAudio.url : "",
+      sync_status: sync.syncStatus,
+      sync_reason: sync.syncReason,
+      sync_onset_error_sec: sync.syncOnsetErrorSec === null ? "" : sync.syncOnsetErrorSec,
+      sync_overrun_sec: sync.syncOverrunSec === null ? "" : sync.syncOverrunSec,
       submitted_at: existing ? existing.submitted_at || now : now,
       updated_at: now,
     };
@@ -710,10 +771,15 @@ function saveAttemptRecord_(payload, identity, student, context) {
       audio_url: savedAudio ? savedAudio.url : "",
       submitted_at: now,
       selected_as_current: adopted,
+      sync_status: sync.syncStatus,
+      sync_reason: sync.syncReason,
+      sync_onset_error_sec: sync.syncOnsetErrorSec === null ? "" : sync.syncOnsetErrorSec,
+      sync_overrun_sec: sync.syncOverrunSec === null ? "" : sync.syncOverrunSec,
     });
     return {
       adopted,
       audioUrl: adopted ? savedAudio.url : String(existing.audio_url || ""),
+      sync,
     };
   } finally {
     lock.releaseLock();
@@ -775,17 +841,27 @@ function groupShowcases_(token) {
       .reduce((all, row) => all.concat(parseLineIndices_(row.line_indices)), []))]
       .sort((left, right) => left - right);
     const segments = Object.values(bucket.segmentsByLine)
-      .map((row) => ({
-        resultKey: String(row.result_key || ""),
-        lineIndex: Number(row.line_index),
-        role: String(row.role || ""),
-        score: clampScore_(row.overall_score),
-        recordingDuration: Math.max(0, Number(row.recording_duration_sec) || 0),
-        updatedAt: isoValue_(row.updated_at || row.submitted_at),
-        studentName: isTeacher || bucket.groupName === viewerGroupName ? String(row.student_name || "") : "",
-      }))
+      .map((row) => {
+        const sync = syncRequirementFromRow_(row);
+        return {
+          resultKey: String(row.result_key || ""),
+          lineIndex: Number(row.line_index),
+          role: String(row.role || ""),
+          score: clampScore_(row.overall_score),
+          timingScore: scoreValueFromRow_(row, "speed_score", "timing_score") || 0,
+          recordingDuration: Math.max(0, Number(row.recording_duration_sec) || 0),
+          updatedAt: isoValue_(row.updated_at || row.submitted_at),
+          studentName: isTeacher || bucket.groupName === viewerGroupName ? String(row.student_name || "") : "",
+          syncStatus: sync.syncStatus,
+          syncReason: sync.syncReason,
+          requiresRerecord: sync.requiresRerecord,
+          syncOnsetErrorSec: sync.syncOnsetErrorSec,
+          syncOverrunSec: sync.syncOverrunSec,
+        };
+      })
       .filter((segment) => segment.resultKey)
       .sort((left, right) => left.lineIndex - right.lineIndex);
+    const validSegmentCount = segments.filter((segment) => !segment.requiresRerecord).length;
     const canSeeMemberScores = isTeacher || bucket.groupName === viewerGroupName;
     const memberRows = bucket.members.map((studentId) => progressByStudent[studentId]).filter(Boolean);
     return {
@@ -794,9 +870,9 @@ function groupShowcases_(token) {
       workSlug: bucket.workSlug,
       workTitle: bucket.workTitle,
       memberCount: memberRows.length,
-      recordedSegments: segments.length,
+      recordedSegments: validSegmentCount,
       totalSegments: lineIndices.length,
-      completionRate: lineIndices.length ? Math.round(segments.length / lineIndices.length * 100) : 0,
+      completionRate: lineIndices.length ? Math.round(validSegmentCount / lineIndices.length * 100) : 0,
       averageMastery: memberRows.length ? roundOne_(average_(memberRows.map((row) => row.masteryPercent))) : 0,
       isOwnGroup: Boolean(!isTeacher && bucket.groupName === viewerGroupName),
       canSeeMembers: true,
@@ -899,7 +975,8 @@ function teacherOverview_(token) {
       && eligibleIds.has(normalizeStudentId_(row.student_id)));
     const scores = matching.map((row) => Number(row.overall_score)).filter(Number.isFinite);
     const targetScore = clampOptionalScore_(assignment.target_score);
-    const achievedResults = matching.filter((row) => targetScore === null || clampScore_(row.overall_score) >= targetScore);
+    const achievedResults = matching.filter((row) => !syncRequirementFromRow_(row).requiresRerecord
+      && (targetScore === null || clampScore_(row.overall_score) >= targetScore));
     const expected = eligible.length * lines.length;
     return {
       assignmentId: String(assignment.assignment_id),
@@ -928,20 +1005,26 @@ function teacherOverview_(token) {
     .slice()
     .sort((left, right) => isoValue_(right.updated_at).localeCompare(isoValue_(left.updated_at)))
     .slice(0, 100)
-    .map((row) => ({
-      assignmentId: String(row.assignment_id),
-      studentId: String(row.student_id),
-      studentName: String(row.student_name),
-      className: String(row.class),
-      workTitle: String(row.work_title),
-      role: String(row.role),
-      lineIndex: Number(row.line_index),
-      score: clampScore_(row.overall_score),
-      aspects: scoreAspectsFromRow_(row),
-      attempts: Number(row.attempt_count) || 1,
-      audioUrl: String(row.audio_url || ""),
-      updatedAt: isoValue_(row.updated_at || row.submitted_at),
-    }));
+    .map((row) => {
+      const sync = syncRequirementFromRow_(row);
+      return {
+        assignmentId: String(row.assignment_id),
+        studentId: String(row.student_id),
+        studentName: String(row.student_name),
+        className: String(row.class),
+        workTitle: String(row.work_title),
+        role: String(row.role),
+        lineIndex: Number(row.line_index),
+        score: clampScore_(row.overall_score),
+        aspects: scoreAspectsFromRow_(row),
+        attempts: Number(row.attempt_count) || 1,
+        audioUrl: String(row.audio_url || ""),
+        updatedAt: isoValue_(row.updated_at || row.submitted_at),
+        syncStatus: sync.syncStatus,
+        syncReason: sync.syncReason,
+        requiresRerecord: sync.requiresRerecord,
+      };
+    });
   const studentProgressRows = buildClassProgress_(activeStudents, results, catalogs).map((progress) => {
     const source = activeStudents.find((row) => normalizeStudentId_(row.student_id) === progress.studentId);
     return Object.assign(progress, { lastLoginAt: isoValue_(source && source.last_login_at) });
@@ -983,6 +1066,7 @@ function studentHistory_(token, studentIdInput) {
   const lineGroups = {};
   history.forEach((row) => {
     const key = `${row.work_slug}|${row.role}|${Number(row.line_index)}`;
+    const sync = syncRequirementFromRow_(row);
     if (!lineGroups[key]) {
       lineGroups[key] = {
         workSlug: String(row.work_slug || ""),
@@ -1003,6 +1087,9 @@ function studentHistory_(token, studentIdInput) {
       selectedAsCurrent: row.selected_as_current === "" || row.selected_as_current === undefined
         ? null
         : isTrue_(row.selected_as_current),
+      syncStatus: sync.syncStatus,
+      syncReason: sync.syncReason,
+      requiresRerecord: sync.requiresRerecord,
     });
   });
 
@@ -1037,6 +1124,7 @@ function studentHistory_(token, studentIdInput) {
   const lines = Object.entries(lineGroups).map(([key, line]) => {
     const scores = line.attempts.map((attempt) => attempt.score);
     const latest = latestResults[key];
+    const latestSync = latest ? syncRequirementFromRow_(latest) : null;
     return Object.assign(line, {
       latestScore: latest ? clampScore_(latest.overall_score) : (scores.length ? scores[scores.length - 1] : 0),
       bestScore: scores.length ? Math.max.apply(null, scores) : 0,
@@ -1049,6 +1137,9 @@ function studentHistory_(token, studentIdInput) {
         : 0,
       latestAspects: latest ? scoreAspectsFromRow_(latest) : {},
       latestUpdatedAt: latest ? isoValue_(latest.updated_at || latest.submitted_at) : "",
+      syncStatus: latestSync ? latestSync.syncStatus : "ok",
+      syncReason: latestSync ? latestSync.syncReason : "",
+      requiresRerecord: Boolean(latestSync && latestSync.requiresRerecord),
     });
   }).sort((left, right) => left.workTitle.localeCompare(right.workTitle)
     || left.role.localeCompare(right.role)
@@ -2146,6 +2237,7 @@ function buildSelfPractice_(student, studentResults, catalogs) {
     const lineResults = {};
     Object.keys(latestByLine).forEach((lineIndex) => {
       const row = latestByLine[lineIndex];
+      const sync = syncRequirementFromRow_(row);
       lineResults[lineIndex] = {
         resultKey: String(row.result_key || ""),
         score: clampScore_(row.overall_score),
@@ -2153,12 +2245,16 @@ function buildSelfPractice_(student, studentResults, catalogs) {
         attempts: matching.filter((item) => Number(item.line_index) === Number(lineIndex))
           .reduce((sum, item) => sum + Math.max(1, Number(item.attempt_count) || 1), 0),
         updatedAt: isoValue_(row.updated_at || row.submitted_at),
-        achieved: true,
+        achieved: !sync.requiresRerecord,
         aspects: scoreAspectsFromRow_(row),
+        syncStatus: sync.syncStatus,
+        syncReason: sync.syncReason,
+        requiresRerecord: sync.requiresRerecord,
       };
     });
     const latestRows = Object.values(latestByLine);
-    const scoreTotal = latestRows.reduce((sum, row) => sum + clampScore_(row.overall_score), 0);
+    const validRows = latestRows.filter((row) => !syncRequirementFromRow_(row).requiresRerecord);
+    const scoreTotal = validRows.reduce((sum, row) => sum + clampScore_(row.overall_score), 0);
     return {
       assignmentId: selfPracticeId_(profile.workSlug, role),
       title: `${role}自主練習`,
@@ -2169,10 +2265,10 @@ function buildSelfPractice_(student, studentResults, catalogs) {
       role,
       lineIndices,
       requiredCount: lineIndices.length,
-      completed: latestRows.length,
-      completionRate: lineIndices.length ? Math.round((latestRows.length / lineIndices.length) * 100) : 0,
+      completed: validRows.length,
+      completionRate: lineIndices.length ? Math.round((validRows.length / lineIndices.length) * 100) : 0,
       masteryPercent: lineIndices.length ? roundOne_(scoreTotal / lineIndices.length) : 0,
-      aspectAverages: aspectAveragesFromRows_(latestRows),
+      aspectAverages: aspectAveragesFromRows_(validRows),
       lineResults,
     };
   }).filter(Boolean);
@@ -2208,15 +2304,16 @@ function studentProgress_(student, allResults, catalogs) {
     }
   });
   const latestRows = Object.values(latestByLine);
-  const scoreTotal = latestRows.reduce((sum, row) => sum + clampScore_(row.overall_score), 0);
+  const validRows = latestRows.filter((row) => !syncRequirementFromRow_(row).requiresRerecord);
+  const scoreTotal = validRows.reduce((sum, row) => sum + clampScore_(row.overall_score), 0);
   return {
     masteryPercent: totalLines ? roundOne_(scoreTotal / totalLines) : 0,
-    practicedLines: latestRows.length,
+    practicedLines: validRows.length,
     totalLines,
     totalAttempts: matching.reduce((sum, row) => sum + Math.max(1, Number(row.attempt_count) || 1), 0),
     totalDurationSec: roundOne_(matching.reduce((sum, row) => sum
       + Math.max(0, Number(row.total_recording_duration_sec) || Number(row.recording_duration_sec) || 0), 0)),
-    aspectAverages: aspectAveragesFromRows_(latestRows),
+    aspectAverages: aspectAveragesFromRows_(validRows),
   };
 }
 

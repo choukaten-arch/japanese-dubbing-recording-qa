@@ -268,6 +268,7 @@ function insertAssignmentBar() {
 function bridgeLineAchieved(lineIndex) {
   const result = bridgeState.task.lineResults?.[lineIndex];
   if (!result) return false;
+  if (result.requiresRerecord) return false;
   if (bridgeState.task.selfPractice) return true;
   if (result.achieved !== undefined) return Boolean(result.achieved);
   return bridgeState.task.targetScore == null || Number(result.score) >= Number(bridgeState.task.targetScore);
@@ -291,7 +292,8 @@ function applyBridgeScope() {
   renderBridgeProgress();
 
   const hashLine = Number(location.hash.match(/^#line-(\d+)$/)?.[1]);
-  const firstIncomplete = bridgeState.task.lineIndices.find((index) => !bridgeLineAchieved(index));
+  const firstIncomplete = bridgeState.task.lineIndices.find((index) => bridgeState.task.lineResults?.[index]?.requiresRerecord)
+    || bridgeState.task.lineIndices.find((index) => !bridgeLineAchieved(index));
   const selected = bridgeState.task.lineIndices.includes(hashLine) ? hashLine : firstIncomplete || bridgeState.task.lineIndices[0];
   const index = lineListIndex(selected);
   if (index >= 0) selectLine(index, true);
@@ -302,6 +304,7 @@ function updateBridgeLineButton(button, lineIndex) {
   const achieved = bridgeLineAchieved(lineIndex);
   button.classList.toggle("is-completed", achieved);
   button.classList.toggle("has-attempt", Boolean(result) && !achieved);
+  button.classList.toggle("requires-rerecord", Boolean(result?.requiresRerecord));
   let score = button.querySelector(".completed-score");
   if (!result) {
     score?.remove();
@@ -312,7 +315,9 @@ function updateBridgeLineButton(button, lineIndex) {
     score.className = "completed-score";
     button.querySelector(".script-line__content")?.append(score);
   }
-  score.textContent = achieved || bridgeState.task.selfPractice
+  score.textContent = result.requiresRerecord
+    ? `需重新錄音｜${result.syncReason || "時間軸未通過"}`
+    : achieved || bridgeState.task.selfPractice
     ? `已保存 ${Math.round(result.score)} 分`
     : `${Math.round(result.score)} 分｜目標 ${bridgeState.task.targetScore} 分`;
 }
@@ -458,6 +463,8 @@ async function showAttemptComparison(detail, currentResult) {
   const requestId = ++bridgeState.comparisonRequest;
   const currentScores = scoreSnapshotFromCurrent(currentResult);
   const candidateScores = scoreSnapshotFromDetail(detail);
+  const blockedCandidate = Boolean(detail.result?.syncDiagnostic?.requiresRerecord);
+  const syncReason = detail.result?.syncDiagnostic?.reason || "錄音與影片時間軸差異過大";
   bridgeState.pendingDecision = { detail, currentResult, requestId };
   const metrics = [
     ["總分", "overall"],
@@ -471,8 +478,9 @@ async function showAttemptComparison(detail, currentResult) {
   panel.innerHTML = `
     <header class="recording-decision-heading">
       <span>錄音版本比較</span>
-      <h3 id="recordingDecisionTitle">要更換目前採用的錄音嗎？</h3>
+      <h3 id="recordingDecisionTitle">${blockedCandidate ? "這次錄音需要重錄" : "要更換目前採用的錄音嗎？"}</h3>
     </header>
+    ${blockedCandidate ? `<div class="recording-sync-block"><strong>不能採用這次錄音</strong><span>${escapeBridgeHtml(syncReason)}。請保留目前版本並重新錄音。</span></div>` : ""}
     <div class="recording-version-audio">
       <section>
         <strong>目前採用</strong>
@@ -495,10 +503,10 @@ async function showAttemptComparison(detail, currentResult) {
         }).join("")}</tbody>
       </table>
     </div>
-    <p class="recording-decision-note">不論是否更換，本次分數與練習時間都會記入歷史紀錄。</p>
+    <p class="recording-decision-note">${blockedCandidate ? "本次分數與練習時間仍可記入歷史，但錄音不會覆蓋目前版本。" : "不論是否更換，本次分數與練習時間都會記入歷史紀錄。"}</p>
     <div class="recording-decision-actions">
       <button class="recording-choice-button is-keep" id="keepCurrentRecording" type="button" disabled>保留目前錄音</button>
-      <button class="recording-choice-button is-replace" id="replaceCurrentRecording" type="button" disabled>使用這次錄音</button>
+      <button class="recording-choice-button is-replace" id="replaceCurrentRecording" type="button" disabled>${blockedCandidate ? "時間軸未通過" : "使用這次錄音"}</button>
     </div>`;
   panel.hidden = false;
   const candidateUrl = URL.createObjectURL(detail.recordingBlob);
@@ -515,7 +523,10 @@ async function showAttemptComparison(detail, currentResult) {
   };
   keepButton.addEventListener("click", () => choose(false));
   replaceButton.addEventListener("click", () => choose(true));
-  renderSyncStatus("compare", "請先播放兩個版本、比較成績，再決定是否更換目前錄音");
+  renderSyncStatus(
+    blockedCandidate ? "error" : "compare",
+    blockedCandidate ? `${syncReason}；請重新錄音` : "請先播放兩個版本、比較成績，再決定是否更換目前錄音",
+  );
 
   try {
     const response = await bridgeRequest("studentReviewClip", {
@@ -534,7 +545,7 @@ async function showAttemptComparison(detail, currentResult) {
   } finally {
     if (bridgeState.pendingDecision?.requestId !== requestId) return;
     keepButton.disabled = false;
-    replaceButton.disabled = false;
+    replaceButton.disabled = blockedCandidate;
     panel.querySelectorAll("audio").forEach((audio) => {
       audio.addEventListener("play", () => {
         panel.querySelectorAll("audio").forEach((other) => {
@@ -552,6 +563,13 @@ function nextIncompleteLine() {
 
 async function submitBridgeAttempt(detail, replaceCurrent = true) {
   if (bridgeState.syncing) return;
+  if (replaceCurrent && detail.result?.syncDiagnostic?.requiresRerecord) {
+    renderSyncStatus("error", `${detail.result.syncDiagnostic.reason || "錄音與影片時間軸差異過大"}；這次錄音不能採用，請重新錄音`, {
+      label: "重新錄音",
+      handler: () => resetRecording(),
+    });
+    return;
+  }
   bridgeState.syncing = true;
   bridgeState.lastAttempt = { detail, replaceCurrent };
   renderSyncStatus(
@@ -578,6 +596,7 @@ async function submitBridgeAttempt(detail, replaceCurrent = true) {
         volume: result.aspects?.volume ?? result.scores?.["音量"] ?? result.scores?.["錄音品質"] ?? 0,
       },
       recordingDuration: detail.recordingDuration,
+      syncDiagnostic: detail.result?.syncDiagnostic || null,
       replaceCurrent,
       mimeType: replaceCurrent ? detail.recordingBlob.type || "audio/webm" : "",
       audioBase64,
@@ -665,7 +684,15 @@ if (bridgeParams.get("public") !== "1") {
   document.addEventListener("qa:evaluated", (event) => {
     if (!bridgeState.task || bridgeState.stored?.account?.type !== "student") return;
     const currentResult = bridgeState.task.lineResults?.[event.detail.line.index];
-    if (currentResult) showAttemptComparison(event.detail, currentResult);
-    else submitBridgeAttempt(event.detail, true);
+    if (currentResult) {
+      showAttemptComparison(event.detail, currentResult);
+    } else if (event.detail.result?.syncDiagnostic?.requiresRerecord) {
+      renderSyncStatus("error", `${event.detail.result.syncDiagnostic.reason || "錄音與影片時間軸差異過大"}；請重新錄音後再保存`, {
+        label: "重新錄音",
+        handler: () => resetRecording(),
+      });
+    } else {
+      submitBridgeAttempt(event.detail, true);
+    }
   });
 }

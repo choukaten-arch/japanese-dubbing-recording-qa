@@ -178,7 +178,14 @@ try {
       numberOfChannels: 1,
       getChannelData: () => samples,
     };
-    const segment = { start: 10, cueEnd: 11.6, end: 11.6, windowEnd: 11.6, isSoundEffect: false };
+    const segment = {
+      start: 10,
+      cueEnd: 12.4,
+      end: 12.4,
+      windowEnd: 12.4,
+      expectedDuration: 2.4,
+      isSoundEffect: false,
+    };
     const analysis = analyzeShowcaseBuffer(buffer);
     calibrateShowcaseSegment(segment, buffer);
     const soundEffectSegment = {
@@ -190,10 +197,10 @@ try {
       isSoundEffect: true,
     };
     const nextSegment = {
-      start: 11.6,
-      cueEnd: 12.4,
-      end: 12.4,
-      windowEnd: 12.4,
+      start: 12.4,
+      cueEnd: 13.2,
+      end: 13.2,
+      windowEnd: 13.2,
       sourceDuration: 0.8,
       isSoundEffect: false,
     };
@@ -218,9 +225,9 @@ try {
   assert(syntheticCalibration.sourceOffset === 0, "合成音訊移除了開頭時間，會讓台詞或音效提早");
   assert(syntheticCalibration.trimmedTrailingSeconds > 1, "合成音訊未去除錄音尾端緩衝空白");
   assert(syntheticCalibration.sourceDuration > 2.4 && syntheticCalibration.activeSpeechTrimmedSeconds === 0, "較慢錄音的有效語音仍被裁短");
-  assert(syntheticCalibration.playbackEnd > 11.6 && syntheticCalibration.fitRate === 1, "超時句尾沒有以原始速度完整播放");
+  assert(syntheticCalibration.playbackEnd > 12.4 && syntheticCalibration.fitRate === 1, "有效句尾沒有以原始速度完整播放");
   assert(Math.abs(syntheticCalibration.soundEffectMixStart - syntheticCalibration.soundEffectCueStart) < 0.001, "音效沒有固定在原片拍點");
-  assert(syntheticCalibration.noOverlap && syntheticCalibration.nextMixStart > 11.6, "下一句沒有等前一句完整結束後再接續");
+  assert(syntheticCalibration.noOverlap && syntheticCalibration.nextMixStart > 12.4, "下一句沒有等前一句完整結束後再接續");
   const showcaseResync = await page.evaluate(async () => {
     const player = [...portalState.showcasePlayers.values()].find((item) => item.showcase.isOwnGroup);
     const generation = player.playbackGeneration;
@@ -693,6 +700,26 @@ try {
       sparse: soundTimingMetrics(range, { activeStartSec: 0, activity: sparseActivity }),
       explicitPartial: soundTimingMetrics(explicit, { activeStartSec: 1, activity: activity(1) }),
       silent: soundTimingMetrics(point, { activeStartSec: null, activity: [] }),
+      dialogueOk: recordingSyncDiagnostic(
+        { start: 10, end: 12 },
+        { rms: 0.08, activeStartSec: 0.2, activeEndSec: 1.9, activity: activity(0.2, 1.7) },
+      ),
+      dialogueLate: recordingSyncDiagnostic(
+        { start: 10, end: 12 },
+        { rms: 0.08, activeStartSec: 1, activeEndSec: 2.1, activity: activity(1, 1.1) },
+      ),
+      dialogueOverrun: recordingSyncDiagnostic(
+        { start: 10, end: 12 },
+        { rms: 0.08, activeStartSec: 0.15, activeEndSec: 3, activity: activity(0.15, 2.85) },
+      ),
+      soundMissed: recordingSyncDiagnostic(
+        {
+          ...explicit,
+          isSoundEffect: true,
+          soundEvents: [...explicit.soundEvents, { word: "コツ", sound: "敲擊", start: 49, end: 49.5 }],
+        },
+        { rms: 0.08, activeStartSec: 1, activeEndSec: 1.3, activity: activity(1) },
+      ),
     };
   });
   assert(soundTimingChecks.exact.onsetScore >= 98, "準時音效未取得高分");
@@ -701,6 +728,10 @@ try {
   assert(soundTimingChecks.explicitPartial.coverageScore === 50, "逐事件音效沒有分別計算命中率");
   assert(soundTimingChecks.explicitPartial.eventResults[1].hit === false, "未完成的第二個音效事件沒有被標記為漏拍");
   assert(soundTimingChecks.silent.onsetScore === 0, "未錄到音效時不應取得出聲時機分數");
+  assert(soundTimingChecks.dialogueOk.status === "ok", "正常時間軸被誤判為需重錄");
+  assert(soundTimingChecks.dialogueLate.requiresRerecord && soundTimingChecks.dialogueLate.reason.includes("晚"), "明顯晚開口沒有要求重錄並說明原因");
+  assert(soundTimingChecks.dialogueOverrun.requiresRerecord && soundTimingChecks.dialogueOverrun.reason.includes("句尾"), "壓到下一句的錄音沒有要求重錄");
+  assert(soundTimingChecks.soundMissed.requiresRerecord && soundTimingChecks.soundMissed.reason.includes("命中"), "嚴重漏拍的音效沒有要求重錄");
   await mobilePage.locator("#startRecording").click();
   await mobilePage.waitForFunction(() => document.body.classList.contains("is-recording"));
   assert(await mobilePage.locator(".sound-demo-button").first().evaluate((button) => getComputedStyle(button).pointerEvents === "none"), "錄音期間仍可播放示範音，可能被收進錄音");
