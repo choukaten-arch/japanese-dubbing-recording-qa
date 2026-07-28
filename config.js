@@ -1,3 +1,12 @@
+const FIREBASE_SITE_ORIGIN = "https://sggs-japanese-dubbing.web.app";
+const LEGACY_GITHUB_SITE_PREFIX = "/japanese-dubbing-recording-qa";
+
+if (location.hostname === "choukaten-arch.github.io"
+    && location.pathname.startsWith(LEGACY_GITHUB_SITE_PREFIX)) {
+  const migratedPath = location.pathname.slice(LEGACY_GITHUB_SITE_PREFIX.length) || "/";
+  location.replace(`${FIREBASE_SITE_ORIGIN}${migratedPath}${location.search}${location.hash}`);
+}
+
 const QA_WORKS = Object.freeze([
   { slug: "kiki", title: "魔女宅急便", navTitle: "魔女宅急便", lineCount: 59 },
   { slug: "ponyo", title: "崖上的波妞", navTitle: "崖上的波妞", lineCount: 77 },
@@ -148,10 +157,15 @@ if (!isPortalPage && !allowPublicQa && !hasValidPlatformSession()) {
 const requestedWork = new URLSearchParams(location.search).get("work");
 const activeWork = QA_WORKS.find((work) => work.slug === requestedWork) || QA_WORKS[0];
 const nativeReplaceState = history.replaceState.bind(history);
+const firebaseMediaHost = location.hostname === "sggs-japanese-dubbing.web.app"
+  || location.hostname === "sggs-japanese-dubbing.firebaseapp.com";
+const productionSiteBase = firebaseMediaHost
+  ? `${location.origin}/`
+  : "https://choukaten-arch.github.io/japanese-dubbing-practice/";
 
 window.QA_CONFIG = Object.freeze({
   evaluationApiUrl: "",
-  productionSiteBase: "https://choukaten-arch.github.io/japanese-dubbing-practice/",
+  productionSiteBase,
   dataFile: `data/${activeWork.slug}.json?v=${QA_RELEASE}`,
   activeWork,
   works: QA_WORKS,

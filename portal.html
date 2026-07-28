@@ -6,6 +6,13 @@
   <meta name="robots" content="noindex,nofollow,noarchive,nosnippet,noimageindex">
   <meta name="description" content="日語配音每日作業、逐句錄音與老師進度管理平台">
   <title>配音作業平台｜日語配音練習站</title>
+  <script>
+    if (location.hostname === "choukaten-arch.github.io") {
+      const prefix = "/japanese-dubbing-recording-qa";
+      const path = location.pathname.startsWith(prefix) ? location.pathname.slice(prefix.length) : "/portal.html";
+      location.replace(`https://sggs-japanese-dubbing.web.app${path || "/portal.html"}${location.search}${location.hash}`);
+    }
+  </script>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="portal.css?v=20260728.2">
   <script src="config.js?v=20260728.2"></script>
@@ -57,11 +64,11 @@
       </div>
 
       <div class="poster-board" aria-label="本期五部配音作品">
-        <figure><img src="https://choukaten-arch.github.io/japanese-dubbing-practice/assets/kiki.jpg" alt="魔女宅急便"><figcaption>魔女宅急便</figcaption></figure>
-        <figure><img src="https://choukaten-arch.github.io/japanese-dubbing-practice/assets/ponyo.jpg" alt="崖上的波妞"><figcaption>崖上的波妞</figcaption></figure>
-        <figure><img src="https://choukaten-arch.github.io/japanese-dubbing-practice/assets/maruko.jpg" alt="櫻桃小丸子"><figcaption>櫻桃小丸子</figcaption></figure>
-        <figure><img src="https://choukaten-arch.github.io/japanese-dubbing-practice/assets/spirited-away.jpg" alt="神隱少女"><figcaption>神隱少女</figcaption></figure>
-        <figure><img src="https://choukaten-arch.github.io/japanese-dubbing-practice/assets/totoro.jpg" alt="龍貓"><figcaption>龍貓</figcaption></figure>
+        <figure><img src="assets/kiki.jpg" alt="魔女宅急便"><figcaption>魔女宅急便</figcaption></figure>
+        <figure><img src="assets/ponyo.jpg" alt="崖上的波妞"><figcaption>崖上的波妞</figcaption></figure>
+        <figure><img src="assets/maruko.jpg" alt="櫻桃小丸子"><figcaption>櫻桃小丸子</figcaption></figure>
+        <figure><img src="assets/spirited-away.jpg" alt="神隱少女"><figcaption>神隱少女</figcaption></figure>
+        <figure><img src="assets/totoro.jpg" alt="龍貓"><figcaption>龍貓</figcaption></figure>
       </div>
     </section>
 
