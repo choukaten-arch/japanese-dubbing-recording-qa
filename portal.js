@@ -6,6 +6,25 @@ const platformConfig = window.PLATFORM_CONFIG || {
 
 const SHOWCASE_CLIP_GAP_SECONDS = 0.04;
 const SHOWCASE_SCHEDULE_LOOKAHEAD_SECONDS = 8;
+const SHOWCASE_PREFETCH_LOOKAHEAD_SECONDS = 12;
+const RECORDING_AUDIO_CONCURRENCY = 3;
+const PLATFORM_RETRYABLE_ACTIONS = new Set([
+  "studentLogin",
+  "teacherLogin",
+  "studentTasks",
+  "groupShowcases",
+  "groupShowcaseClip",
+  "studentReviewClip",
+  "teacherOverview",
+  "studentHistory",
+]);
+const PLATFORM_AUDIO_ACTIONS = new Set(["groupShowcaseClip", "studentReviewClip"]);
+const PLATFORM_RETRYABLE_ERROR_CODES = new Set([
+  "SERVER_ERROR",
+  "SERVICE_UNAVAILABLE",
+  "UPSTREAM_UNAVAILABLE",
+  "UPSTREAM_INVALID_RESPONSE",
+]);
 
 const portalState = {
   session: null,
@@ -18,6 +37,8 @@ const portalState = {
   showcasePlayers: new Map(),
   showcaseAudioCache: new Map(),
   showcaseAudioContext: null,
+  recordingAudioQueue: [],
+  recordingAudioActive: 0,
   studentReviewAudioCache: new Map(),
   studentReview: {
     data: null,
@@ -248,22 +269,16 @@ function showToast(message) {
 async function platformRequest(action, payload = {}) {
   if (portalState.demo) return mockRequest(action, payload);
   if (!platformConfig.apiUrl) throw new Error("雲端後端尚未連結。");
-  const retryableActions = new Set([
-    "studentLogin",
-    "teacherLogin",
-    "studentTasks",
-    "groupShowcases",
-    "groupShowcaseClip",
-    "studentReviewClip",
-    "teacherOverview",
-    "studentHistory",
-  ]);
-  const attemptCount = retryableActions.has(action) ? 3 : 1;
+  const attemptCount = PLATFORM_AUDIO_ACTIONS.has(action)
+    ? 4
+    : PLATFORM_RETRYABLE_ACTIONS.has(action) ? 3 : 1;
   let lastError;
 
   for (let attempt = 0; attempt < attemptCount; attempt += 1) {
     if (attempt > 0) {
-      await new Promise((resolve) => setTimeout(resolve, attempt * 900));
+      const backoff = 700 * (2 ** (attempt - 1));
+      const jitter = Math.floor(Math.random() * 350);
+      await new Promise((resolve) => setTimeout(resolve, backoff + jitter));
     }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 60000);
@@ -288,12 +303,13 @@ async function platformRequest(action, payload = {}) {
       if (!data.ok) {
         const error = new Error(data.error?.message || "雲端服務暫時無法處理。");
         error.code = data.error?.code;
+        error.retryable = PLATFORM_RETRYABLE_ERROR_CODES.has(error.code);
         throw error;
       }
       return data;
     } catch (error) {
       const isTimeout = error.name === "AbortError";
-      const canRetry = retryableActions.has(action)
+      const canRetry = PLATFORM_RETRYABLE_ACTIONS.has(action)
         && (isTimeout || error.retryable || error.name === "TypeError");
       lastError = isTimeout
         ? new Error("雲端服務回應逾時，請稍後再試。")
@@ -305,6 +321,30 @@ async function platformRequest(action, payload = {}) {
   }
 
   throw lastError || new Error("雲端服務暫時無法處理。");
+}
+
+function drainRecordingAudioQueue() {
+  while (portalState.recordingAudioActive < RECORDING_AUDIO_CONCURRENCY
+      && portalState.recordingAudioQueue.length) {
+    const entry = portalState.recordingAudioQueue.shift();
+    portalState.recordingAudioActive += 1;
+    Promise.resolve()
+      .then(entry.task)
+      .then(entry.resolve, entry.reject)
+      .finally(() => {
+        portalState.recordingAudioActive -= 1;
+        drainRecordingAudioQueue();
+      });
+  }
+}
+
+function queueRecordingAudioRequest(task, { priority = false } = {}) {
+  return new Promise((resolve, reject) => {
+    const entry = { task, resolve, reject };
+    if (priority) portalState.recordingAudioQueue.unshift(entry);
+    else portalState.recordingAudioQueue.push(entry);
+    drainRecordingAudioQueue();
+  });
 }
 
 function demoStore() {
@@ -1273,10 +1313,10 @@ function clearShowcasePlayers() {
 
 async function loadShowcaseAudio(resultKey) {
   if (portalState.showcaseAudioCache.has(resultKey)) return portalState.showcaseAudioCache.get(resultKey);
-  const request = platformRequest("groupShowcaseClip", {
+  const request = queueRecordingAudioRequest(() => platformRequest("groupShowcaseClip", {
     token: portalState.session.session.token,
     resultKey,
-  }).then(async (response) => {
+  })).then(async (response) => {
     const context = getShowcaseAudioContext();
     const blob = audioBlobFromBase64(response.audioBase64, response.mimeType);
     const buffer = await context.decodeAudioData(await blob.arrayBuffer());
@@ -1314,7 +1354,7 @@ async function ensureShowcaseSegmentAudio(player, segment) {
   return player.audioPromises.get(segment.resultKey);
 }
 
-async function prepareShowcaseWindow(player, currentTime, lookAhead = 24) {
+async function prepareShowcaseWindow(player, currentTime, lookAhead = SHOWCASE_PREFETCH_LOOKAHEAD_SECONDS) {
   const upcoming = player.segments.filter((segment) => (
     !segment.requiresRerecord
     &&
@@ -1468,7 +1508,8 @@ async function toggleShowcasePlayback(showcaseId) {
     const context = getShowcaseAudioContext();
     ensureShowcaseOutput(player);
     const resume = context.resume();
-    await Promise.all([resume, prepareShowcaseWindow(player, player.video.currentTime)]);
+    await Promise.all([resume, prepareShowcaseWindow(player, player.video.currentTime, 4)]);
+    prepareShowcaseWindow(player, player.video.currentTime).catch(() => {});
     if (context.state !== "running") throw new Error("請再按一次播放以啟用聲音。");
     player.video.muted = true;
     await player.video.play();
@@ -2299,11 +2340,11 @@ async function loadStudentReviewAudio(clip) {
   while (portalState.studentReviewAudioCache.size >= 12) {
     portalState.studentReviewAudioCache.delete(portalState.studentReviewAudioCache.keys().next().value);
   }
-  const request = platformRequest("studentReviewClip", {
+  const request = queueRecordingAudioRequest(() => platformRequest("studentReviewClip", {
     token: portalState.session.session.token,
     studentId: clip.studentId,
     resultKey: clip.resultKey,
-  }).then(async (response) => {
+  }), { priority: true }).then(async (response) => {
     const context = getShowcaseAudioContext();
     const blob = audioBlobFromBase64(response.audioBase64, response.mimeType);
     const buffer = await context.decodeAudioData(await blob.arrayBuffer());
