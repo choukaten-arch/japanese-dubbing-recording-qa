@@ -5,7 +5,6 @@ const platformConfig = window.PLATFORM_CONFIG || {
 };
 
 const SHOWCASE_CLIP_GAP_SECONDS = 0.04;
-const SHOWCASE_MAX_FIT_RATE = 1.12;
 const SHOWCASE_SCHEDULE_LOOKAHEAD_SECONDS = 8;
 
 const portalState = {
@@ -1039,7 +1038,7 @@ function analyzeShowcaseBuffer(buffer) {
 }
 
 function reflowShowcaseTimeline(segments) {
-  let previousPlaybackEnd = Number.NEGATIVE_INFINITY;
+  let previousVoicePlaybackEnd = Number.NEGATIVE_INFINITY;
   segments.forEach((segment) => {
     const baseStart = Number(segment.start) || 0;
     const cueEnd = Math.max(baseStart + 0.08, Number(segment.cueEnd) || Number(segment.end) || baseStart + 0.08);
@@ -1048,40 +1047,35 @@ function reflowShowcaseTimeline(segments) {
     const sourceDuration = hasDecodedAudio
       ? Number(segment.sourceDuration)
       : Math.max(0.08, cueEnd - baseStart);
-    const mixStart = Math.max(
-      baseStart,
-      Number.isFinite(previousPlaybackEnd)
-        ? previousPlaybackEnd + SHOWCASE_CLIP_GAP_SECONDS
-        : baseStart,
-    );
-    const requestedWindowEnd = Number(segment.windowEnd);
-    const softWindowEnd = Number.isFinite(requestedWindowEnd)
-      ? Math.max(mixStart + 0.08, requestedWindowEnd)
-      : Math.max(mixStart + 0.08, cueEnd);
-    const availableDuration = Math.max(0.08, softWindowEnd - mixStart);
-    const fitRate = hasDecodedAudio
-      ? clampShowcaseValue(sourceDuration / availableDuration, 1, SHOWCASE_MAX_FIT_RATE)
-      : 1;
-    const playbackEnd = mixStart + sourceDuration / fitRate;
+    const isSoundEffect = Boolean(segment.isSoundEffect);
+    const mixStart = isSoundEffect
+      ? baseStart
+      : Math.max(
+        baseStart,
+        Number.isFinite(previousVoicePlaybackEnd)
+          ? previousVoicePlaybackEnd + SHOWCASE_CLIP_GAP_SECONDS
+          : baseStart,
+      );
+    const playbackEnd = mixStart + sourceDuration;
 
     Object.assign(segment, {
       mixStart,
-      fitRate,
+      fitRate: 1,
       playbackEnd,
       timelineDelay: Math.max(0, mixStart - baseStart),
       extendedPastCueSeconds: Math.max(0, playbackEnd - cueEnd),
       activeSpeechTrimmedSeconds: 0,
     });
-    previousPlaybackEnd = playbackEnd;
+    if (!isSoundEffect) previousVoicePlaybackEnd = playbackEnd;
   });
   return segments;
 }
 
 function calibrateShowcaseSegment(segment, buffer) {
   const analysis = analyzeShowcaseBuffer(buffer);
-  const sourceOffset = analysis.active ? analysis.activeStart : 0;
+  const sourceOffset = 0;
   const sourceEnd = analysis.active
-    ? Math.max(sourceOffset + 0.04, analysis.activeEnd)
+    ? Math.max(0.04, analysis.activeEnd)
     : Number(buffer.duration) || 0;
   const sourceDuration = Math.max(0.04, sourceEnd - sourceOffset);
   let normalizationGain = 1;
@@ -1098,7 +1092,8 @@ function calibrateShowcaseSegment(segment, buffer) {
     normalizationGain,
     activeRms: analysis.rms,
     activePeak: analysis.peak,
-    trimmedLeadingSeconds: sourceOffset,
+    preservedLeadInSeconds: analysis.active ? analysis.activeStart : 0,
+    trimmedLeadingSeconds: 0,
     trimmedTrailingSeconds: Math.max(0, (Number(buffer.duration) || 0) - sourceOffset - sourceDuration),
   });
   reflowShowcaseTimeline([segment]);
@@ -1228,12 +1223,10 @@ function scheduleShowcaseSegment(player, segment) {
     const videoTime = player.video.currentTime;
     const playbackEnd = segment.playbackEnd || segment.end;
     const mixStart = segment.mixStart ?? segment.start;
-    const fitRate = clampShowcaseValue(segment.fitRate || 1, 1, SHOWCASE_MAX_FIT_RATE);
-    const videoPlaybackRate = clampShowcaseValue(player.video.playbackRate || 1, 0.25, 4);
     const timelineOffset = Math.max(0, videoTime - mixStart);
     const sourceStart = Number(segment.sourceOffset) || 0;
     const sourceEnd = Math.min(buffer.duration, sourceStart + (Number(segment.sourceDuration) || buffer.duration));
-    const sourceOffset = sourceStart + timelineOffset * fitRate;
+    const sourceOffset = sourceStart + timelineOffset;
     const delay = Math.max(0, mixStart - videoTime);
     if (videoTime >= playbackEnd || sourceOffset >= sourceEnd - 0.01) {
       player.finishedSources.set(segment.resultKey, generation);
@@ -1244,15 +1237,15 @@ function scheduleShowcaseSegment(player, segment) {
     const context = getShowcaseAudioContext();
     const source = context.createBufferSource();
     const gainNode = context.createGain();
-    const startAt = context.currentTime + (delay ? delay / videoPlaybackRate : 0.015);
+    const startAt = context.currentTime + (delay || 0.015);
     const sourceDuration = sourceEnd - sourceOffset;
-    const sourceRate = fitRate * videoPlaybackRate;
-    const outputDuration = sourceDuration / sourceRate;
+    const sourceRate = 1;
+    const outputDuration = sourceDuration;
     const fadeIn = Math.min(0.025, outputDuration * 0.2);
     const fadeOut = Math.min(0.075, outputDuration * 0.25);
     const gain = clampShowcaseValue(segment.normalizationGain || 1, 0.35, 2.4);
     source.buffer = buffer;
-    source.playbackRate.value = sourceRate;
+    source.playbackRate.value = 1;
     gainNode.gain.setValueAtTime(0, startAt);
     gainNode.gain.linearRampToValueAtTime(gain, startAt + fadeIn);
     gainNode.gain.setValueAtTime(gain, Math.max(startAt + fadeIn, startAt + outputDuration - fadeOut));
@@ -1266,8 +1259,8 @@ function scheduleShowcaseSegment(player, segment) {
       startAt,
       sourceOffset,
       sourceRate,
-      fitRate,
-      playbackRate: videoPlaybackRate,
+      fitRate: 1,
+      playbackRate: 1,
     };
     source.onended = () => {
       if (player.scheduledSources.get(segment.resultKey) === entry) {
@@ -1304,7 +1297,7 @@ function correctShowcaseDrift(player, videoTime) {
   if (!entry) return;
   const audioOffset = entry.sourceOffset + Math.max(0, context.currentTime - entry.startAt) * entry.sourceRate;
   const expectedOffset = (Number(entry.segment.sourceOffset) || 0)
-    + Math.max(0, videoTime - (entry.segment.mixStart ?? entry.segment.start)) * entry.fitRate;
+    + Math.max(0, videoTime - (entry.segment.mixStart ?? entry.segment.start));
   if (Math.abs(audioOffset - expectedOffset) > 0.4) stopShowcaseSources(player);
 }
 
@@ -1408,6 +1401,7 @@ async function renderGroupShowcases(showcases, container) {
         windowEnd,
         end: windowEnd,
         playbackEnd: windowEnd,
+        isSoundEffect: Boolean(line.isSoundEffect),
       };
     }).filter(Boolean).sort((left, right) => left.start - right.start);
     reflowShowcaseTimeline(segments);
@@ -1434,6 +1428,8 @@ async function renderGroupShowcases(showcases, container) {
     const status = article.querySelector(".showcase-now");
     video.src = new URL(data.video, window.QA_CONFIG.productionSiteBase).href;
     video.muted = true;
+    video.defaultPlaybackRate = 1;
+    video.playbackRate = 1;
     video.controls = true;
     const player = {
       showcase,
@@ -1460,6 +1456,7 @@ async function renderGroupShowcases(showcases, container) {
     button.addEventListener("click", () => toggleShowcasePlayback(showcase.showcaseId));
     video.addEventListener("play", () => {
       video.muted = true;
+      video.playbackRate = 1;
       player.waiting = false;
       getShowcaseAudioContext().resume().catch(() => {
         status.textContent = "請再按一次播放以啟用聲音";
@@ -1506,6 +1503,11 @@ async function renderGroupShowcases(showcases, container) {
       }).catch(() => {});
     });
     video.addEventListener("ratechange", () => {
+      if (Math.abs(video.playbackRate - 1) > 0.001) {
+        video.playbackRate = 1;
+        status.textContent = "合成成果固定使用原始速度";
+        return;
+      }
       stopShowcaseSources(player);
       if (!video.paused) {
         cancelAnimationFrame(player.frame);
@@ -2316,7 +2318,7 @@ function scheduleStudentReviewSource() {
   const generation = review.generation;
   const source = context.createBufferSource();
   source.buffer = buffer;
-  source.playbackRate.value = Math.max(0.25, Math.min(4, Number(video.playbackRate) || 1));
+  source.playbackRate.value = 1;
   source.connect(context.destination);
   review.source = source;
   review.sourceStartedAt = context.currentTime + 0.018;
@@ -2343,8 +2345,7 @@ function syncStudentReviewPlayback() {
     scheduleStudentReviewSource();
     const context = portalState.showcaseAudioContext;
     if (context?.state === "running" && review.source) {
-      const audioOffset = review.sourceOffset + Math.max(0, context.currentTime - review.sourceStartedAt)
-        * Math.max(0.25, Math.min(4, Number(video.playbackRate) || 1));
+      const audioOffset = review.sourceOffset + Math.max(0, context.currentTime - review.sourceStartedAt);
       const videoOffset = video.currentTime - clip.start;
       if (Math.abs(audioOffset - videoOffset) > 0.35) {
         stopStudentReviewSource();
@@ -2360,6 +2361,8 @@ async function toggleStudentReviewPlayback(mode) {
   const clip = currentStudentReviewClip();
   const video = portalElements.clipReviewVideo;
   if (!clip || !video) return;
+  video.defaultPlaybackRate = 1;
+  video.playbackRate = 1;
   if (!video.paused && review.mode === mode) {
     video.pause();
     return;
@@ -2541,6 +2544,7 @@ function bindPortalEvents() {
       portalElements.clipReviewVideo.pause();
       return;
     }
+    portalElements.clipReviewVideo.playbackRate = 1;
     if (!review.mode) {
       review.mode = "original";
       review.stopAt = clip.sourceEnd;
@@ -2573,6 +2577,11 @@ function bindPortalEvents() {
     if (!portalElements.clipReviewVideo.paused && portalState.studentReview.mode === "compare") scheduleStudentReviewSource();
   });
   portalElements.clipReviewVideo.addEventListener("ratechange", () => {
+    if (Math.abs(portalElements.clipReviewVideo.playbackRate - 1) > 0.001) {
+      portalElements.clipReviewVideo.playbackRate = 1;
+      portalElements.clipReviewStatus.textContent = "逐句檢視固定使用原始速度";
+      return;
+    }
     if (!portalElements.clipReviewVideo.paused && portalState.studentReview.mode === "compare") {
       stopStudentReviewSource();
       scheduleStudentReviewSource();

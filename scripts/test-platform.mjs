@@ -120,17 +120,25 @@ try {
       hasMasterGain: Boolean(player.outputGain),
       hasLimiter: Boolean(player.outputCompressor),
       hasClipGain: [...player.scheduledSources.values()].some((entry) => Boolean(entry.gainNode)),
+      originalPlaybackRate: [...player.scheduledSources.values()].every((entry) => (
+        entry.sourceRate === 1
+        && entry.fitRate === 1
+        && entry.playbackRate === 1
+        && entry.source.playbackRate.value === 1
+      )),
     };
   });
   assert(!showcaseAudioEngine.legacyElements, "小組成果仍使用容易反覆暫停的多音訊播放器");
   assert(showcaseAudioEngine.decodedBuffers > 0 && showcaseAudioEngine.contextState === "running", "小組成果錄音未預先解碼至穩定音訊時鐘");
   assert(showcaseAudioEngine.hasMasterGain && showcaseAudioEngine.hasLimiter && showcaseAudioEngine.hasClipGain, "小組成果未套用逐段音量校準與總輸出限幅");
+  assert(showcaseAudioEngine.originalPlaybackRate, "小組成果仍有變速播放，可能造成學生錄音音高改變");
   const showcaseMixCalibration = await page.evaluate(() => {
     const player = [...portalState.showcasePlayers.values()].find((item) => item.showcase.isOwnGroup);
     const calibrated = player.segments.filter((segment) => Number.isFinite(segment.audioDuration));
-    const noUnintendedOverlap = calibrated.every((segment, index) => {
-      const next = calibrated[index + 1];
-      if (!next || next.start < segment.cueEnd - 0.01) return true;
+    const voiceSegments = calibrated.filter((segment) => !segment.isSoundEffect);
+    const noUnintendedOverlap = voiceSegments.every((segment, index) => {
+      const next = voiceSegments[index + 1];
+      if (!next) return true;
       return segment.playbackEnd <= next.mixStart + 0.01;
     });
     return {
@@ -141,16 +149,22 @@ try {
       )),
       activeSpeechPreserved: calibrated.every((segment) => (
         segment.activeSpeechTrimmedSeconds === 0
+        && segment.sourceOffset === 0
+        && segment.trimmedLeadingSeconds === 0
         && Number(segment.sourceDuration) > 0
       )),
+      effectsStayOnCue: calibrated
+        .filter((segment) => segment.isSoundEffect)
+        .every((segment) => Math.abs(segment.mixStart - segment.start) < 0.001),
       validGain: calibrated.every((segment) => segment.normalizationGain >= 0.35 && segment.normalizationGain <= 2.4),
-      validFitRate: calibrated.every((segment) => segment.fitRate >= 1 && segment.fitRate <= 1.12),
+      originalRate: calibrated.every((segment) => segment.fitRate === 1),
     };
   });
   assert(showcaseMixCalibration.count > 0, "小組成果沒有完成錄音校準");
   assert(showcaseMixCalibration.recordingMetadataPreserved, "校準不應覆寫原始錄音長度資料");
   assert(showcaseMixCalibration.activeSpeechPreserved && showcaseMixCalibration.noUnintendedOverlap, "小組成果仍會裁掉有效句尾或讓相鄰台詞重疊");
-  assert(showcaseMixCalibration.validGain && showcaseMixCalibration.validFitRate, "小組成果音量或趕拍倍率超出安全範圍");
+  assert(showcaseMixCalibration.effectsStayOnCue, "小組成果音效被人聲順延而偏離原片拍點");
+  assert(showcaseMixCalibration.validGain && showcaseMixCalibration.originalRate, "小組成果除了音量之外仍改動了播放速度");
   const syntheticCalibration = await page.evaluate(() => {
     const sampleRate = 8000;
     const samples = new Float32Array(sampleRate * 4);
@@ -164,34 +178,48 @@ try {
       numberOfChannels: 1,
       getChannelData: () => samples,
     };
-    const segment = { start: 10, end: 11.6, windowEnd: 11.6 };
+    const segment = { start: 10, cueEnd: 11.6, end: 11.6, windowEnd: 11.6, isSoundEffect: false };
     const analysis = analyzeShowcaseBuffer(buffer);
     calibrateShowcaseSegment(segment, buffer);
+    const soundEffectSegment = {
+      start: 11.2,
+      cueEnd: 12,
+      end: 12,
+      windowEnd: 12,
+      sourceDuration: 0.8,
+      isSoundEffect: true,
+    };
     const nextSegment = {
       start: 11.6,
       cueEnd: 12.4,
       end: 12.4,
       windowEnd: 12.4,
       sourceDuration: 0.8,
+      isSoundEffect: false,
     };
-    reflowShowcaseTimeline([segment, nextSegment]);
+    reflowShowcaseTimeline([segment, soundEffectSegment, nextSegment]);
     return {
       activeStart: analysis.activeStart,
       activeEnd: analysis.activeEnd,
       playbackEnd: segment.playbackEnd,
+      sourceOffset: segment.sourceOffset,
       sourceDuration: segment.sourceDuration,
       trimmedTrailingSeconds: segment.trimmedTrailingSeconds,
       activeSpeechTrimmedSeconds: segment.activeSpeechTrimmedSeconds,
       fitRate: segment.fitRate,
+      soundEffectMixStart: soundEffectSegment.mixStart,
+      soundEffectCueStart: soundEffectSegment.start,
       nextMixStart: nextSegment.mixStart,
       noOverlap: segment.playbackEnd + 0.039 <= nextSegment.mixStart,
     };
   });
-  assert(syntheticCalibration.activeStart > 0.3 && syntheticCalibration.activeStart < 0.7, "合成音訊未正確去除錄音起始空白");
+  assert(syntheticCalibration.activeStart > 0.3 && syntheticCalibration.activeStart < 0.7, "合成音訊未正確分析錄音起始空白");
   assert(syntheticCalibration.activeEnd > 2.4 && syntheticCalibration.activeEnd < 2.9, "合成音訊未正確保留完整句尾");
+  assert(syntheticCalibration.sourceOffset === 0, "合成音訊移除了開頭時間，會讓台詞或音效提早");
   assert(syntheticCalibration.trimmedTrailingSeconds > 1, "合成音訊未去除錄音尾端緩衝空白");
-  assert(syntheticCalibration.sourceDuration > 2 && syntheticCalibration.activeSpeechTrimmedSeconds === 0, "較慢錄音的有效語音仍被裁短");
-  assert(syntheticCalibration.playbackEnd > 11.6 && syntheticCalibration.fitRate <= 1.12, "超時句尾沒有在自然趕拍上限內完整播放");
+  assert(syntheticCalibration.sourceDuration > 2.4 && syntheticCalibration.activeSpeechTrimmedSeconds === 0, "較慢錄音的有效語音仍被裁短");
+  assert(syntheticCalibration.playbackEnd > 11.6 && syntheticCalibration.fitRate === 1, "超時句尾沒有以原始速度完整播放");
+  assert(Math.abs(syntheticCalibration.soundEffectMixStart - syntheticCalibration.soundEffectCueStart) < 0.001, "音效沒有固定在原片拍點");
   assert(syntheticCalibration.noOverlap && syntheticCalibration.nextMixStart > 11.6, "下一句沒有等前一句完整結束後再接續");
   const showcaseResync = await page.evaluate(async () => {
     const player = [...portalState.showcasePlayers.values()].find((item) => item.showcase.isOwnGroup);
