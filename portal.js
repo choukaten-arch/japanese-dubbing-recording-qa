@@ -248,29 +248,63 @@ function showToast(message) {
 async function platformRequest(action, payload = {}) {
   if (portalState.demo) return mockRequest(action, payload);
   if (!platformConfig.apiUrl) throw new Error("雲端後端尚未連結。");
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60000);
-  try {
-    const response = await fetch(platformConfig.apiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      redirect: "follow",
-      body: JSON.stringify({ action, userAgent: navigator.userAgent, ...payload }),
-      signal: controller.signal,
-    });
-    const data = await response.json();
-    if (!data.ok) {
-      const error = new Error(data.error?.message || "雲端服務暫時無法處理。");
-      error.code = data.error?.code;
-      throw error;
+  const retryableActions = new Set([
+    "studentLogin",
+    "teacherLogin",
+    "studentTasks",
+    "groupShowcases",
+    "groupShowcaseClip",
+    "studentReviewClip",
+    "teacherOverview",
+    "studentHistory",
+  ]);
+  const attemptCount = retryableActions.has(action) ? 3 : 1;
+  let lastError;
+
+  for (let attempt = 0; attempt < attemptCount; attempt += 1) {
+    if (attempt > 0) {
+      await new Promise((resolve) => setTimeout(resolve, attempt * 900));
     }
-    return data;
-  } catch (error) {
-    if (error.name === "AbortError") throw new Error("雲端服務回應逾時，請稍後再試。");
-    throw error;
-  } finally {
-    clearTimeout(timeout);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    try {
+      const response = await fetch(platformConfig.apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        redirect: "follow",
+        body: JSON.stringify({ action, userAgent: navigator.userAgent, ...payload }),
+        signal: controller.signal,
+      });
+      const responseText = await response.text();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        const error = new Error("雲端服務暫時回應異常，請稍後再試。");
+        error.code = "INVALID_CLOUD_RESPONSE";
+        error.retryable = true;
+        throw error;
+      }
+      if (!data.ok) {
+        const error = new Error(data.error?.message || "雲端服務暫時無法處理。");
+        error.code = data.error?.code;
+        throw error;
+      }
+      return data;
+    } catch (error) {
+      const isTimeout = error.name === "AbortError";
+      const canRetry = retryableActions.has(action)
+        && (isTimeout || error.retryable || error.name === "TypeError");
+      lastError = isTimeout
+        ? new Error("雲端服務回應逾時，請稍後再試。")
+        : error;
+      if (!canRetry || attempt === attemptCount - 1) throw lastError;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
+
+  throw lastError || new Error("雲端服務暫時無法處理。");
 }
 
 function demoStore() {
